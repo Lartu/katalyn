@@ -1,6 +1,18 @@
+# 
+# The__  __.       __         .__                
+# |    |/ _|____ _/  |______  |  | ___.__. ____  
+# |      < \__  \\   __\__  \ |  |<   |  |/    \ 
+# |    |  \ / __ \|  |  / __ \|  |_\___  |   |  \
+# |____|__ (____  /__| (____  /____/ ____|___|  /
+#        \/    \/          \/ Programming Language
+# 
+# Started by Lartu on July 3, 2024 (01:13 AM).
+# 
+
 from __future__ import annotations
 from typing import Dict, List, Set, Tuple, Any, Optional
 from enum import Enum, auto
+
 
 class LexType(Enum):
     WORD = auto()
@@ -16,6 +28,7 @@ class LexType(Enum):
     PAR_CLOSE = auto()
     DECORATION = auto()
     UNKNOWN = auto()
+
 
 class Token:
     def __init__(self, value: str, line: int, file: str) -> None:
@@ -341,13 +354,24 @@ def lex_tokens(tokenized_lines: List[List[Token]]) -> List[List[Token]]:
     return tokenized_lines
 
 
-
 if __name__ == "__main__":
     code: str = ""
     filename: str = "test.fs"
-    with open("test.fs") as f:
+    with open(filename) as f:
         code = f.read()
     tokenized_lines: List[List[Token]] = tokenize_source(code, filename)
-    print_tokens(tokenized_lines, filename, "Tokenization")
+    # print_tokens(tokenized_lines, filename, "Tokenization")
     lex_tokens(tokenized_lines)
     print_tokens(tokenized_lines, filename, "Lexing")
+
+
+# Next Steps:
+"""
+El parser debería ser relativamente simple por cómo diseñé el lenguaje
+Todas las lineas empiezan con un comando y tienen cosas en posiciones fijas,
+con lo único variable siendo todo lo que sean expresiones. Como las variables
+son $... y tengo palabras reservadas, puedo encontrar fácilmente dónde terminan
+y empiezan las expresiones (incluyendo los llamados a funciones).
+Con eso construyo una lista de secuencias comando-expresión.
+Y después una vez que esté eso puedo iterar por eso generando Nambly.
+"""
