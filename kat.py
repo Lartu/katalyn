@@ -14,6 +14,9 @@ from typing import Dict, List, Set, Tuple, Any, Optional
 from enum import Enum, auto
 
 
+OPERATOR_PRESEDENCE = ("<", ">", "<=", ">=", "==", "<>", "!", "&", "*", "^", "/", "%", "//", "-", "+")
+
+
 class LexType(Enum):
     WORD = auto()
     INTEGER = auto()
@@ -101,9 +104,21 @@ def lexing_error(message: str, line: int, filename: str):
     katalyn_error(error_title, error_lines)
 
 
+def expression_error(message: str, line: int, filename: str):
+    """Prints an expression error and exits.
+    """
+    error_title = "Katayln Expression Error"
+    error_lines = [
+        f"- Where? In file '{filename}', on line {line}.",
+        f"- Error Message: {message}",
+    ]
+    katalyn_error(error_title, error_lines)
+
+
 def tokenize_source(code: str, filename: str) -> List[List[Token]]:
     """Takes Katalyn source code and splits it into tokens.
     """
+    last_line_with_tokens = 1  # For error reporting purposes
     last_string_open_line = 1  # For error reporting purposes
     line_num = 1
     lines: List[List[Token]] = []
@@ -112,18 +127,20 @@ def tokenize_source(code: str, filename: str) -> List[List[Token]]:
     current_token = ""
     in_string = False
     in_access_string = False
-    in_comment = False
+    comment_depth: int = 0
+    # Katalyn supports nested comments, but doesn't make any distinction between (* ... *) inside strings
+    # once that string is inside an already open comment (such as (* "(* *)" *))
     i = 0
     while i < len(code) - 1:
         current_char = code[i]
         next_char = code[i + 1]
-        if not in_comment and not in_string and not in_access_string and current_char == "(" and next_char == "*":
-            in_comment = True
+        if not in_string and not in_access_string and current_char == "(" and next_char == "*":
+            comment_depth += 1
             i += 1
-        elif in_comment and not in_string and not in_access_string and current_char == "*" and next_char == ")":
-            in_comment = False
+        elif comment_depth > 0 and not in_string and not in_access_string and current_char == "*" and next_char == ")":
+            comment_depth -= 1
             i += 1
-        elif not in_comment and (in_string or in_access_string) and current_char == '\\':
+        elif comment_depth == 0 and (in_string or in_access_string) and current_char == '\\':
             # This block should always go before any that match "" or {}
             if next_char == "n":
                 current_token += "\n"
@@ -131,23 +148,29 @@ def tokenize_source(code: str, filename: str) -> List[List[Token]]:
                 current_token += "\v"
             elif next_char == '"':
                 current_token += '"'
+            elif next_char.isspace():
+                idx: int = i + 1
+                while code[idx].isspace():
+                    idx += 1
+                    i += 1
+                i -= 1
             else:
                 current_token += next_char
             i += 1
-        elif not in_comment and not in_string and not in_access_string and current_char == '"':
+        elif comment_depth == 0 and not in_string and not in_access_string and current_char == '"':
             if len(current_token):
                 current_line.append(Token(current_token, line_num, filename))
             current_token = ""
             current_token += current_char
             in_string = True
             last_string_open_line = line_num
-        elif not in_comment and in_string and not in_access_string and current_char == '"':
+        elif comment_depth == 0 and in_string and not in_access_string and current_char == '"':
             current_token += current_char
             in_string = False
             if len(current_token):
                 current_line.append(Token(current_token, last_string_open_line, filename))
             current_token = ""
-        elif not in_comment and not in_string and not in_access_string and current_char == '{':
+        elif comment_depth == 0 and not in_string and not in_access_string and current_char == '{':
             if len(current_token):
                 current_line.append(Token(current_token, line_num, filename))
             current_token = ""
@@ -155,41 +178,41 @@ def tokenize_source(code: str, filename: str) -> List[List[Token]]:
             current_token += '"'
             in_access_string = True
             last_string_open_line = line_num
-        elif not in_comment and not in_string and in_access_string and current_char == '}':
+        elif comment_depth == 0 and not in_string and in_access_string and current_char == '}':
             current_token += '"'
             in_access_string = False
             if len(current_token):
                 current_line.append(Token(current_token, last_string_open_line, filename))
             current_token = ""
             current_line.append(Token("]", line_num, filename))
-        elif not in_comment and not in_string and not in_access_string and current_char == ";":
+        elif comment_depth == 0 and not in_string and not in_access_string and current_char == ";":
             if len(current_token):
                 current_line.append(Token(current_token, line_num, filename))
             current_token = ""
             if len(current_line):
                 lines.append(current_line)
             current_line = []
-        elif not in_comment and not in_string and not in_access_string and current_char + next_char in (">=", "<=", "!=", "//"):
+        elif comment_depth == 0 and not in_string and not in_access_string and current_char + next_char in (">=", "<=", "<>", "//"):
             # Biglyphs
             if len(current_token):
                 current_line.append(Token(current_token, line_num, filename))
             current_token = ""
             current_line.append(Token(current_char + next_char, line_num, filename))
             i += 1
-        elif not in_comment and not in_string and not in_access_string and current_char in "(){}[]=<>!+-/&%^*:#":
+        elif comment_depth == 0 and not in_string and not in_access_string and current_char in "(){}[]=<>!+-/&%^*:#,":
             # Single glyphs
             if len(current_token):
                 current_line.append(Token(current_token, line_num, filename))
             current_token = ""
             current_line.append(Token(current_char, line_num, filename))
-        elif not in_comment and not in_string and not in_access_string and current_char.isspace():
+        elif comment_depth == 0 and not in_string and not in_access_string and current_char.isspace():
             if len(current_token):
                 current_line.append(Token(current_token, line_num, filename))
             current_token = ""
-            if current_char == "\n":
-                line_num += 1
-        elif not in_comment:
+        elif comment_depth == 0:
             current_token += current_char
+        if current_char == "\n":
+            line_num += 1
         i += 1
     # Check for consistency
     # I want to be able to leave comments open til the end of the file
@@ -198,7 +221,7 @@ def tokenize_source(code: str, filename: str) -> List[List[Token]]:
     if in_access_string:
         tokenization_error("Open access string, missing '}'", last_string_open_line, filename)
     if len(current_line):
-        tokenization_error("Missing ';'", line_num, filename)
+        tokenization_error("Missing ';'", current_line[-1].line, filename)
     if len(current_token):
         tokenization_error("Missing ';'", line_num, filename)
     return lines
@@ -216,13 +239,14 @@ def pad_string(text: str, padding_size: int) -> str:
 def print_tokens(tokenized_lines: List[List[Token]], filename: str, step: str):
     """Prints the result of a tokenization.
     """
+    padding_size: int = len(str(tokenized_lines[-1][0].line)) + 1  # This +1 is to account for the ':'.
     print("")
     print(f"=== {step} Result for File '{filename}' ===")
     for line in tokenized_lines:
-        print(f"Line {pad_string(str(line[0].line) + ':', 4)} ", end="")
+        print(f"Line {pad_string(str(line[0].line) + ':', padding_size)} ", end="")
         tokens_str: List[str] = []
         for token in line:
-            tokens_str.append(str(token))
+            tokens_str.append(str(token).replace("\n", "␤"))
         print(", ".join(tokens_str))
     print("")
 
@@ -314,7 +338,7 @@ def lex_tokens(tokenized_lines: List[List[Token]]) -> List[List[Token]]:
                 token.type = LexType.ACCESS_OPEN
             elif token.value == "]":
                 token.type = LexType.ACCESS_CLOSE
-            elif token.value == ":":
+            elif token.value in (":", ","):
                 token.type = LexType.DECORATION
             elif token.value == "#":
                 token.type = LexType.TABLE
@@ -322,7 +346,7 @@ def lex_tokens(tokenized_lines: List[List[Token]]) -> List[List[Token]]:
                 token.type = LexType.INTEGER
             elif is_float(token.value):
                 token.type = LexType.FLOAT
-            elif token.value in ("<", "<=", ">", ">=", "!", "!=", "=", "+", "-", "*", "/", "%", "//", "^", "&"):
+            elif token.value in OPERATOR_PRESEDENCE:
                 token.type = LexType.OPERATOR
             elif is_valid_identifier(token.value):
                 token.type = LexType.WORD
@@ -334,24 +358,107 @@ def lex_tokens(tokenized_lines: List[List[Token]]) -> List[List[Token]]:
                     lexing_error(f"The string '{token.value}' is not a valid number.", token.line, token.file)
                 else:                   
                     lexing_error(f"The string '{token.value}' is not a valid identifier.", token.line, token.file)
-
     # Join minus operators to the following numbers in valid positions
-    for line in tokenized_lines:
+    """for line in tokenized_lines:
         i = 2
         while i < len(line):
             token: Token = line[i]
             if token.type == LexType.INTEGER or token.type == LexType.FLOAT:
                 previous_token: Token = line[i - 1]
-                if previous_token.type == LexType.OPERATOR and previous_token.value == "-":
+                if previous_token.type in (LexType.OPERATOR, LexType.PAR_CLOSE, LexType.ACCESS_CLOSE) and previous_token.value == "-":
                     preprevious_token: Token = line[i - 2]
                     if preprevious_token.type == LexType.OPERATOR:
                         line.pop(i - 1)
                         token.value = f"-{token.value}"
                         continue
-            i += 1
-
-
+            i += 1"""
     return tokenized_lines
+
+
+def expression_something(expr_tokens: List[Token]):
+    # TODO: Esto debería checkear que no puedas poner )...( no?
+    depth_0_token_count: int = 0
+    left_side_tokens: List[Token] = []
+    right_side_tokens: List[Token] = []
+    operator: Optional[Token] = None
+    par_depth: int = 0
+    access_depth: int = 0
+    last_line: int = 0
+    last_file: str = ""
+    for token in expr_tokens:
+        last_line = token.line
+        last_file = token.file
+        initial_depth: int = par_depth + access_depth
+        if token.type == LexType.PAR_OPEN:
+            par_depth += 1
+        elif token.type == LexType.PAR_CLOSE:
+            par_depth -= 1
+            if par_depth < 0:
+                expression_error(
+                    "')' before '('",
+                    token.line,
+                    token.file
+                )
+        if token.type == LexType.ACCESS_OPEN:
+            access_depth += 1
+        elif token.type == LexType.ACCESS_CLOSE:
+            access_depth -= 1
+            if access_depth < 0:
+                expression_error(
+                    "']' before '['",
+                    token.line,
+                    token.file
+                )
+        if par_depth == 0 and access_depth == 0 and token.type == LexType.OPERATOR and left_side_tokens:
+            if operator is None:
+                operator = token
+            else:
+                if OPERATOR_PRESEDENCE.index(operator.value) > OPERATOR_PRESEDENCE.index(token.value):
+                    left_side_tokens.append(operator)
+                    left_side_tokens += right_side_tokens
+                    right_side_tokens = []
+                    operator = token
+                else:
+                    right_side_tokens.append(token)
+        else:
+            if operator is None:
+                left_side_tokens.append(token)
+            else:
+                right_side_tokens.append(token)
+        if initial_depth == 0 or par_depth + access_depth == 0:
+            depth_0_token_count += 1
+    if par_depth > 0:
+        expression_error(
+            "Missing ')'",
+            last_line,
+            last_file
+        )
+    print(depth_0_token_count)
+    print("-------------", operator)
+    for token in left_side_tokens:
+        print(token, end="")
+    print("")
+    for token in right_side_tokens:
+        print(token, end="")
+    print("")
+    # Reevaluate expressions completely enclosed by parenthesis
+    if depth_0_token_count == 2 and expr_tokens[0].type == LexType.PAR_OPEN and expr_tokens[-1].type == LexType.PAR_CLOSE:
+        expression_something(expr_tokens[1:-1])
+    else:
+        # In order to be a terminator, it must be:
+        # - A value
+        # - A minus and a value
+        # - A function call (with n >= 0 accessess)
+        # - A variable (with n >= 0 accessess)
+        if operator is None or not left_side_tokens:
+            print("Terminator!")
+            # TODO: compile_terminator(left_side_tokens)
+        else:
+            if left_side_tokens:
+                expression_something(left_side_tokens)
+            if right_side_tokens:
+                expression_something(right_side_tokens)
+
 
 
 if __name__ == "__main__":
@@ -363,6 +470,7 @@ if __name__ == "__main__":
     # print_tokens(tokenized_lines, filename, "Tokenization")
     lex_tokens(tokenized_lines)
     print_tokens(tokenized_lines, filename, "Lexing")
+    expression_something(tokenized_lines[0])
 
 
 # Next Steps:
