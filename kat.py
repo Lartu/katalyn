@@ -443,15 +443,20 @@ def compile_expression(expr_tokens: List[Token]) -> None:
             last_line,
             last_file
         )
-    if False:
-        print(depth_0_token_count)
-        print("-------------", operator)
-        for token in left_side_tokens:
-            print(token, end="")
-        print("")
-        for token in right_side_tokens:
-            print(token, end="")
-        print("")
+    if False or True:
+        # print(depth_0_token_count)
+        print("-------------")
+        print("OPERATOR:", operator)
+        if left_side_tokens:
+            print("LSIDE: ", end = "")
+            for token in left_side_tokens:
+                print(token, end="")
+            print("")
+        if right_side_tokens:
+            print("RSIDE: ", end = "")
+            for token in right_side_tokens:
+                print(token, end="")
+            print("")
     # Reevaluate expressions completely enclosed by parenthesis
     if depth_0_token_count == 2 and expr_tokens[0].type == LexType.PAR_OPEN and expr_tokens[-1].type == LexType.PAR_CLOSE:
         compile_expression(expr_tokens[1:-1])
@@ -469,6 +474,7 @@ def compile_expression(expr_tokens: List[Token]) -> None:
             )
         elif operator is None or not left_side_tokens:
             compile_terminator(left_side_tokens)
+            pass
         else:
             compile_expression(left_side_tokens)
             compile_expression(right_side_tokens)
@@ -522,7 +528,27 @@ def compile_terminator(expr_tokens: List[Token]) -> None:
     terminator_type: LexType = LexType.UNKNOWN
     while expr_tokens:
         token = expr_tokens.pop(0)
-        if access_depth == 0:
+        if access_depth > 0:
+            if token.type == LexType.ACCESS_OPEN:
+                access_depth += 1
+                access_tokens.append(token)
+            elif token.type == LexType.ACCESS_CLOSE:
+                access_depth -= 1
+                if access_depth == 0:
+                    compile_expression(access_tokens)
+                    print("PGET")
+                    if expr_tokens:
+                        if expr_tokens[0].type not in (LexType.ACCESS_OPEN, LexType.PAR_OPEN):
+                            expression_error(
+                                f"Unexpected expression element: {expr_tokens[0].value}",
+                                token.line,
+                                token.file
+                            )
+                else:
+                    access_tokens.append(token)
+            else:
+                access_tokens.append(token)
+        else:
             next_token = None
             if len(expr_tokens) > 0:
                 next_token = expr_tokens[0]
@@ -567,25 +593,91 @@ def compile_terminator(expr_tokens: List[Token]) -> None:
             elif token.type in [LexType.INTEGER, LexType.FLOAT]:
                 print(f"PUSH {token.value}")
                 terminator_type = token.type
+            elif token.type == LexType.WORD:
+                terminator_type = token.type
+                if next_token is None or next_token.type != LexType.PAR_OPEN:
+                    expression_error(
+                        "Expecting argument list after function call.",
+                        token.line,
+                        token.file
+                    )
+                print(f"TODO COMPILAR FUNCTION CALL A {token.value}")
+            elif token.type == LexType.PAR_OPEN:
+                if terminator_type not in [LexType.VARIABLE, LexType.WORD]:
+                    expression_error(
+                        "Calling non-functional value.",
+                        token.line,
+                        token.file
+                    )
+                print("TABL")
+                print('VSET "_"')
+                arguments: List[Token] = []
+                open_pars: int = 1
+                arg_count: int = 0
+                prev_token: Optional[Token] = None
+                while expr_tokens:
+                    token: Token = expr_tokens[0]
+                    if token.type == LexType.PAR_OPEN:
+                        open_pars += 1
+                        if open_pars > 1:
+                            arguments.append(token)
+                    elif token.type == LexType.PAR_CLOSE:
+                        if open_pars > 1:
+                            arguments.append(token)
+                        open_pars -= 1
+                        if open_pars == 0:
+                            if not arguments and (prev_token is not None and prev_token.type == LexType.DECORATION and prev_token.value == ","):
+                                expression_error(
+                                    f"Empty argument for function call",
+                                    token.line,
+                                    token.file
+                                )
+                            else:
+                                if arguments:
+                                    compile_expression(arguments)
+                                arguments = []
+                                print("CALL")
+                                expr_tokens.pop(0)
+                                break
+                    elif open_pars > 1:
+                        arguments.append(token)
+                    elif token.type == LexType.DECORATION:
+                        if token.value != ",":
+                            expression_error(
+                                f"Unexpected string '{token.value}'",
+                                token.line,
+                                token.file
+                            )
+                        elif not arguments:
+                            expression_error(
+                                f"Empty argument for function call",
+                                token.line,
+                                token.file
+                            )
+                        else:
+                            print('VGET "_"')
+                            print(f"PUSH {arg_count}")
+                            compile_expression(arguments)
+                            print(f"PSET")
+                            arguments = []
+                            arg_count += 1
+                    else:
+                        arguments.append(token)
+                    prev_token = token
+                    expr_tokens.pop(0)
+                if expr_tokens:
+                    if expr_tokens[0].type not in (LexType.ACCESS_OPEN, LexType.PAR_OPEN):
+                        expression_error(
+                            f"Unexpected expression element: {expr_tokens[0].value}",
+                            token.line,
+                            token.file
+                        )
             else:
                 expression_error(
                     f"Unexpected operator: '{token.value}'",
                     token.line,
                     token.file
                 )
-        else:
-            if token.type == LexType.ACCESS_OPEN:
-                access_depth += 1
-                access_tokens.append(token)
-            elif token.type == LexType.ACCESS_CLOSE:
-                access_depth -= 1
-                if access_depth == 0:
-                    compile_expression(access_tokens)
-                    print("PGET")
-                else:
-                    access_tokens.append(token)
-            else:
-                access_tokens.append(token)
     if add_minus_code:
         print("PUSH -1")
         print("MULT")
