@@ -14,7 +14,7 @@ from typing import Dict, List, Set, Tuple, Any, Optional
 from enum import Enum, auto
 
 
-OPERATOR_PRESEDENCE = ("<", ">", "<=", ">=", "==", "<>", "!", "&", "*", "^", "/", "%", "//", "-", "+")
+OPERATOR_PRESEDENCE = ("<", ">", "<=", ">=", "=", "<>", "!", "&", "*", "^", "/", "%", "//", "+", "-")
 
 
 class LexType(Enum):
@@ -375,8 +375,12 @@ def lex_tokens(tokenized_lines: List[List[Token]]) -> List[List[Token]]:
     return tokenized_lines
 
 
-def expression_something(expr_tokens: List[Token]):
-    # TODO: Esto debería checkear que no puedas poner )...( no?
+def compile_expression(expr_tokens: List[Token]) -> None:
+    """Takes an expression and turns it into Nambly code.
+    Terminators are not compiled by this function.
+    This is the flojest part of the code and should probably
+    be turned into an AST first.
+    """
     depth_0_token_count: int = 0
     left_side_tokens: List[Token] = []
     right_side_tokens: List[Token] = []
@@ -399,7 +403,7 @@ def expression_something(expr_tokens: List[Token]):
                     token.line,
                     token.file
                 )
-        if token.type == LexType.ACCESS_OPEN:
+        elif token.type == LexType.ACCESS_OPEN:
             access_depth += 1
         elif token.type == LexType.ACCESS_CLOSE:
             access_depth -= 1
@@ -409,7 +413,7 @@ def expression_something(expr_tokens: List[Token]):
                     token.line,
                     token.file
                 )
-        if par_depth == 0 and access_depth == 0 and token.type == LexType.OPERATOR and left_side_tokens:
+        if par_depth + access_depth == 0 and token.type == LexType.OPERATOR and left_side_tokens:
             if operator is None:
                 operator = token
             else:
@@ -433,31 +437,160 @@ def expression_something(expr_tokens: List[Token]):
             last_line,
             last_file
         )
-    print(depth_0_token_count)
-    print("-------------", operator)
-    for token in left_side_tokens:
-        print(token, end="")
-    print("")
-    for token in right_side_tokens:
-        print(token, end="")
-    print("")
+    if access_depth > 0:
+        expression_error(
+            "Missing ']'",
+            last_line,
+            last_file
+        )
+    if False:
+        print(depth_0_token_count)
+        print("-------------", operator)
+        for token in left_side_tokens:
+            print(token, end="")
+        print("")
+        for token in right_side_tokens:
+            print(token, end="")
+        print("")
     # Reevaluate expressions completely enclosed by parenthesis
     if depth_0_token_count == 2 and expr_tokens[0].type == LexType.PAR_OPEN and expr_tokens[-1].type == LexType.PAR_CLOSE:
-        expression_something(expr_tokens[1:-1])
+        compile_expression(expr_tokens[1:-1])
     else:
         # In order to be a terminator, it must be:
         # - A value
         # - A minus and a value
         # - A function call (with n >= 0 accessess)
         # - A variable (with n >= 0 accessess)
-        if operator is None or not left_side_tokens:
-            print("Terminator!")
-            # TODO: compile_terminator(left_side_tokens)
+        if operator is not None and not right_side_tokens:
+            expression_error(
+                f"Expecting expression after operator {operator.value}",
+                operator.line,
+                operator.file
+            )
+        elif operator is None or not left_side_tokens:
+            compile_terminator(left_side_tokens)
         else:
-            if left_side_tokens:
-                expression_something(left_side_tokens)
-            if right_side_tokens:
-                expression_something(right_side_tokens)
+            compile_expression(left_side_tokens)
+            compile_expression(right_side_tokens)
+    if operator:
+        if operator.value == "*":
+            print("MULT")
+        elif operator.value == "^":
+            print("POWR")
+        elif operator.value == "/":
+            print("FDIV")
+        elif operator.value == "//":
+            print("IDIV")
+        elif operator.value == "-":
+            print("SUBT")
+        elif operator.value == "+":
+            print("ADDV")
+        elif operator.value == "&":
+            print("JOIN")
+        elif operator.value == "%":
+            print("MODL")
+        elif operator.value == "=":
+            print("ISEQ")
+        elif operator.value == "<>":
+            print("ISNE")
+        elif operator.value == "<":
+            print("ISLT")
+        elif operator.value == ">":
+            print("ISGT")
+        elif operator.value == "<=":
+            print("ISLE")
+        elif operator.value == ">=":
+            print("ISGE")
+        else:
+            expression_error(
+                f"The operator {operator.value} cannot be used as an infix operator.",
+                operator.line,
+                operator.file
+            )
+
+
+
+def compile_terminator(expr_tokens: List[Token]) -> None:
+    """Generates Nambly for an expression terminator.
+    This is the second flojest part of the code and should
+    probably be turned into an AST first.
+    """
+    add_minus_code: bool = False
+    add_negation_code: bool = False
+    access_depth: int = 0
+    access_tokens: List[Token] = []
+    terminator_type: LexType = LexType.UNKNOWN
+    while expr_tokens:
+        token = expr_tokens.pop(0)
+        if access_depth == 0:
+            next_token = None
+            if len(expr_tokens) > 0:
+                next_token = expr_tokens[0]
+            if token.type == LexType.OPERATOR and token.value == "-":
+                if next_token is None:
+                    expression_error(
+                        "Missing value after '-'",
+                        token.line,
+                        token.file
+                    )
+                if next_token.type in [LexType.INTEGER, LexType.FLOAT]:
+                    print(f"PUSH -{next_token.value}")
+                    terminator_type = next_token.type
+                else:
+                    add_minus_code = True
+            elif token.type == LexType.OPERATOR and token.value == "!":
+                if next_token is None:
+                    expression_error(
+                        "Missing value after '!'",
+                        token.line,
+                        token.file
+                    )
+                add_negation_code = True
+            elif token.type == LexType.VARIABLE:
+                print(f'VGET "{token.value[1:]}"')
+                terminator_type = token.type
+            elif token.type == LexType.ACCESS_OPEN:
+                if terminator_type == LexType.UNKNOWN:
+                    expression_error(
+                        "Found an index access without a variable or a function.",
+                        token.line,
+                        token.file
+                    )
+                if terminator_type not in [LexType.VARIABLE, LexType.WORD]:
+                    expression_error(
+                        "Attempting to index access something that's not a variable nor a function.",
+                        token.line,
+                        token.file
+                    )
+                access_tokens = []
+                access_depth += 1
+            elif token.type in [LexType.INTEGER, LexType.FLOAT]:
+                print(f"PUSH {token.value}")
+                terminator_type = token.type
+            else:
+                expression_error(
+                    f"Unexpected operator: '{token.value}'",
+                    token.line,
+                    token.file
+                )
+        else:
+            if token.type == LexType.ACCESS_OPEN:
+                access_depth += 1
+                access_tokens.append(token)
+            elif token.type == LexType.ACCESS_CLOSE:
+                access_depth -= 1
+                if access_depth == 0:
+                    compile_expression(access_tokens)
+                    print("PGET")
+                else:
+                    access_tokens.append(token)
+            else:
+                access_tokens.append(token)
+    if add_minus_code:
+        print("PUSH -1")
+        print("MULT")
+    if add_negation_code:
+        print("LNOT")
 
 
 
@@ -470,7 +603,8 @@ if __name__ == "__main__":
     # print_tokens(tokenized_lines, filename, "Tokenization")
     lex_tokens(tokenized_lines)
     print_tokens(tokenized_lines, filename, "Lexing")
-    expression_something(tokenized_lines[0])
+    for line in tokenized_lines:
+        compile_expression(line)
 
 
 # Next Steps:
