@@ -9,12 +9,53 @@
 # Started by Lartu on July 3, 2024 (01:13 AM).
 # 
 
+# TODO: Check that variables have been declared
+# TODO: Check that functions have been declared
+# TODO: Else
+# TODO: Else if
+# TODO: Local Variables
+# TODO: Break
+# TODO: Continue
+# TODO: Function Declarations
+# TODO: Function Calls
+
 from __future__ import annotations
 from typing import Dict, List, Set, Tuple, Any, Optional
 from enum import Enum, auto
+from narivm import nari_run
 
 
-OPERATOR_PRESEDENCE = ("<", ">", "<=", ">=", "=", "<>", "!", "&", "*", "^", "/", "%", "//", "+", "-")
+OPERATOR_PRESEDENCE = ("*", "^", "/", "%", "//", "+", "&", "-", "!", "<", ">", "<=", ">=", "<>", "=")
+
+
+class CompilerState:
+    def __init__(self):
+        self.block_count: int = 0
+        self.__block_end_code_stack: List[Tuple[str, Token]] = []
+
+    def add_block_end_code(self, code: str, reference_token: Token):
+        """Sets the next block end code to be used when an 'ok;' is found.
+        The reference token is there so that if that 'ok;' is missing, we
+        can reference which block is missing it.
+        """
+        self.__block_end_code_stack.append((code, reference_token))
+    
+    def get_block_end_code(self, caller_command: Token, is_continue: bool = False) -> str:
+        """Gets the next block end code to be used when an 'ok;' is found.
+        """
+        if not self.__block_end_code_stack:
+            parse_error("Unexpected 'ok' command.", caller_command.line, caller_command.file)
+        if is_continue:
+            reference_token = self.__block_end_code_stack[-1][1]
+            if reference_token.value != "while":
+                parse_error("Continue used outside of loop.", )
+        return self.__block_end_code_stack.pop()[0]
+    
+    def check_for_errors(self):
+        """Checks that the state was left in a valid state after compiling.
+        """
+        if self.__block_end_code_stack:
+            parse_error("Missing 'ok' command.", self.__block_end_code_stack[0][1].line, self.__block_end_code_stack[0][1].file)
 
 
 class LexType(Enum):
@@ -69,6 +110,22 @@ class Token:
         elif self.type == LexType.DECORATION:
             color = "\033[30;47m"
         return f"{color} {self.value} \033[0m"
+    
+    def get_nambly_string(self) -> str:
+        """Returns a nambly formatted string to be able to push string values to the nvm.
+        """
+        if self.type == LexType.TABLE:
+            return '"TABLE"'
+        else:
+            return str(self.value).replace('"', '\\"').replace('\n', '\\n')
+        
+    def get_var_name(self) -> str:
+        """"Returns a nambly formated variable name.
+        """
+        if self.type == LexType.VARIABLE:
+            return self.value[1:]
+        else:
+            parse_error(f"{self} is not a variable.", self.line, self.file)
 
 
 def katalyn_error(title: str, lines: List[str]):
@@ -108,6 +165,17 @@ def expression_error(message: str, line: int, filename: str):
     """Prints an expression error and exits.
     """
     error_title = "Katayln Expression Error"
+    error_lines = [
+        f"- Where? In file '{filename}', on line {line}.",
+        f"- Error Message: {message}",
+    ]
+    katalyn_error(error_title, error_lines)
+
+
+def parse_error(message: str, line: int, filename: str):
+    """Prints an expression error and exits.
+    """
+    error_title = "Katayln Parse Error"
     error_lines = [
         f"- Where? In file '{filename}', on line {line}.",
         f"- Error Message: {message}",
@@ -375,12 +443,13 @@ def lex_tokens(tokenized_lines: List[List[Token]]) -> List[List[Token]]:
     return tokenized_lines
 
 
-def compile_expression(expr_tokens: List[Token]) -> None:
+def compile_expression(expr_tokens: List[Token], discard_return_value: bool = False) -> str:
     """Takes an expression and turns it into Nambly code.
     Terminators are not compiled by this function.
     This is the flojest part of the code and should probably
     be turned into an AST first.
     """
+    compiled_code: str = ""
     depth_0_token_count: int = 0
     left_side_tokens: List[Token] = []
     right_side_tokens: List[Token] = []
@@ -417,7 +486,7 @@ def compile_expression(expr_tokens: List[Token]) -> None:
             if operator is None:
                 operator = token
             else:
-                if OPERATOR_PRESEDENCE.index(operator.value) > OPERATOR_PRESEDENCE.index(token.value):
+                if OPERATOR_PRESEDENCE.index(operator.value) < OPERATOR_PRESEDENCE.index(token.value):
                     left_side_tokens.append(operator)
                     left_side_tokens += right_side_tokens
                     right_side_tokens = []
@@ -443,7 +512,7 @@ def compile_expression(expr_tokens: List[Token]) -> None:
             last_line,
             last_file
         )
-    if False or True:
+    if False:
         # print(depth_0_token_count)
         print("-------------")
         print("OPERATOR:", operator)
@@ -459,13 +528,8 @@ def compile_expression(expr_tokens: List[Token]) -> None:
             print("")
     # Reevaluate expressions completely enclosed by parenthesis
     if depth_0_token_count == 2 and expr_tokens[0].type == LexType.PAR_OPEN and expr_tokens[-1].type == LexType.PAR_CLOSE:
-        compile_expression(expr_tokens[1:-1])
+        compiled_code += "\n" + compile_expression(expr_tokens[1:-1])
     else:
-        # In order to be a terminator, it must be:
-        # - A value
-        # - A minus and a value
-        # - A function call (with n >= 0 accessess)
-        # - A variable (with n >= 0 accessess)
         if operator is not None and not right_side_tokens:
             expression_error(
                 f"Expecting expression after operator {operator.value}",
@@ -473,59 +537,61 @@ def compile_expression(expr_tokens: List[Token]) -> None:
                 operator.file
             )
         elif operator is None or not left_side_tokens:
-            compile_terminator(left_side_tokens)
-            pass
+            compiled_code += "\n" + compile_terminator(left_side_tokens, discard_return_value)
         else:
-            compile_expression(left_side_tokens)
-            compile_expression(right_side_tokens)
+            compiled_code += "\n" + compile_expression(left_side_tokens)
+            compiled_code += "\n" + compile_expression(right_side_tokens)
     if operator:
         if operator.value == "*":
-            print("MULT")
+            compiled_code += "\nMULT"
         elif operator.value == "^":
-            print("POWR")
+            compiled_code += "\nPOWR"
         elif operator.value == "/":
-            print("FDIV")
+            compiled_code += "\nFDIV"
         elif operator.value == "//":
-            print("IDIV")
+            compiled_code += "\nIDIV"
         elif operator.value == "-":
-            print("SUBT")
+            compiled_code += "\nSUBT"
         elif operator.value == "+":
-            print("ADDV")
+            compiled_code += "\nADDV"
         elif operator.value == "&":
-            print("JOIN")
+            compiled_code += "\nJOIN"
         elif operator.value == "%":
-            print("MODL")
+            compiled_code += "\nMODL"
         elif operator.value == "=":
-            print("ISEQ")
+            compiled_code += "\nISEQ"
         elif operator.value == "<>":
-            print("ISNE")
+            compiled_code += "\nISNE"
         elif operator.value == "<":
-            print("ISLT")
+            compiled_code += "\nISLT"
         elif operator.value == ">":
-            print("ISGT")
+            compiled_code += "\nISGT"
         elif operator.value == "<=":
-            print("ISLE")
+            compiled_code += "\nISLE"
         elif operator.value == ">=":
-            print("ISGE")
+            compiled_code += "\nISGE"
         else:
             expression_error(
                 f"The operator {operator.value} cannot be used as an infix operator.",
                 operator.line,
                 operator.file
             )
+    return compiled_code
 
 
 
-def compile_terminator(expr_tokens: List[Token]) -> None:
+def compile_terminator(expr_tokens: List[Token], discard_return_value: bool = False) -> str:
     """Generates Nambly for an expression terminator.
     This is the second flojest part of the code and should
     probably be turned into an AST first.
     """
+    compiled_code: str = ""
     add_minus_code: bool = False
     add_negation_code: bool = False
     access_depth: int = 0
     access_tokens: List[Token] = []
     terminator_type: LexType = LexType.UNKNOWN
+    function_call_token: Optional[Token] = None
     while expr_tokens:
         token = expr_tokens.pop(0)
         if access_depth > 0:
@@ -535,8 +601,8 @@ def compile_terminator(expr_tokens: List[Token]) -> None:
             elif token.type == LexType.ACCESS_CLOSE:
                 access_depth -= 1
                 if access_depth == 0:
-                    compile_expression(access_tokens)
-                    print("PGET")
+                    compiled_code += "\n" + compile_expression(access_tokens)
+                    compiled_code += "\nPGET"
                     if expr_tokens:
                         if expr_tokens[0].type not in (LexType.ACCESS_OPEN, LexType.PAR_OPEN):
                             expression_error(
@@ -560,7 +626,9 @@ def compile_terminator(expr_tokens: List[Token]) -> None:
                         token.file
                     )
                 if next_token.type in [LexType.INTEGER, LexType.FLOAT]:
-                    print(f"PUSH -{next_token.value}")
+                    if terminator_type != LexType.UNKNOWN:
+                        expression_error(f"Unexpected token '{token.value}'.", token.line, token.file)
+                    compiled_code += f"\nPUSH -{next_token.value}"
                     terminator_type = next_token.type
                 else:
                     add_minus_code = True
@@ -573,35 +641,46 @@ def compile_terminator(expr_tokens: List[Token]) -> None:
                     )
                 add_negation_code = True
             elif token.type == LexType.VARIABLE:
-                print(f'VGET "{token.value[1:]}"')
+                if terminator_type != LexType.UNKNOWN:
+                    expression_error(f"Unexpected token '{token.value}'.", token.line, token.file)
+                compiled_code += f'\nVGET "{token.get_var_name()}"'
+                terminator_type = token.type
+            elif token.type == LexType.STRING:
+                if terminator_type != LexType.UNKNOWN:
+                    expression_error(f"Unexpected token '{token.value}'.", token.line, token.file)
+                compiled_code += f'\nPUSH "{token.get_nambly_string()}"'
                 terminator_type = token.type
             elif token.type == LexType.ACCESS_OPEN:
                 if terminator_type == LexType.UNKNOWN:
                     expression_error(
-                        "Found an index access without a variable or a function.",
+                        "Found a table access without a variable or a function.",
                         token.line,
                         token.file
                     )
                 if terminator_type not in [LexType.VARIABLE, LexType.WORD]:
                     expression_error(
-                        "Attempting to index access something that's not a variable nor a function.",
+                        "Attempting to access something that cannot be a table.",
                         token.line,
                         token.file
                     )
                 access_tokens = []
                 access_depth += 1
             elif token.type in [LexType.INTEGER, LexType.FLOAT]:
-                print(f"PUSH {token.value}")
+                if terminator_type != LexType.UNKNOWN:
+                    expression_error(f"Unexpected token '{token.value}'.", token.line, token.file)
+                compiled_code += f"\nPUSH {token.value}"
                 terminator_type = token.type
             elif token.type == LexType.WORD:
+                if terminator_type != LexType.UNKNOWN:
+                    expression_error(f"Unexpected token '{token.value}'.", token.line, token.file)
                 terminator_type = token.type
+                function_call_token = token
                 if next_token is None or next_token.type != LexType.PAR_OPEN:
                     expression_error(
                         "Expecting argument list after function call.",
                         token.line,
                         token.file
                     )
-                print(f"TODO COMPILAR FUNCTION CALL A {token.value}")
             elif token.type == LexType.PAR_OPEN:
                 if terminator_type not in [LexType.VARIABLE, LexType.WORD]:
                     expression_error(
@@ -609,11 +688,9 @@ def compile_terminator(expr_tokens: List[Token]) -> None:
                         token.line,
                         token.file
                     )
-                print("TABL")
-                print('VSET "_"')
+                arguments_list: List[List[Token]] = []
                 arguments: List[Token] = []
                 open_pars: int = 1
-                arg_count: int = 0
                 prev_token: Optional[Token] = None
                 while expr_tokens:
                     token: Token = expr_tokens[0]
@@ -634,9 +711,8 @@ def compile_terminator(expr_tokens: List[Token]) -> None:
                                 )
                             else:
                                 if arguments:
-                                    compile_expression(arguments)
+                                    arguments_list.append(arguments)
                                 arguments = []
-                                print("CALL")
                                 expr_tokens.pop(0)
                                 break
                     elif open_pars > 1:
@@ -655,12 +731,9 @@ def compile_terminator(expr_tokens: List[Token]) -> None:
                                 token.file
                             )
                         else:
-                            print('VGET "_"')
-                            print(f"PUSH {arg_count}")
-                            compile_expression(arguments)
-                            print(f"PSET")
+                            if arguments:
+                                arguments_list.append(arguments)
                             arguments = []
-                            arg_count += 1
                     else:
                         arguments.append(token)
                     prev_token = token
@@ -672,6 +745,10 @@ def compile_terminator(expr_tokens: List[Token]) -> None:
                             token.line,
                             token.file
                         )
+                # Call the function
+                if terminator_type == LexType.WORD:
+                    compiled_code += "\n" + compile_function_call(function_call_token, arguments_list, discard_return_value)
+                # TODO $a(2, 3, 4)
             else:
                 expression_error(
                     f"Unexpected operator: '{token.value}'",
@@ -679,11 +756,284 @@ def compile_terminator(expr_tokens: List[Token]) -> None:
                     token.file
                 )
     if add_minus_code:
-        print("PUSH -1")
-        print("MULT")
+        compiled_code += "\nPUSH -1"
+        compiled_code += "\nMULT"
     if add_negation_code:
-        print("LNOT")
+        compiled_code += "\nLNOT"
+    return compiled_code
 
+
+def stylize_namby(code: str) -> str:
+    """Stilizes the nambly code by removing unnecessary breaks.
+    """
+    new_lines = ""
+    for line in code.split("\n"):
+        if line:
+            new_lines += line + "\n"
+    return new_lines
+
+
+def compile_lines(tokenized_lines: List[List[Token]]) -> str:
+    """Takes a list of list of lexed tokens and compiles them into Nambly code.
+    """
+    compiled_code: str = ""
+    declared_variables = set()
+    for line in tokenized_lines:
+        # Check first token in the line, this is our command
+        command = line[0]
+        args = []
+        if len(line) > 1:
+            args = line[1:]
+        if command.type == LexType.WORD:
+            # --- in command ---
+            if command.value == "in":
+                compiled_code += "\n" + parse_command_in(command, args)
+            elif command.value == "while":
+                compiled_code += "\n" + parse_command_while(command, args)
+            elif command.value == "if":
+                compiled_code += "\n" + parse_command_if(command, args)
+            elif command.value == "ok":
+                compiled_code += "\n" + parse_command_ok(command, args)
+            elif command.value == "continue":
+                compiled_code += "\n" + parse_command_continue(command, args)
+            else:
+                # Commands that are "function-like" such as print
+                compiled_code += "\n" + compile_expression(line, True)
+    return compiled_code
+
+
+def compile_function_call(command: Token, args_list: List[List[Token]], discard_return_value: bool = False):
+    if command.value == "print":
+        return parse_command_print(command, args_list, discard_return_value)
+    elif command.value == "printc":
+        return parse_command_printc(command, args_list, discard_return_value)
+    elif command.value == "accept":
+        return parse_command_accept(command, args_list, discard_return_value)
+    elif command.value == "is":
+        return parse_command_is(command, args_list, discard_return_value)
+    elif command.value == "exit":
+        return parse_command_exit(command, args_list, discard_return_value)
+    else:
+        # TODO: Ver si la función existe y llamarla y sino tirar:
+        parse_error(f"Undeclared function '{command.value}'", command.line, command.file)
+    
+
+
+def parse_command_in(command_token: Token, args: List[Token]) -> str:
+    access_compiled_code: str = ""
+    set_compiled_code: str = ""
+    value_compiled_code: str = ""
+    left_side: List[Token] = []
+    right_side: List[Token] = []
+    found_colon: bool = False
+    for token in args:
+        if token.type == LexType.DECORATION and token.value == ":":
+            found_colon = True
+        elif not found_colon:
+            left_side.append(token)
+        else:
+            right_side.append(token)
+
+    # Compile righthand side
+    if not right_side:
+        parse_error("Empty right side for 'in' statement.", command_token.line, command_token.file)
+    else:
+        if right_side[0].type == LexType.TABLE:
+            if len(right_side) > 1:
+                parse_error(
+                    f"Unexpected token: {right_side[1]}",
+                    right_side[1].line,
+                    right_side[1].file
+                )
+            else:
+                value_compiled_code += "\nTABL"
+        else:                
+            value_compiled_code += "\n" + compile_expression(right_side)
+
+    # Compile lefthand side
+    if not left_side:
+        parse_error("Empty left side for 'in' statement.", command_token.line, command_token.file)
+    else:
+        var = left_side[0]
+        has_accesses: bool = False
+        for token in left_side:
+            if token.type == LexType.ACCESS_OPEN:
+                has_accesses = True
+                break
+        if var.type == LexType.WORD:
+            parse_error("Function calls not yet supported in the left side of an assignment.", var.line, var.file)
+            # TODO: support them!
+        elif var.type != LexType.VARIABLE:
+            parse_error(f"Variable expected ({var} found).", var.line, var.file)
+        else:
+            if not has_accesses:
+                if len(left_side) > 1:
+                    parse_error(
+                        f"Unexpected token: '{left_side[1]}'",
+                        left_side[1].line,
+                        left_side[1].file
+                    )
+                else:
+                    set_compiled_code += f'\nVSET "{var.get_var_name()}"'
+            else:
+                access_compiled_code += f'\nVGET "{var.get_var_name()}"'
+                access_tokens: List[Token] = []
+                access_depth: int = 0
+                for token in left_side[1:]:
+                    if token.type == LexType.ACCESS_OPEN:
+                        access_depth += 1
+                    if token.type == LexType.ACCESS_CLOSE:
+                        access_depth -= 1
+                    access_tokens.append(token)
+                    if token.type == LexType.ACCESS_CLOSE and access_depth == 0:
+                        if access_tokens[0].type != LexType.ACCESS_OPEN or len(access_tokens) == 2:
+                            parse_error(
+                                "Malformed table access.",
+                                access_tokens[0].line,
+                                access_tokens[0].file
+                            )
+                        else:
+                            access_compiled_code += "\n" + compile_expression(access_tokens[1:-1])
+                            access_tokens = []
+                if access_depth > 0:
+                    parse_error(
+                        "Missing ']'.",
+                        access_tokens[0].line,
+                        access_tokens[0].file
+                    )
+                if access_tokens:
+                    parse_error(
+                        f"Unexpected tokens after table access.",
+                        access_tokens[0].line,
+                        access_tokens[0].file
+                    )
+                set_compiled_code += '\nPSET'
+    return access_compiled_code + value_compiled_code + set_compiled_code
+
+
+def parse_command_print(command_token: Token, args_list: List[List[Token]], discard_return_value: bool = False) -> str:
+    compiled_code: str = ""
+    if discard_return_value:
+        for args in args_list:
+            compiled_code += "\n" + compile_expression(args)
+            compiled_code += "\nDISP"
+        compiled_code += '\nPUSH "\\n"'
+        compiled_code += "\nDISP"
+        return compiled_code
+    else:
+        compiled_code += '\nPUSH ""'
+        for args in args_list:
+            compiled_code += "\n" + compile_expression(args)
+            compiled_code += "\nDUPL"
+            compiled_code += "\nVSET \"$swap\""  # Only system vars start with $ in nambly
+            compiled_code += "\nDISP"
+            compiled_code += "\nVGET \"$swap\""  # Only system vars start with $ in nambly
+            compiled_code += "\nJOIN"
+        compiled_code += '\nPUSH "\\n"'
+        compiled_code += "\nDISP"
+        return compiled_code
+    
+
+def parse_command_accept(command_token: Token, args_list: List[List[Token]], discard_return_value: bool = False) -> str:
+    compiled_code: str = ""
+    if args_list:
+        compiled_code += "\n" + parse_command_printc(command_token, args_list, True)
+    compiled_code += "\nACCP"
+    if discard_return_value:
+        compiled_code += "\nPOPV" 
+    return compiled_code
+
+
+def parse_command_printc(command_token: Token, args_list: List[List[Token]], discard_return_value: bool = False) -> str:
+    compiled_code: str = ""
+    if discard_return_value:
+        for args in args_list:
+            compiled_code += "\n" + compile_expression(args)
+            compiled_code += "\nDISP"
+        return compiled_code
+    else:
+        compiled_code += '\nPUSH ""'
+        for args in args_list:
+            compiled_code += "\n" + compile_expression(args)
+            compiled_code += "\nDUPL"
+            compiled_code += "\nVSET \"$swap\""  # Only system vars start with $ in nambly
+            compiled_code += "\nDISP"
+            compiled_code += "\nVGET \"$swap\""  # Only system vars start with $ in nambly
+            compiled_code += "\nJOIN"
+        return compiled_code
+    
+
+def parse_command_is(command_token: Token, args_list: List[List[Token]], discard_return_value: bool = False) -> str:
+    compiled_code: str = ""
+    if len(args_list) != 2:
+        parse_error("Wrong number of arguments for function is (expected 2).", command_token.line, command_token.file)
+    compiled_code += "\n" + compile_expression(args_list[0])
+    compiled_code += "\n" + compile_expression(args_list[1])
+    compiled_code += "\nPIST"
+    if discard_return_value:
+        compiled_code += "\nPOPV"
+        return compiled_code
+    return compiled_code
+
+
+def parse_command_exit(command_token: Token, args_list: List[List[Token]], discard_return_value: bool = False) -> str:
+    compiled_code: str = ""
+    if len(args_list) != 1:
+        parse_error("Wrong number of arguments for function exit (expected 1).", command_token.line, command_token.file)
+    compiled_code += "\n" + compile_expression(args_list[0])
+    compiled_code += "\nEXIT"
+    return compiled_code
+
+
+def parse_command_while(command_token: Token, args: List[Token]) -> str:
+    global global_compiler_state
+    block_number: int = global_compiler_state.block_count
+    global_compiler_state.block_count += 1
+    start_tag: str = f"LOOP_{block_number}_START"
+    end_tag: str = f"LOOP_{block_number}_END"
+    compiled_code: str = ""
+    block_end_code: str = ""
+    compiled_code += f"\n@{start_tag}"
+    compiled_code += "\n" + compile_expression(args)
+    compiled_code += f"\nJPIF {end_tag}"
+    # Push end code to state for it to be used on next ok;
+    block_end_code += f"\nJUMP {start_tag}"
+    block_end_code += f"\n@{end_tag}"
+    global_compiler_state.add_block_end_code(block_end_code, command_token)
+    return compiled_code
+
+
+def parse_command_if(command_token: Token, args: List[Token]) -> str:
+    global global_compiler_state
+    block_number: int = global_compiler_state.block_count
+    global_compiler_state.block_count += 1
+    start_tag: str = f"IF_{block_number}_START"
+    end_tag: str = f"IF_{block_number}_END"
+    compiled_code: str = ""
+    block_end_code: str = ""
+    compiled_code += f"\n@{start_tag}"
+    compiled_code += "\n" + compile_expression(args)
+    compiled_code += f"\nJPIF {end_tag}"
+    # Push end code to state for it to be used on next ok;
+    block_end_code += f"\n@{end_tag}"
+    global_compiler_state.add_block_end_code(block_end_code, command_token)
+    return compiled_code
+
+
+def parse_command_ok(command_token: Token, args: List[Token]) -> str:
+    global global_compiler_state
+    if args:
+        parse_error("Unexpected arguments for command 'ok'.", command_token.line, command_token.file)
+    return global_compiler_state.get_block_end_code(command_token)
+
+def parse_command_continue(command_token: Token, args: List[Token]) -> str:
+    global global_compiler_state
+    if args:
+        parse_error("Unexpected arguments for command 'continue'.", command_token.line, command_token.file)
+    return global_compiler_state.get_block_end_code(command_token, True)
+
+
+global_compiler_state = CompilerState()
 
 
 if __name__ == "__main__":
@@ -692,12 +1042,15 @@ if __name__ == "__main__":
     with open(filename) as f:
         code = f.read()
     tokenized_lines: List[List[Token]] = tokenize_source(code, filename)
-    # print_tokens(tokenized_lines, filename, "Tokenization")
-    lex_tokens(tokenized_lines)
-    print_tokens(tokenized_lines, filename, "Lexing")
-    for line in tokenized_lines:
-        compile_expression(line)
-
+    if tokenized_lines:
+        # print_tokens(tokenized_lines, filename, "Tokenization")
+        lex_tokens(tokenized_lines)
+        print_tokens(tokenized_lines, filename, "Lexing")
+        nambly = compile_lines(tokenized_lines)
+        global_compiler_state.check_for_errors()
+        nambly = stylize_namby(nambly)
+        print(nambly)
+        nari_run(nambly)
 
 # Next Steps:
 """
