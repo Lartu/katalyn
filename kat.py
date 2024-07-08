@@ -10,17 +10,17 @@
 # Started by Lartu on July 3, 2024 (01:13 AM).
 # 
 
-# TODO: Check that variables have been declared
 # TODO: Check that functions have been declared
 # TODO: Else
 # TODO: Else if
-# TODO: Local Variables
 # TODO: Break
 # TODO: 'and' and 'or'
 # TODO: Continue
 # TODO: Function Declarations
 # TODO: Function Calls
+# TODO: Function scoping for variables (automatic)
 # TODO: Unset
+# TODO: for key in table
 
 from __future__ import annotations
 from typing import Dict, List, Set, Tuple, Any, Optional
@@ -1036,7 +1036,7 @@ def parse_command_is(command_token: Token, args_list: List[List[Token]], discard
 def parse_command_del(command_token: Token, args_list: List[List[Token]]) -> str:
     compiled_code: str = ""
     if len(args_list) != 2:
-        parse_error(f"Wrong number of arguments for function '{command_token.value}' (expected 2).", command_token.line, command_token.file)
+        parse_error(f"Wrong number of arguments for function '{command_token.value}' (expected 2: variable and index).", command_token.line, command_token.file)
     compiled_code += "\n" + compile_expression(args_list[0])
     compiled_code += "\n" + compile_expression(args_list[1])
     compiled_code += "\nPUST"

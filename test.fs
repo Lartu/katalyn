@@ -6,8 +6,10 @@ del_scope;
 
 in $t: #;
 in $t{100}: "Roberto";
-del($t, "100");
+in $t2: $t;
+(*del($t, "100");
 unset($a);
+unset($t);*)
 
 print($a);
 
