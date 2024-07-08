@@ -1,4 +1,23 @@
-in $a: 99;
+in $file: open_rw("aoc1_input.txt");
+while read_line($file);
+    in $line: trim($_r); (* $_r es el resultado del while y es local *)
+    if $line;
+        print($_r); (* $_r es el resultado del if y es local *)
+        (* Find first digit *)
+        in $i: 0;
+        while slice($line, $i, 1);
+            (* Lo razonable acá sería un for $line con $_k y $_v*)
+            print($i, "'", $_r, "'"); (* Necesito or y def para poder checkear si el char es un dígito *)
+            in $i: $i + 1;
+        ok;
+    ok;
+    if !$line;
+        in $continue: 0;
+    ok;
+    in $continue: 0;
+ok;
+
+(*in $a: 99;
 add_scope;
     local $a: $a - 1;
     print($a);
@@ -10,6 +29,16 @@ in $t2: $t;
 (*del($t, "100");
 unset($a);
 unset($t);*)
+
+(*
+Katalyn Documentation:
+• funciones y comandos
+• operadores
+• variables y accesos
+• strings, ints, floats y tables
+• $_r
+• comentarios, unclosed y nested
+*)
 
 print($a);
 

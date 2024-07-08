@@ -1,13 +1,15 @@
 from __future__ import annotations
+from io import TextIOWrapper
 from typing import Dict, List, Set, Tuple, Any, Optional, Union
 from enum import Enum
 import math
 import sys
 
-value_table: Dict[Value] = {}
-label_to_pc: Dict[int] = {}
-pc_to_label: Dict[int] = {}
+value_table: Dict[str, Value] = {}
+label_to_pc: Dict[str, int] = {}
+pc_to_label: Dict[int, str] = {}
 execution_stack: List[Any] = []
+open_files: Dict[str, TextIOWrapper] = {}
 
 class Types(Enum):
     INT = 1
@@ -123,7 +125,7 @@ class Value:
     
 
 def nambly_error(message: str):
-    print("Nambly Error!")
+    print("Runtime Error!")
     print(message)
     exit(1)
 
@@ -518,7 +520,7 @@ def execute_code_listing(code_listing: List[Command]):
                     idx_from = 0
                 if idx_from + idx_count >= len(val_str):
                     idx_count = len(val_str) - idx_from
-                result_value.value = val_str[idx_from:idx_count]
+                result_value.value = val_str[idx_from:idx_from+idx_count]
                 push(result_value)
         elif "JUMP" == command.command:
             pc = label_to_pc[command.arguments[0].value] - 1
@@ -586,6 +588,89 @@ def execute_code_listing(code_listing: List[Command]):
             table = pop(command)
             if index.value in table.value:
                 del table.value[index.value]
+        elif "RFIL" == command.command: #Read FILe
+            filename = pop(command)
+            with open(filename.get_as_string(), "r") as file:
+                result_value = Value()
+                result_value.value = file.read()
+                result_value.type = Types.TXT
+                push(result_value)
+        elif "FORW" == command.command: #File Open Read Write
+            filename = pop(command)
+            str_filename = filename.get_as_string()
+            if str_filename in open_files:
+                open_files[str_filename].close()
+            file = open(str_filename, "r+")
+            open_files[str_filename] = file
+        elif "FORA" == command.command: #File Open Read Append
+            filename = pop(command)
+            str_filename = filename.get_as_string()
+            if str_filename in open_files:
+                open_files[str_filename].close()
+            file = open(str_filename, "a+")
+            open_files[str_filename] = file
+        elif "FCLS" == command.command: #File CLoSe
+            filename = pop(command)
+            str_filename = filename.get_as_string()
+            if str_filename in open_files:
+                open_files[str_filename].close()
+        elif "RLNE" == command.command: #Read LiNE
+            filename = pop(command)
+            str_filename = filename.get_as_string()
+            if str_filename not in open_files:
+                nambly_error(f"File '{str_filename}' is not open.")
+            line: str = open_files[str_filename].readline()
+            result_value = Value()
+            result_value.value = line
+            result_value.type = Types.TXT
+            push(result_value)
+        elif "LNOT" == command.command:
+            com_1: Value = pop(command)
+            result_value = Value()
+            result_value.type = Types.INT
+            result_value.value = 0
+            if com_1.type == Types.NIL:
+                result_value.value = 1
+            elif com_1.type == Types.TAB:
+                if len(com_1.value) > 0:
+                    result_value.value = 0
+                else:
+                    result_value.value = 1
+            elif com_1.type == Types.TXT:
+                if len(com_1.value) > 0:
+                    result_value.value = 0
+                else:
+                    result_value.value = 1
+            elif com_1.type == Types.INT:
+                if len(com_1.value) == 0:
+                    result_value.value = 1
+                else:
+                    result_value.value = 0
+            elif com_1.type == Types.FLO:
+                if math.isclose(com_1.value, 0):
+                    result_value.value = 1
+                else:
+                    result_value.value = 0
+            else:
+                nambly_error(f"Unknown type: {com_1.type}")
+            push(result_value)
+        elif "TRIM" == command.command:
+            string = pop(command)
+            result_value = Value()
+            result_value.value = string.get_as_string().strip()
+            result_value.type = Types.TXT
+            push(result_value)
+        elif "SLEN" == command.command:  # String Length
+            string = pop(command)
+            result_value = Value()
+            result_value.value = len(string.get_as_string())
+            result_value.type = Types.INT
+            push(result_value)
+        elif "SWAP" == command.command:
+            v2 = pop(command)
+            v1 = pop(command)
+            push(v2)
+            push(v1)
         else:
             nambly_error(f"Unknown Nambly command: {command}")
         pc += 1
@@ -598,7 +683,7 @@ def nari_run(code: str) -> None:
     code_listing: List[Command] = split_lines(code)
     code_listing = generate_label_map(code_listing)
     execute_code_listing(code_listing)
-    print_value_table(value_table)
+    # print_value_table(value_table)
 
 
 if __name__ == "__main__":

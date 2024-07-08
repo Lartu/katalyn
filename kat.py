@@ -867,7 +867,23 @@ def compile_function_call(command: Token, args_list: List[List[Token]], discard_
     elif command.value == "unset":
         return parse_command_unset(command, args_list)
     elif command.value == "exit":
-        return parse_command_exit(command, args_list, discard_return_value)
+        return parse_command_exit(command, args_list)
+    elif command.value == "open_rw":
+        return parse_command_open_rw(command, args_list, discard_return_value)
+    elif command.value == "open_ra":
+        return parse_command_open_ra(command, args_list, discard_return_value)
+    elif command.value == "close":
+        return parse_command_close(command, args_list, discard_return_value)
+    elif command.value == "read":
+        return parse_command_read(command, args_list, discard_return_value)
+    elif command.value == "read_line":
+        return parse_command_read_line(command, args_list, discard_return_value)
+    elif command.value == "trim":
+        return parse_command_trim(command, args_list, discard_return_value)
+    elif command.value == "len":
+        return parse_command_len(command, args_list, discard_return_value)
+    elif command.value == "slice":
+        return parse_command_slice(command, args_list, discard_return_value)
     else:
         # TODO: Ver si la función existe y llamarla y sino tirar:
         parse_error(f"Undeclared function '{command.value}'", command.line, command.file)
@@ -970,6 +986,7 @@ def parse_command_in(command_token: Token, args: List[Token], local: bool) -> st
 
 def parse_command_print(command_token: Token, args_list: List[List[Token]], discard_return_value: bool = False) -> str:
     compiled_code: str = ""
+    # TODO solo debería devolver el último valor printeado - un solo return value!
     if discard_return_value:
         for args in args_list:
             compiled_code += "\n" + compile_expression(args)
@@ -1003,6 +1020,7 @@ def parse_command_accept(command_token: Token, args_list: List[List[Token]], dis
 
 def parse_command_printc(command_token: Token, args_list: List[List[Token]], discard_return_value: bool = False) -> str:
     compiled_code: str = ""
+    # TODO solo debería devolver el último valor printeado - un solo return value!
     if discard_return_value:
         for args in args_list:
             compiled_code += "\n" + compile_expression(args)
@@ -1057,7 +1075,7 @@ def parse_command_unset(command_token: Token, args_list: List[List[Token]]) -> s
     return compiled_code
 
 
-def parse_command_exit(command_token: Token, args_list: List[List[Token]], discard_return_value: bool = False) -> str:
+def parse_command_exit(command_token: Token, args_list: List[List[Token]]) -> str:
     compiled_code: str = ""
     if len(args_list) != 1:
         parse_error("Wrong number of arguments for function exit (expected 1).", command_token.line, command_token.file)
@@ -1066,7 +1084,64 @@ def parse_command_exit(command_token: Token, args_list: List[List[Token]], disca
     return compiled_code
 
 
+def parse_command_open_rw(command_token: Token, args_list: List[List[Token]], discard_return_value: bool = False) -> str:
+    compiled_code: str = ""
+    if len(args_list) != 1:
+        parse_error(f"Wrong number of arguments for function '{command_token.value}' (expected 1).", command_token.line, command_token.file)
+    compiled_code += "\n" + compile_expression(args_list[0])
+    if not discard_return_value:
+        compiled_code += f"\nDUPL"
+    compiled_code += f"\nFORW"
+    return compiled_code
+
+
+def parse_command_open_ra(command_token: Token, args_list: List[List[Token]], discard_return_value: bool = False) -> str:
+    compiled_code: str = ""
+    # TODO solo debería devolver el nombre del último archivo abierto - un solo return value!
+    if len(args_list) != 1:
+        parse_error(f"Wrong number of arguments for function '{command_token.value}' (expected 1).", command_token.line, command_token.file)
+    compiled_code += "\n" + compile_expression(args_list[0])
+    if not discard_return_value:
+        compiled_code += f"\nDUPL"
+    compiled_code += f"\nFORA"
+    return compiled_code
+
+
+def parse_command_close(command_token: Token, args_list: List[List[Token]], discard_return_value: bool = False) -> str:
+    compiled_code: str = ""
+    if len(args_list) != 1:
+        parse_error(f"Wrong number of arguments for function '{command_token.value}' (expected 1).", command_token.line, command_token.file)
+    compiled_code += "\n" + compile_expression(args_list[0])
+    if not discard_return_value:
+        compiled_code += f"\nDUPL"
+    compiled_code += f"\nFCLS"
+    return compiled_code
+
+
+def parse_command_read(command_token: Token, args_list: List[List[Token]], discard_return_value: bool = False) -> str:
+    compiled_code: str = ""
+    if len(args_list) != 1:
+        parse_error(f"Wrong number of arguments for function '{command_token.value}' (expected 1).", command_token.line, command_token.file)
+    compiled_code += "\n" + compile_expression(args_list[0])
+    compiled_code += f"\nRFIL"
+    if discard_return_value:
+        compiled_code += f"\nPOPV"
+    return compiled_code
+
+
+def parse_command_read_line(command_token: Token, args_list: List[List[Token]], discard_return_value: bool = False) -> str:
+    compiled_code: str = ""
+    if len(args_list) != 1:
+        parse_error(f"Wrong number of arguments for function '{command_token.value}' (expected 1).", command_token.line, command_token.file)
+    compiled_code += "\n" + compile_expression(args_list[0])
+    compiled_code += f"\nRLNE"
+    if discard_return_value:
+        compiled_code += f"\nPOPV"
+    return compiled_code
+
+
 def parse_command_while(command_token: Token, args: List[Token]) -> str:
+    global_compiler_state.add_scope()
     block_number: int = global_compiler_state.block_count
     global_compiler_state.block_count += 1
     start_tag: str = f"LOOP_{block_number}_START"
@@ -1075,6 +1150,11 @@ def parse_command_while(command_token: Token, args: List[Token]) -> str:
     block_end_code: str = ""
     compiled_code += f"\n@{start_tag}"
     compiled_code += "\n" + compile_expression(args)
+    compiled_code += "\nDUPL"
+    it_var: Token = Token("$_r", command_token.line, command_token.file)
+    it_var.type = LexType.VARIABLE
+    it_var_id: str = global_compiler_state.declare_variable(it_var, True)
+    compiled_code += f'\nVSET "{it_var_id}"'
     compiled_code += f"\nJPIF {end_tag}"
     # Push end code to state for it to be used on next ok;
     block_end_code += f"\nJUMP {start_tag}"
@@ -1084,6 +1164,7 @@ def parse_command_while(command_token: Token, args: List[Token]) -> str:
 
 
 def parse_command_if(command_token: Token, args: List[Token]) -> str:
+    global_compiler_state.add_scope()
     block_number: int = global_compiler_state.block_count
     global_compiler_state.block_count += 1
     start_tag: str = f"IF_{block_number}_START"
@@ -1092,6 +1173,11 @@ def parse_command_if(command_token: Token, args: List[Token]) -> str:
     block_end_code: str = ""
     compiled_code += f"\n@{start_tag}"
     compiled_code += "\n" + compile_expression(args)
+    compiled_code += "\nDUPL"
+    it_var: Token = Token("$_r", command_token.line, command_token.file)
+    it_var.type = LexType.VARIABLE
+    it_var_id: str = global_compiler_state.declare_variable(it_var, True)
+    compiled_code += f'\nVSET "{it_var_id}"'
     compiled_code += f"\nJPIF {end_tag}"
     # Push end code to state for it to be used on next ok;
     block_end_code += f"\n@{end_tag}"
@@ -1102,6 +1188,7 @@ def parse_command_if(command_token: Token, args: List[Token]) -> str:
 def parse_command_ok(command_token: Token, args: List[Token]) -> str:
     if args:
         parse_error(f"Unexpected arguments for command '{command_token.value}'.", command_token.line, command_token.file)
+    global_compiler_state.del_scope()
     return global_compiler_state.get_block_end_code(command_token)
 
 
@@ -1123,6 +1210,47 @@ def parse_command_continue(command_token: Token, args: List[Token]) -> str:
     return global_compiler_state.get_block_end_code(command_token, True)
 
 
+def parse_command_trim(command_token: Token, args_list: List[List[Token]], discard_return_value: bool = False) -> str:
+    compiled_code: str = ""
+    if len(args_list) != 1:
+        parse_error(f"Wrong number of arguments for function '{command_token.value}' (expected 1).", command_token.line, command_token.file)
+    compiled_code += "\n" + compile_expression(args_list[0])
+    compiled_code += f"\nTRIM"
+    if discard_return_value:
+        compiled_code += f"\nPOPV"
+    return compiled_code
+
+
+def parse_command_len(command_token: Token, args_list: List[List[Token]], discard_return_value: bool = False) -> str:
+    compiled_code: str = ""
+    if len(args_list) != 1:
+        parse_error(f"Wrong number of arguments for function '{command_token.value}' (expected 1).", command_token.line, command_token.file)
+    compiled_code += "\n" + compile_expression(args_list[0])
+    compiled_code += f"\nSLEN"
+    if discard_return_value:
+        compiled_code += f"\nPOPV"
+    return compiled_code
+
+
+def parse_command_slice(command_token: Token, args_list: List[List[Token]], discard_return_value: bool = False) -> str:
+    compiled_code: str = ""
+    if len(args_list) != 2 and len(args_list) != 3:
+        parse_error(f"Wrong number of arguments for function '{command_token.value}' (expected 2 or 3).", command_token.line, command_token.file)
+    compiled_code += "\n" + compile_expression(args_list[0])
+    if len(args_list) == 2:
+        compiled_code += f"\nDUPL"
+    compiled_code += "\n" + compile_expression(args_list[1])
+    if len(args_list) == 3:
+        compiled_code += "\n" + compile_expression(args_list[2])
+    elif len(args_list) == 2:
+        compiled_code += f"\nSWAP"
+        compiled_code += f"\nSLEN"
+    compiled_code += f"\nSSTR"
+    if discard_return_value:
+        compiled_code += f"\nPOPV"
+    return compiled_code
+
+
 global_compiler_state = CompilerState()
 
 
@@ -1139,5 +1267,5 @@ if __name__ == "__main__":
         nambly = compile_lines(tokenized_lines)
         global_compiler_state.check_for_errors()
         nambly = stylize_namby(nambly)
-        print(nambly)
+        # print(nambly)
         nari_run(nambly)
