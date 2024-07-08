@@ -20,6 +20,7 @@
 # TODO: Continue
 # TODO: Function Declarations
 # TODO: Function Calls
+# TODO: Unset
 
 from __future__ import annotations
 from typing import Dict, List, Set, Tuple, Any, Optional
@@ -40,38 +41,56 @@ class CompilerState:
     def add_scope(self) -> None:
         self.__declared_variables.append({})
 
-    def del_scope(self):
+    def del_scope(self) -> str:
+        compiled_code: str = ""
         if len(self.__declared_variables) > 1:
+            for var in self.__declared_variables[-1]:
+                compiled_code += f"\nUNST {self.__declared_variables[-1][var]}"
             self.__declared_variables.pop()
+        return compiled_code
 
-    def get_var_identifier(self, var_name: str, local: bool = False) -> Optional[str]:
+    def get_var_identifier(self, var: Token, local: bool, fail_if_not_found: bool) -> Optional[str]:
         """Gets the scope id (the id for the variable in the current context) of
         the variable with name var_name. If the variable hasn't been declared yet,
         returns None.
         """
         i = len(self.__declared_variables) - 1
+        var_name: str = var.get_var_name()
         while i >= 0:
             if var_name in self.__declared_variables[i]:
                 return self.__declared_variables[i][var_name]
             if local:
                 break
             i -= 1
+        if fail_if_not_found:
+            expression_error(f"Variable {var.value} read before assignment.", var.line, var.file)
         return None
     
-    def declare_variable(self, var_name: str, local: bool = False) -> str:
+    def declare_variable(self, var: Token, local: bool = False) -> str:
         """Adds a new variable, if it didn't exist, to the context. Then,
         existed or not, returns its scope_id (the id for the variable in
         the current context). If the variable is declared as local, the
         variable is declared only if it didn't exist in the current context.
         """
-        if self.get_var_identifier(var_name, local) is not None:
-            return self.get_var_identifier(var_name, local)
+        var_name = var.get_var_name()
+        if self.get_var_identifier(var, local, False) is not None:
+            return self.get_var_identifier(var, local, True)
         if len(self.__declared_variables) > 1:
             scope_id = f"${len(self.__declared_variables)}${var_name}"
         else:
             scope_id = var_name
         self.__declared_variables[-1][var_name] = scope_id
         return scope_id
+    
+    def unset_variable(self, var: Token, local: bool = False):
+        i = len(self.__declared_variables) - 1
+        var_name: str = var.get_var_name()
+        while i >= 0:
+            if var_name in self.__declared_variables[i]:
+                del self.__declared_variables[i][var_name]
+            if local:
+                break
+            i -= 1
 
     def add_block_end_code(self, code: str, reference_token: Token):
         """Sets the next block end code to be used when an 'ok;' is found.
@@ -669,9 +688,7 @@ def compile_terminator(expr_tokens: List[Token], discard_return_value: bool = Fa
             elif token.type == LexType.VARIABLE:
                 if terminator_type != LexType.UNKNOWN:
                     expression_error(f"Unexpected token '{token.value}'.", token.line, token.file)
-                var_id: Optional[str] = global_compiler_state.get_var_identifier(token.get_var_name())
-                if var_id is None:
-                    expression_error(f"Variable {token.value} read before assignment.", token.line, token.file)
+                var_id: Optional[str] = global_compiler_state.get_var_identifier(token, False, True)
                 compiled_code += f'\nVGET "{var_id}"'
                 terminator_type = token.type
             elif token.type == LexType.STRING:
@@ -806,7 +823,6 @@ def compile_lines(tokenized_lines: List[List[Token]]) -> str:
     """Takes a list of list of lexed tokens and compiles them into Nambly code.
     """
     compiled_code: str = ""
-    declared_variables = set()
     for line in tokenized_lines:
         # Check first token in the line, this is our command
         command = line[0]
@@ -830,7 +846,7 @@ def compile_lines(tokenized_lines: List[List[Token]]) -> str:
             elif command.value == "add_scope":
                 parse_command_add_scope(command, args)
             elif command.value == "del_scope":
-                parse_command_del_scope(command, args)
+                compiled_code += "\n" + parse_command_del_scope(command, args)
             else:
                 # Commands that are "function-like" such as print
                 compiled_code += "\n" + compile_expression(line, True)
@@ -846,6 +862,10 @@ def compile_function_call(command: Token, args_list: List[List[Token]], discard_
         return parse_command_accept(command, args_list, discard_return_value)
     elif command.value == "is":
         return parse_command_is(command, args_list, discard_return_value)
+    elif command.value == "del":
+        return parse_command_del(command, args_list)
+    elif command.value == "unset":
+        return parse_command_unset(command, args_list)
     elif command.value == "exit":
         return parse_command_exit(command, args_list, discard_return_value)
     else:
@@ -909,10 +929,10 @@ def parse_command_in(command_token: Token, args: List[Token], local: bool) -> st
                         left_side[1].file
                     )
                 else:
-                    var_id = global_compiler_state.declare_variable(var.get_var_name(), local)
+                    var_id = global_compiler_state.declare_variable(var, local)
                     set_compiled_code += f'\nVSET "{var_id}"'
             else:
-                var_id = global_compiler_state.declare_variable(var.get_var_name(), local)
+                var_id = global_compiler_state.declare_variable(var, local)
                 access_compiled_code += f'\nVGET "{var_id}"'
                 access_tokens: List[Token] = []
                 access_depth: int = 0
@@ -1003,13 +1023,37 @@ def parse_command_printc(command_token: Token, args_list: List[List[Token]], dis
 def parse_command_is(command_token: Token, args_list: List[List[Token]], discard_return_value: bool = False) -> str:
     compiled_code: str = ""
     if len(args_list) != 2:
-        parse_error("Wrong number of arguments for function is (expected 2).", command_token.line, command_token.file)
+        parse_error(f"Wrong number of arguments for function '{command_token.value}' (expected 2).", command_token.line, command_token.file)
     compiled_code += "\n" + compile_expression(args_list[0])
     compiled_code += "\n" + compile_expression(args_list[1])
     compiled_code += "\nPIST"
     if discard_return_value:
         compiled_code += "\nPOPV"
         return compiled_code
+    return compiled_code
+
+
+def parse_command_del(command_token: Token, args_list: List[List[Token]]) -> str:
+    compiled_code: str = ""
+    if len(args_list) != 2:
+        parse_error(f"Wrong number of arguments for function '{command_token.value}' (expected 2).", command_token.line, command_token.file)
+    compiled_code += "\n" + compile_expression(args_list[0])
+    compiled_code += "\n" + compile_expression(args_list[1])
+    compiled_code += "\nPUST"
+    return compiled_code
+
+
+def parse_command_unset(command_token: Token, args_list: List[List[Token]]) -> str:
+    compiled_code: str = ""
+    if len(args_list) == 0:
+        parse_error(f"Wrong number of arguments for function '{command_token.value}' (expected 1+).", command_token.line, command_token.file)
+    for arg in args_list:
+        if len(arg) > 1:
+            parse_error(f"Unexpected token {arg[1]}", arg[1].line, arg[1].file)
+        if arg[0].type != LexType.VARIABLE:
+            parse_error(f"Variable expected, got {arg[0]}.", arg[0].line, arg[0].file)
+        compiled_code += f"\n UNST {global_compiler_state.get_var_identifier(arg[0], False, True)}"
+        global_compiler_state.unset_variable(arg[0], False)
     return compiled_code
 
 
@@ -1067,10 +1111,10 @@ def parse_command_add_scope(command_token: Token, args: List[Token]) -> None:
     global_compiler_state.add_scope()
 
 
-def parse_command_del_scope(command_token: Token, args: List[Token]) -> None:
+def parse_command_del_scope(command_token: Token, args: List[Token]) -> str:
     if args:
         parse_error(f"Unexpected arguments for command '{command_token.value}'.", command_token.line, command_token.file)
-    global_compiler_state.del_scope()
+    return global_compiler_state.del_scope()
 
 
 def parse_command_continue(command_token: Token, args: List[Token]) -> str:

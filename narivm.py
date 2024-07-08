@@ -579,6 +579,13 @@ def execute_code_listing(code_listing: List[Command]):
             pop(command)
         elif "EXIT" == command.command:
             exit(int(pop(command).get_as_number()))
+        elif "UNST" == command.command:  #UNSeT
+            del value_table[command.arguments[0].value]
+        elif "PUST" == command.command: #Position UnSeT
+            index = pop(command)
+            table = pop(command)
+            if index.value in table.value:
+                del table.value[index.value]
         else:
             nambly_error(f"Unknown Nambly command: {command}")
         pc += 1
@@ -591,6 +598,7 @@ def nari_run(code: str) -> None:
     code_listing: List[Command] = split_lines(code)
     code_listing = generate_label_map(code_listing)
     execute_code_listing(code_listing)
+    print_value_table(value_table)
 
 
 if __name__ == "__main__":

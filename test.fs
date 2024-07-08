@@ -1,7 +1,14 @@
 in $a: 99;
 add_scope;
-    local $a: 0;
+    local $a: $a - 1;
+    print($a);
 del_scope;
+
+in $t: #;
+in $t{100}: "Roberto";
+del($t, "100");
+unset($a);
+
 print($a);
 
 (*(* Fibonacci calculator!! *)
