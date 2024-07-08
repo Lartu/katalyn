@@ -2,6 +2,7 @@ from __future__ import annotations
 from typing import Dict, List, Set, Tuple, Any, Optional, Union
 from enum import Enum
 import math
+import sys
 
 value_table: Dict[Value] = {}
 label_to_pc: Dict[int] = {}
@@ -452,6 +453,40 @@ def execute_code_listing(code_listing: List[Command]):
                     elif math.isclose(value_1, value_2):
                         result_value.value = 1
             push(result_value)
+        elif "ISNE" == command.command:
+            com_2: Value = pop(command)
+            com_1: Value = pop(command)
+            result_value = Value()
+            result_value.type = Types.INT
+            result_value.value = 0
+            if com_1.type == Types.NIL or com_2.type == Types.NIL:
+                result_value.value = 0
+            elif com_1.type == Types.TAB and com_2.type == Types.TAB:
+                if com_1.value == com_2.value: # By reference
+                    result_value.value = 1
+            elif com_1.type == Types.TXT and com_2.type == Types.TXT:
+                if com_1.value == com_2.value:
+                    result_value.value = 1
+            elif com_1.type == Types.INT and com_2.type == Types.INT:
+                if com_1.value == com_2.value:
+                    result_value.value = 1
+            elif com_1.type == Types.FLO and com_2.type == Types.FLO:
+                if math.isclose(com_1.value, com_2.value):
+                    result_value.value = 1
+            else:
+                # Default to numeric comparison
+                value_2: Union[float|int] = com_2.get_as_number()
+                value_1: Union[float|int] = com_1.get_as_number()
+                if isinstance(value_1, int) and isinstance(value_2, int):
+                    if value_1 == value_2:
+                        result_value.value = 1
+                    elif math.isclose(value_1, value_2):
+                        result_value.value = 1
+            if result_value.value == 1:
+                result_value.value = 0
+            else:
+                result_value.value = 1
+            push(result_value)
         elif "VSET" == command.command:
             value_table[command.arguments[0].value] = pop(command)
         elif "VGET" == command.command:
@@ -552,15 +587,11 @@ def execute_code_listing(code_listing: List[Command]):
 def nari_run(code: str) -> None:
     """Executes a NariVM code.
     """
+    sys.set_int_max_str_digits(1000000000)
     code_listing: List[Command] = split_lines(code)
     code_listing = generate_label_map(code_listing)
     execute_code_listing(code_listing)
 
 
 if __name__ == "__main__":
-    code_listing: List[Command] = split_lines(code)
-    code_listing = generate_label_map(code_listing)
-    # print_code_listing(code_listing)
-    execute_code_listing(code_listing)
-    print("--- Value Table ---")
-    print_value_table()
+    nari_run(code)

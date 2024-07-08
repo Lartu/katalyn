@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 # 
 # The__  __.       __         .__                
 # |    |/ _|____ _/  |______  |  | ___.__. ____  
@@ -15,6 +16,7 @@
 # TODO: Else if
 # TODO: Local Variables
 # TODO: Break
+# TODO: 'and' and 'or'
 # TODO: Continue
 # TODO: Function Declarations
 # TODO: Function Calls
@@ -32,6 +34,44 @@ class CompilerState:
     def __init__(self):
         self.block_count: int = 0
         self.__block_end_code_stack: List[Tuple[str, Token]] = []
+        self.__declared_variables: List[Dict[str]] = []
+        self.add_scope()
+
+    def add_scope(self) -> None:
+        self.__declared_variables.append({})
+
+    def del_scope(self):
+        if len(self.__declared_variables) > 1:
+            self.__declared_variables.pop()
+
+    def get_var_identifier(self, var_name: str, local: bool = False) -> Optional[str]:
+        """Gets the scope id (the id for the variable in the current context) of
+        the variable with name var_name. If the variable hasn't been declared yet,
+        returns None.
+        """
+        i = len(self.__declared_variables) - 1
+        while i >= 0:
+            if var_name in self.__declared_variables[i]:
+                return self.__declared_variables[i][var_name]
+            if local:
+                break
+            i -= 1
+        return None
+    
+    def declare_variable(self, var_name: str, local: bool = False) -> str:
+        """Adds a new variable, if it didn't exist, to the context. Then,
+        existed or not, returns its scope_id (the id for the variable in
+        the current context). If the variable is declared as local, the
+        variable is declared only if it didn't exist in the current context.
+        """
+        if self.get_var_identifier(var_name, local) is not None:
+            return self.get_var_identifier(var_name, local)
+        if len(self.__declared_variables) > 1:
+            scope_id = f"${len(self.__declared_variables)}${var_name}"
+        else:
+            scope_id = var_name
+        self.__declared_variables[-1][var_name] = scope_id
+        return scope_id
 
     def add_block_end_code(self, code: str, reference_token: Token):
         """Sets the next block end code to be used when an 'ok;' is found.
@@ -120,7 +160,7 @@ class Token:
             return str(self.value).replace('"', '\\"').replace('\n', '\\n')
         
     def get_var_name(self) -> str:
-        """"Returns a nambly formated variable name.
+        """"Returns a nambly formated variable name (without the $)
         """
         if self.type == LexType.VARIABLE:
             return self.value[1:]
@@ -426,20 +466,6 @@ def lex_tokens(tokenized_lines: List[List[Token]]) -> List[List[Token]]:
                     lexing_error(f"The string '{token.value}' is not a valid number.", token.line, token.file)
                 else:                   
                     lexing_error(f"The string '{token.value}' is not a valid identifier.", token.line, token.file)
-    # Join minus operators to the following numbers in valid positions
-    """for line in tokenized_lines:
-        i = 2
-        while i < len(line):
-            token: Token = line[i]
-            if token.type == LexType.INTEGER or token.type == LexType.FLOAT:
-                previous_token: Token = line[i - 1]
-                if previous_token.type in (LexType.OPERATOR, LexType.PAR_CLOSE, LexType.ACCESS_CLOSE) and previous_token.value == "-":
-                    preprevious_token: Token = line[i - 2]
-                    if preprevious_token.type == LexType.OPERATOR:
-                        line.pop(i - 1)
-                        token.value = f"-{token.value}"
-                        continue
-            i += 1"""
     return tokenized_lines
 
 
@@ -643,7 +669,10 @@ def compile_terminator(expr_tokens: List[Token], discard_return_value: bool = Fa
             elif token.type == LexType.VARIABLE:
                 if terminator_type != LexType.UNKNOWN:
                     expression_error(f"Unexpected token '{token.value}'.", token.line, token.file)
-                compiled_code += f'\nVGET "{token.get_var_name()}"'
+                var_id: Optional[str] = global_compiler_state.get_var_identifier(token.get_var_name())
+                if var_id is None:
+                    expression_error(f"Variable {token.value} read before assignment.", token.line, token.file)
+                compiled_code += f'\nVGET "{var_id}"'
                 terminator_type = token.type
             elif token.type == LexType.STRING:
                 if terminator_type != LexType.UNKNOWN:
@@ -787,7 +816,9 @@ def compile_lines(tokenized_lines: List[List[Token]]) -> str:
         if command.type == LexType.WORD:
             # --- in command ---
             if command.value == "in":
-                compiled_code += "\n" + parse_command_in(command, args)
+                compiled_code += "\n" + parse_command_in(command, args, False)
+            elif command.value == "local":
+                compiled_code += "\n" + parse_command_in(command, args, True)
             elif command.value == "while":
                 compiled_code += "\n" + parse_command_while(command, args)
             elif command.value == "if":
@@ -796,6 +827,10 @@ def compile_lines(tokenized_lines: List[List[Token]]) -> str:
                 compiled_code += "\n" + parse_command_ok(command, args)
             elif command.value == "continue":
                 compiled_code += "\n" + parse_command_continue(command, args)
+            elif command.value == "add_scope":
+                parse_command_add_scope(command, args)
+            elif command.value == "del_scope":
+                parse_command_del_scope(command, args)
             else:
                 # Commands that are "function-like" such as print
                 compiled_code += "\n" + compile_expression(line, True)
@@ -819,7 +854,7 @@ def compile_function_call(command: Token, args_list: List[List[Token]], discard_
     
 
 
-def parse_command_in(command_token: Token, args: List[Token]) -> str:
+def parse_command_in(command_token: Token, args: List[Token], local: bool) -> str:
     access_compiled_code: str = ""
     set_compiled_code: str = ""
     value_compiled_code: str = ""
@@ -874,9 +909,11 @@ def parse_command_in(command_token: Token, args: List[Token]) -> str:
                         left_side[1].file
                     )
                 else:
-                    set_compiled_code += f'\nVSET "{var.get_var_name()}"'
+                    var_id = global_compiler_state.declare_variable(var.get_var_name(), local)
+                    set_compiled_code += f'\nVSET "{var_id}"'
             else:
-                access_compiled_code += f'\nVGET "{var.get_var_name()}"'
+                var_id = global_compiler_state.declare_variable(var.get_var_name(), local)
+                access_compiled_code += f'\nVGET "{var_id}"'
                 access_tokens: List[Token] = []
                 access_depth: int = 0
                 for token in left_side[1:]:
@@ -986,7 +1023,6 @@ def parse_command_exit(command_token: Token, args_list: List[List[Token]], disca
 
 
 def parse_command_while(command_token: Token, args: List[Token]) -> str:
-    global global_compiler_state
     block_number: int = global_compiler_state.block_count
     global_compiler_state.block_count += 1
     start_tag: str = f"LOOP_{block_number}_START"
@@ -1004,7 +1040,6 @@ def parse_command_while(command_token: Token, args: List[Token]) -> str:
 
 
 def parse_command_if(command_token: Token, args: List[Token]) -> str:
-    global global_compiler_state
     block_number: int = global_compiler_state.block_count
     global_compiler_state.block_count += 1
     start_tag: str = f"IF_{block_number}_START"
@@ -1021,15 +1056,26 @@ def parse_command_if(command_token: Token, args: List[Token]) -> str:
 
 
 def parse_command_ok(command_token: Token, args: List[Token]) -> str:
-    global global_compiler_state
     if args:
-        parse_error("Unexpected arguments for command 'ok'.", command_token.line, command_token.file)
+        parse_error(f"Unexpected arguments for command '{command_token.value}'.", command_token.line, command_token.file)
     return global_compiler_state.get_block_end_code(command_token)
 
-def parse_command_continue(command_token: Token, args: List[Token]) -> str:
-    global global_compiler_state
+
+def parse_command_add_scope(command_token: Token, args: List[Token]) -> None:
     if args:
-        parse_error("Unexpected arguments for command 'continue'.", command_token.line, command_token.file)
+        parse_error(f"Unexpected arguments for command '{command_token.value}'.", command_token.line, command_token.file)
+    global_compiler_state.add_scope()
+
+
+def parse_command_del_scope(command_token: Token, args: List[Token]) -> None:
+    if args:
+        parse_error(f"Unexpected arguments for command '{command_token.value}'.", command_token.line, command_token.file)
+    global_compiler_state.del_scope()
+
+
+def parse_command_continue(command_token: Token, args: List[Token]) -> str:
+    if args:
+        parse_error(f"Unexpected arguments for command '{command_token.value}'.", command_token.line, command_token.file)
     return global_compiler_state.get_block_end_code(command_token, True)
 
 
@@ -1045,20 +1091,9 @@ if __name__ == "__main__":
     if tokenized_lines:
         # print_tokens(tokenized_lines, filename, "Tokenization")
         lex_tokens(tokenized_lines)
-        print_tokens(tokenized_lines, filename, "Lexing")
+        #print_tokens(tokenized_lines, filename, "Lexing")
         nambly = compile_lines(tokenized_lines)
         global_compiler_state.check_for_errors()
         nambly = stylize_namby(nambly)
         print(nambly)
         nari_run(nambly)
-
-# Next Steps:
-"""
-El parser debería ser relativamente simple por cómo diseñé el lenguaje
-Todas las lineas empiezan con un comando y tienen cosas en posiciones fijas,
-con lo único variable siendo todo lo que sean expresiones. Como las variables
-son $... y tengo palabras reservadas, puedo encontrar fácilmente dónde terminan
-y empiezan las expresiones (incluyendo los llamados a funciones).
-Con eso construyo una lista de secuencias comando-expresión.
-Y después una vez que esté eso puedo iterar por eso generando Nambly.
-"""
