@@ -1,21 +1,50 @@
 in $file: open_rw("aoc1_input.txt");
 while read_line($file);
-    in $line: trim($_r); (* $_r es el resultado del while y es local *)
-    if $line;
-        print($_r); (* $_r es el resultado del if y es local *)
-        (* Find first digit *)
-        in $i: 0;
-        while slice($line, $i, 1);
-            (* Lo razonable acá sería un for $line con $_k y $_v*)
-            print($i, "'", $_r, "'"); (* Necesito or y def para poder checkear si el char es un dígito *)
-            in $i: $i + 1;
-        ok;
+    local $line: trim($_r);
+    if "one" :: $line;
+        print("The line ", $line," contains 'one'");
     ok;
-    if !$line;
-        in $continue: 0;
-    ok;
-    in $continue: 0;
 ok;
+
+(*in $file: open_rw("aoc1_input.txt");
+in $total: 0;
+while read_line($file);
+    local $line: trim($_r); (* $_r es el resultado del while y es local *)
+    print($line); (* $_r es el resultado del if y es local *)
+    local $first_digit: 0;
+    local $last_digit: 0;
+
+    (* Find first digit *)
+    local $i: 1;
+    while slice($line, $i, 1);
+        (* Lo razonable acá sería un for $line con $_k y $_v*)
+        local $char: $_r;
+        if $char :: "0123456789";
+            in $first_digit: $char;
+            print("Found first digit: ", $first_digit);
+            goto SECOND_CHAR;
+        ok;
+        in $i: $i + 1;
+    ok;
+    label SECOND_CHAR;
+
+    (* Find list digit *)
+    local $i: len($line); (* Por casos como este es que Katalyn indexa desde 1 *)
+    while slice($line, $i, 1);
+        local $char: $_r;
+        if $char :: "0123456789";
+            in $last_digit: $char;
+            print("Found last digit: ", $last_digit);
+            goto CONTINUE;
+        ok;
+        in $i: $i - 1;
+    ok;
+    label CONTINUE;
+
+    in $total: $total + ($first_digit & $last_digit);
+ok;
+label EXIT;
+print("Total: ", $total);
 
 (*in $a: 99;
 add_scope;

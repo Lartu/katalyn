@@ -508,7 +508,7 @@ def execute_code_listing(code_listing: List[Command]):
             push(result_value)
         elif "SSTR" == command.command:  # SubSTRing
             idx_count: str = int(pop(command).get_as_number())
-            idx_from: str = int(pop(command).get_as_number())
+            idx_from: str = int(pop(command).get_as_number()) - 1
             val_str: str = pop(command).get_as_string()
             result_value = Value()
             result_value.type = Types.TXT
@@ -548,14 +548,14 @@ def execute_code_listing(code_listing: List[Command]):
             value = pop(command)
             index = pop(command)
             table = pop(command)
-            table.value[index.value] = value
+            table.value[index.get_as_string()] = value
         elif "DUPL" == command.command:
             push(execution_stack[-1])
         elif "PGET" == command.command:
             index = pop(command)
             table = pop(command)
             if index.value in table.value:
-                push(table.value[index.value])
+                push(table.value[index.get_as_string()])
             else:
                 result_value = Value()
                 result_value.value = None
@@ -671,9 +671,57 @@ def execute_code_listing(code_listing: List[Command]):
             v1 = pop(command)
             push(v2)
             push(v1)
+        elif "LAND" == command.command:
+            com_2: Value = pop(command)
+            com_1: Value = pop(command)
+            result_value = Value()
+            result_value.type = Types.INT
+            result_value.value = 0
+            if is_true(com_1) and is_true(com_2):
+                result_value.value = 1
+            push(result_value)
+        elif "ISNE" == command.command:
+            com_2: Value = pop(command)
+            com_1: Value = pop(command)
+            result_value = Value()
+            result_value.type = Types.INT
+            result_value.value = 0
+            if is_true(com_1) or is_true(com_2):
+                result_value.value = 1
+            push(result_value)
+        elif "ISIN" == command.command:
+            container: Value = pop(command)
+            value: Value = pop(command)
+            result_value = Value()
+            result_value.type = Types.INT
+            result_value.value = 0
+            if container.type == Types.TAB:
+                if value.get_as_string() in container.value:
+                    result_value.value = 1
+            else:
+                if value.get_as_string() in container.get_as_string():
+                    result_value.value = 1
+            push(result_value)
         else:
             nambly_error(f"Unknown Nambly command: {command}")
         pc += 1
+
+    
+def is_true(value: Value) -> bool:
+    if value.type == Types.TAB:
+        if len(value.value) > 0: # By reference
+            return True
+    elif value.type == Types.TXT:
+        if len(value.value) > 0:
+            return True
+    elif value.type == Types.INT:
+        if value.value != 0:
+            return True
+    elif value.type == Types.FLO:
+        if not math.isclose(value.value, 0):
+            return True
+    else:
+        return False
 
 
 def nari_run(code: str) -> None:

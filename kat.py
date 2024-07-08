@@ -28,15 +28,30 @@ from enum import Enum, auto
 from narivm import nari_run
 
 
-OPERATOR_PRESEDENCE = ("*", "^", "/", "%", "//", "+", "&", "-", "!", "<", ">", "<=", ">=", "<>", "=")
+OPERATOR_PRESEDENCE = ("*", "^", "/", "%", "//", "+", "&", "-", "::", "!", "<", ">", "<=", ">=", "<>", "=", "||", "&&")
 
 
 class CompilerState:
     def __init__(self):
         self.block_count: int = 0
         self.__block_end_code_stack: List[Tuple[str, Token]] = []
-        self.__declared_variables: List[Dict[str]] = []
+        self.__declared_variables: List[Dict[str, str]] = []
+        self.__user_labels: Set[str] = set()
+        self.__expected_labels: Dict[str, Token] = {}
         self.add_scope()
+
+    def add_label(self, label: str, reference_token: Token) -> None:
+        if label not in self.__user_labels:
+            self.__user_labels.add(label)
+        else:
+            parse_error(
+                f"Duplicate label '{label}'",
+                reference_token.line,
+                reference_token.file
+            )
+
+    def add_expected_label(self, label: str, reference_token: Token) -> None:
+        self.__expected_labels[label] = reference_token
 
     def add_scope(self) -> None:
         self.__declared_variables.append({})
@@ -115,6 +130,13 @@ class CompilerState:
         """
         if self.__block_end_code_stack:
             parse_error("Missing 'ok' command.", self.__block_end_code_stack[0][1].line, self.__block_end_code_stack[0][1].file)
+        for label in self.__expected_labels:
+            if label not in self.__user_labels:
+                parse_error(
+                    f"Jump to undeclared label '{label}'.",
+                    self.__expected_labels[label].line,
+                    self.__expected_labels[label].file,
+                )
 
 
 class LexType(Enum):
@@ -319,7 +341,7 @@ def tokenize_source(code: str, filename: str) -> List[List[Token]]:
             if len(current_line):
                 lines.append(current_line)
             current_line = []
-        elif comment_depth == 0 and not in_string and not in_access_string and current_char + next_char in (">=", "<=", "<>", "//"):
+        elif comment_depth == 0 and not in_string and not in_access_string and current_char + next_char in (">=", "<=", "::", "<>", "//", "&&", "||"):
             # Biglyphs
             if len(current_token):
                 current_line.append(Token(current_token, line_num, filename))
@@ -615,6 +637,12 @@ def compile_expression(expr_tokens: List[Token], discard_return_value: bool = Fa
             compiled_code += "\nISLE"
         elif operator.value == ">=":
             compiled_code += "\nISGE"
+        elif operator.value == "&&":
+            compiled_code += "\nLAND"
+        elif operator.value == "||":
+            compiled_code += "\nLGOR"
+        elif operator.value == "::":
+            compiled_code += "\nISIN"
         else:
             expression_error(
                 f"The operator {operator.value} cannot be used as an infix operator.",
@@ -847,6 +875,10 @@ def compile_lines(tokenized_lines: List[List[Token]]) -> str:
                 parse_command_add_scope(command, args)
             elif command.value == "del_scope":
                 compiled_code += "\n" + parse_command_del_scope(command, args)
+            elif command.value == "label":
+                compiled_code += "\n" + parse_command_label(command, args)
+            elif command.value == "goto":
+                compiled_code += "\n" + parse_command_goto(command, args)
             else:
                 # Commands that are "function-like" such as print
                 compiled_code += "\n" + compile_expression(line, True)
@@ -1190,6 +1222,22 @@ def parse_command_ok(command_token: Token, args: List[Token]) -> str:
         parse_error(f"Unexpected arguments for command '{command_token.value}'.", command_token.line, command_token.file)
     global_compiler_state.del_scope()
     return global_compiler_state.get_block_end_code(command_token)
+
+
+def parse_command_label(command_token: Token, args: List[Token]) -> str:
+    if len(args) != 1:
+        parse_error(f"Wrong number of arguments for command '{command_token.value}' (expected 1).", command_token.line, command_token.file)
+    label: str = args[0].value
+    global_compiler_state.add_label(label, command_token)
+    return f"@USR_LBL_{label}"
+
+
+def parse_command_goto(command_token: Token, args: List[Token]) -> str:
+    if len(args) != 1:
+        parse_error(f"Wrong number of arguments for command '{command_token.value}' (expected 1).", command_token.line, command_token.file)
+    label: str = args[0].value
+    global_compiler_state.add_expected_label(label, command_token)
+    return f"JUMP USR_LBL_{label}"
 
 
 def parse_command_add_scope(command_token: Token, args: List[Token]) -> None:
