@@ -10,16 +10,15 @@
 # Started by Lartu on July 3, 2024 (01:13 AM).
 # 
 
-# TODO: Check that functions have been declared
 # TODO: Else
 # TODO: Else if
 # TODO: Break
-# TODO: 'and' and 'or'
+# TODO: Lógica de cortocircuito para 'and' and 'or' (Es saltar al final del right side si and es false u or es true en el left side)
 # TODO: Continue
 # TODO: Function Declarations
 # TODO: Function Calls
 # TODO: Function scoping for variables (automatic)
-# TODO: Unset
+# TODO: Check that functions have been declared
 # TODO: for key in table
 
 from __future__ import annotations
@@ -267,7 +266,6 @@ def parse_error(message: str, line: int, filename: str):
 def tokenize_source(code: str, filename: str) -> List[List[Token]]:
     """Takes Katalyn source code and splits it into tokens.
     """
-    last_line_with_tokens = 1  # For error reporting purposes
     last_string_open_line = 1  # For error reporting purposes
     line_num = 1
     lines: List[List[Token]] = []
@@ -277,19 +275,25 @@ def tokenize_source(code: str, filename: str) -> List[List[Token]]:
     in_string = False
     in_access_string = False
     comment_depth: int = 0
+    in_inline_comment: bool = False
     # Katalyn supports nested comments, but doesn't make any distinction between (* ... *) inside strings
     # once that string is inside an already open comment (such as (* "(* *)" *))
     i = 0
     while i < len(code) - 1:
         current_char = code[i]
         next_char = code[i + 1]
-        if not in_string and not in_access_string and current_char == "(" and next_char == "*":
+        if not in_inline_comment and not in_string and not in_access_string and comment_depth == 0 and current_char == "#":
+            # Inline comment
+            in_inline_comment = True
+        elif not in_string and not in_access_string and current_char == "(" and next_char == "*":
+            # (*...*) comments can be opened and closed from within an inline comment
             comment_depth += 1
             i += 1
         elif comment_depth > 0 and not in_string and not in_access_string and current_char == "*" and next_char == ")":
+            # (*...*) comments can be opened and closed from within an inline comment
             comment_depth -= 1
             i += 1
-        elif comment_depth == 0 and (in_string or in_access_string) and current_char == '\\':
+        elif not in_inline_comment and comment_depth == 0 and (in_string or in_access_string) and current_char == '\\':
             # This block should always go before any that match "" or {}
             if next_char == "n":
                 current_token += "\n"
@@ -306,20 +310,20 @@ def tokenize_source(code: str, filename: str) -> List[List[Token]]:
             else:
                 current_token += next_char
             i += 1
-        elif comment_depth == 0 and not in_string and not in_access_string and current_char == '"':
+        elif not in_inline_comment and comment_depth == 0 and not in_string and not in_access_string and current_char == '"':
             if len(current_token):
                 current_line.append(Token(current_token, line_num, filename))
             current_token = ""
             current_token += current_char
             in_string = True
             last_string_open_line = line_num
-        elif comment_depth == 0 and in_string and not in_access_string and current_char == '"':
+        elif not in_inline_comment and comment_depth == 0 and in_string and not in_access_string and current_char == '"':
             current_token += current_char
             in_string = False
             if len(current_token):
                 current_line.append(Token(current_token, last_string_open_line, filename))
             current_token = ""
-        elif comment_depth == 0 and not in_string and not in_access_string and current_char == '{':
+        elif not in_inline_comment and comment_depth == 0 and not in_string and not in_access_string and current_char == '{':
             if len(current_token):
                 current_line.append(Token(current_token, line_num, filename))
             current_token = ""
@@ -327,41 +331,42 @@ def tokenize_source(code: str, filename: str) -> List[List[Token]]:
             current_token += '"'
             in_access_string = True
             last_string_open_line = line_num
-        elif comment_depth == 0 and not in_string and in_access_string and current_char == '}':
+        elif not in_inline_comment and comment_depth == 0 and not in_string and in_access_string and current_char == '}':
             current_token += '"'
             in_access_string = False
             if len(current_token):
                 current_line.append(Token(current_token, last_string_open_line, filename))
             current_token = ""
             current_line.append(Token("]", line_num, filename))
-        elif comment_depth == 0 and not in_string and not in_access_string and current_char == ";":
+        elif not in_inline_comment and comment_depth == 0 and not in_string and not in_access_string and current_char == ";":
             if len(current_token):
                 current_line.append(Token(current_token, line_num, filename))
             current_token = ""
             if len(current_line):
                 lines.append(current_line)
             current_line = []
-        elif comment_depth == 0 and not in_string and not in_access_string and current_char + next_char in (">=", "<=", "::", "<>", "//", "&&", "||"):
+        elif not in_inline_comment and comment_depth == 0 and not in_string and not in_access_string and current_char + next_char in (">=", "<=", "::", "<>", "//", "&&", "||"):
             # Biglyphs
             if len(current_token):
                 current_line.append(Token(current_token, line_num, filename))
             current_token = ""
             current_line.append(Token(current_char + next_char, line_num, filename))
             i += 1
-        elif comment_depth == 0 and not in_string and not in_access_string and current_char in "(){}[]=<>!+-/&%^*:#,":
+        elif not in_inline_comment and comment_depth == 0 and not in_string and not in_access_string and current_char in "(){}[]=<>!+-/&%^*:#,":
             # Single glyphs
             if len(current_token):
                 current_line.append(Token(current_token, line_num, filename))
             current_token = ""
             current_line.append(Token(current_char, line_num, filename))
-        elif comment_depth == 0 and not in_string and not in_access_string and current_char.isspace():
+        elif not in_inline_comment and comment_depth == 0 and not in_string and not in_access_string and current_char.isspace():
             if len(current_token):
                 current_line.append(Token(current_token, line_num, filename))
             current_token = ""
-        elif comment_depth == 0:
+        elif not in_inline_comment and comment_depth == 0:
             current_token += current_char
         if current_char == "\n":
             line_num += 1
+            in_inline_comment = False
         i += 1
     # Check for consistency
     # I want to be able to leave comments open til the end of the file
@@ -489,7 +494,7 @@ def lex_tokens(tokenized_lines: List[List[Token]]) -> List[List[Token]]:
                 token.type = LexType.ACCESS_CLOSE
             elif token.value in (":", ","):
                 token.type = LexType.DECORATION
-            elif token.value == "#":
+            elif token.value == "table":
                 token.type = LexType.TABLE
             elif is_integer(token.value):
                 token.type = LexType.INTEGER
@@ -603,7 +608,8 @@ def compile_expression(expr_tokens: List[Token], discard_return_value: bool = Fa
                 operator.line,
                 operator.file
             )
-        elif operator is None or not left_side_tokens:
+        elif operator is None:  # Antes acá decía "or not left side tokens, que me parece que debe estar mal"
+            # Caso de los function calls
             compiled_code += "\n" + compile_terminator(left_side_tokens, discard_return_value)
         else:
             compiled_code += "\n" + compile_expression(left_side_tokens)
@@ -703,6 +709,7 @@ def compile_terminator(expr_tokens: List[Token], discard_return_value: bool = Fa
                         expression_error(f"Unexpected token '{token.value}'.", token.line, token.file)
                     compiled_code += f"\nPUSH -{next_token.value}"
                     terminator_type = next_token.type
+                    expr_tokens.pop(0)
                 else:
                     add_minus_code = True
             elif token.type == LexType.OPERATOR and token.value == "!":

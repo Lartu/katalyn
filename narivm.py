@@ -545,17 +545,18 @@ def execute_code_listing(code_listing: List[Command]):
             result_value.type = Types.TAB
             push(result_value)
         elif "PSET" == command.command:
-            value = pop(command)
-            index = pop(command)
-            table = pop(command)
+            value: Value = pop(command)
+            index: Value = pop(command)
+            table: Value = pop(command)
             table.value[index.get_as_string()] = value
         elif "DUPL" == command.command:
             push(execution_stack[-1])
         elif "PGET" == command.command:
             index = pop(command)
             table = pop(command)
-            if index.value in table.value:
-                push(table.value[index.get_as_string()])
+            index_value: str = index.get_as_string()
+            if index_value in table.value:
+                push(table.value[index_value])
             else:
                 result_value = Value()
                 result_value.value = None
