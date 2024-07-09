@@ -1,13 +1,8 @@
-in $t: table;
-in $t[0]: "Roberto";
-print($t[0]);
+in $a: 0;
 
-in $a: -20;  # This is an inline comment
-in $b: 5;
-in $c: 3;
-
-in $x: ((($a + $b) ^ 2) ^ 0.5) / $c;
-print($x);
+unless $a >= 10;
+    print("$a es menor a 10");
+ok;
 
 (*in $file: open_rw("aoc1_input.txt");
 while read_line($file);

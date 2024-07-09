@@ -625,7 +625,7 @@ def execute_code_listing(code_listing: List[Command]):
             result_value.value = line
             result_value.type = Types.TXT
             push(result_value)
-        elif "LNOT" == command.command:
+        elif "LNOT" == command.command:  # Logic NOT
             com_1: Value = pop(command)
             result_value = Value()
             result_value.type = Types.INT
@@ -643,7 +643,7 @@ def execute_code_listing(code_listing: List[Command]):
                 else:
                     result_value.value = 1
             elif com_1.type == Types.INT:
-                if len(com_1.value) == 0:
+                if com_1.value == 0:
                     result_value.value = 1
                 else:
                     result_value.value = 0

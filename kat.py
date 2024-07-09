@@ -9,12 +9,9 @@
 # 
 # Started by Lartu on July 3, 2024 (01:13 AM).
 # 
-
 # TODO: Else
 # TODO: Else if
-# TODO: Break
 # TODO: Lógica de cortocircuito para 'and' and 'or' (Es saltar al final del right side si and es false u or es true en el left side)
-# TODO: Continue
 # TODO: Function Declarations
 # TODO: Function Calls
 # TODO: Function scoping for variables (automatic)
@@ -37,6 +34,7 @@ class CompilerState:
         self.__declared_variables: List[Dict[str, str]] = []
         self.__user_labels: Set[str] = set()
         self.__expected_labels: Dict[str, Token] = {}
+        self.__open_loop_tags: List[Tuple[str, str]] = []
         self.add_scope()
 
     def add_label(self, label: str, reference_token: Token) -> None:
@@ -51,6 +49,24 @@ class CompilerState:
 
     def add_expected_label(self, label: str, reference_token: Token) -> None:
         self.__expected_labels[label] = reference_token
+
+    def add_open_loop(self, start_label: str, end_label: str) -> None:
+        self.__open_loop_tags.append((start_label, end_label))
+
+    def close_open_loop(self) -> None:
+        """Closes an open loop only if the current scope is that of a loop.
+        """
+        if self.__block_end_code_stack:
+            if self.__block_end_code_stack[-1][1].value == "while":
+                self.__open_loop_tags.pop()
+
+    def get_open_loop_tags(self) -> Optional[Tuple[str, str]]:
+        """Returns the start and end tags of a loop if a loops is open, otherwise None.
+        """
+        if self.__open_loop_tags:
+            return self.__open_loop_tags[-1]
+        else:
+            return None
 
     def add_scope(self) -> None:
         self.__declared_variables.append({})
@@ -113,15 +129,11 @@ class CompilerState:
         """
         self.__block_end_code_stack.append((code, reference_token))
     
-    def get_block_end_code(self, caller_command: Token, is_continue: bool = False) -> str:
+    def get_block_end_code(self, caller_command: Token) -> str:
         """Gets the next block end code to be used when an 'ok;' is found.
         """
         if not self.__block_end_code_stack:
             parse_error("Unexpected 'ok' command.", caller_command.line, caller_command.file)
-        if is_continue:
-            reference_token = self.__block_end_code_stack[-1][1]
-            if reference_token.value != "while":
-                parse_error("Continue used outside of loop.", )
         return self.__block_end_code_stack.pop()[0]
     
     def check_for_errors(self):
@@ -872,12 +884,18 @@ def compile_lines(tokenized_lines: List[List[Token]]) -> str:
                 compiled_code += "\n" + parse_command_in(command, args, True)
             elif command.value == "while":
                 compiled_code += "\n" + parse_command_while(command, args)
+            elif command.value == "until":
+                compiled_code += "\n" + parse_command_until(command, args)
             elif command.value == "if":
                 compiled_code += "\n" + parse_command_if(command, args)
+            elif command.value == "unless":
+                compiled_code += "\n" + parse_command_unless(command, args)
             elif command.value == "ok":
                 compiled_code += "\n" + parse_command_ok(command, args)
             elif command.value == "continue":
                 compiled_code += "\n" + parse_command_continue(command, args)
+            elif command.value == "break":
+                compiled_code += "\n" + parse_command_break(command, args)
             elif command.value == "add_scope":
                 parse_command_add_scope(command, args)
             elif command.value == "del_scope":
@@ -1198,6 +1216,32 @@ def parse_command_while(command_token: Token, args: List[Token]) -> str:
     # Push end code to state for it to be used on next ok;
     block_end_code += f"\nJUMP {start_tag}"
     block_end_code += f"\n@{end_tag}"
+    global_compiler_state.add_open_loop(start_tag, end_tag)
+    global_compiler_state.add_block_end_code(block_end_code, command_token)
+    return compiled_code
+
+
+def parse_command_until(command_token: Token, args: List[Token]) -> str:
+    global_compiler_state.add_scope()
+    block_number: int = global_compiler_state.block_count
+    global_compiler_state.block_count += 1
+    start_tag: str = f"LOOP_{block_number}_START"
+    end_tag: str = f"LOOP_{block_number}_END"
+    compiled_code: str = ""
+    block_end_code: str = ""
+    compiled_code += f"\n@{start_tag}"
+    compiled_code += "\n" + compile_expression(args)
+    compiled_code += "\nDUPL"
+    it_var: Token = Token("$_r", command_token.line, command_token.file)
+    it_var.type = LexType.VARIABLE
+    it_var_id: str = global_compiler_state.declare_variable(it_var, True)
+    compiled_code += f'\nVSET "{it_var_id}"'
+    compiled_code += f"\nLNOT"
+    compiled_code += f"\nJPIF {end_tag}"
+    # Push end code to state for it to be used on next ok;
+    block_end_code += f"\nJUMP {start_tag}"
+    block_end_code += f"\n@{end_tag}"
+    global_compiler_state.add_open_loop(start_tag, end_tag)
     global_compiler_state.add_block_end_code(block_end_code, command_token)
     return compiled_code
 
@@ -1206,8 +1250,8 @@ def parse_command_if(command_token: Token, args: List[Token]) -> str:
     global_compiler_state.add_scope()
     block_number: int = global_compiler_state.block_count
     global_compiler_state.block_count += 1
-    start_tag: str = f"IF_{block_number}_START"
-    end_tag: str = f"IF_{block_number}_END"
+    start_tag: str = f"COND_{block_number}_START"
+    end_tag: str = f"COND_{block_number}_END"
     compiled_code: str = ""
     block_end_code: str = ""
     compiled_code += f"\n@{start_tag}"
@@ -1224,10 +1268,34 @@ def parse_command_if(command_token: Token, args: List[Token]) -> str:
     return compiled_code
 
 
+def parse_command_unless(command_token: Token, args: List[Token]) -> str:
+    global_compiler_state.add_scope()
+    block_number: int = global_compiler_state.block_count
+    global_compiler_state.block_count += 1
+    start_tag: str = f"COND_{block_number}_START"
+    end_tag: str = f"COND_{block_number}_END"
+    compiled_code: str = ""
+    block_end_code: str = ""
+    compiled_code += f"\n@{start_tag}"
+    compiled_code += "\n" + compile_expression(args)
+    compiled_code += "\nDUPL"
+    it_var: Token = Token("$_r", command_token.line, command_token.file)
+    it_var.type = LexType.VARIABLE
+    it_var_id: str = global_compiler_state.declare_variable(it_var, True)
+    compiled_code += f'\nVSET "{it_var_id}"'
+    compiled_code += f"\nLNOT"
+    compiled_code += f"\nJPIF {end_tag}"
+    # Push end code to state for it to be used on next ok;
+    block_end_code += f"\n@{end_tag}"
+    global_compiler_state.add_block_end_code(block_end_code, command_token)
+    return compiled_code
+
+
 def parse_command_ok(command_token: Token, args: List[Token]) -> str:
     if args:
         parse_error(f"Unexpected arguments for command '{command_token.value}'.", command_token.line, command_token.file)
     global_compiler_state.del_scope()
+    global_compiler_state.close_open_loop()
     return global_compiler_state.get_block_end_code(command_token)
 
 
@@ -1260,9 +1328,27 @@ def parse_command_del_scope(command_token: Token, args: List[Token]) -> str:
 
 
 def parse_command_continue(command_token: Token, args: List[Token]) -> str:
+    compiled_code: str = ""
     if args:
         parse_error(f"Unexpected arguments for command '{command_token.value}'.", command_token.line, command_token.file)
-    return global_compiler_state.get_block_end_code(command_token, True)
+    if global_compiler_state.get_open_loop_tags() is None:
+        parse_error(f"Continue can only be used inside loops.", command_token.line, command_token.file)
+    else:
+        start_tag: str = global_compiler_state.get_open_loop_tags()[0]
+        compiled_code += f"\nJUMP {start_tag}"
+    return compiled_code
+
+
+def parse_command_break(command_token: Token, args: List[Token]) -> str:
+    compiled_code: str = ""
+    if args:
+        parse_error(f"Unexpected arguments for command '{command_token.value}'.", command_token.line, command_token.file)
+    if global_compiler_state.get_open_loop_tags() is None:
+        parse_error(f"Break can only be used inside loops.", command_token.line, command_token.file)
+    else:
+        end_tag: str = global_compiler_state.get_open_loop_tags()[1]
+        compiled_code += f"\nJUMP {end_tag}"
+    return compiled_code
 
 
 def parse_command_trim(command_token: Token, args_list: List[List[Token]], discard_return_value: bool = False) -> str:
