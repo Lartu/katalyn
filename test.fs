@@ -1,8 +1,14 @@
-in $a: 0;
+in $a: 10;
 
-unless $a >= 10;
-    print("$a es menor a 10");
+def isspace;
+    in $a: $a + 10;
 ok;
+
+isspace(" ");
+isspace(" ");
+isspace(" ");
+isspace(" ");
+print($a);
 
 (*in $file: open_rw("aoc1_input.txt");
 while read_line($file);

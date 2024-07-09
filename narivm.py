@@ -10,6 +10,7 @@ label_to_pc: Dict[str, int] = {}
 pc_to_label: Dict[int, str] = {}
 execution_stack: List[Any] = []
 open_files: Dict[str, TextIOWrapper] = {}
+return_stack: List[int] = []
 
 class Types(Enum):
     INT = 1
@@ -312,6 +313,11 @@ def execute_code_listing(code_listing: List[Command]):
         command: Command = code_listing[pc]
         if "PUSH" == command.command:
             push(command.arguments[0])
+        elif "PNIL" == command.command:
+            result_value = Value()
+            result_value.value = None
+            result_value.type = Types.NIL
+            push(result_value)
         elif "ADDV" == command.command:
             com_2: Value = pop(command)
             com_1: Value = pop(command)
@@ -508,22 +514,33 @@ def execute_code_listing(code_listing: List[Command]):
             push(result_value)
         elif "SSTR" == command.command:  # SubSTRing
             idx_count: str = int(pop(command).get_as_number())
-            idx_from: str = int(pop(command).get_as_number()) - 1
+            idx_from: str = int(pop(command).get_as_number())
             val_str: str = pop(command).get_as_string()
             result_value = Value()
             result_value.type = Types.TXT
+            if idx_from > 0:
+                idx_from -= 1
             if idx_from >= len(val_str) or idx_count == 0:
                 result_value.value = ""
                 push(result_value)
             else:
                 if idx_from < 0:
-                    idx_from = 0
+                    idx_from = len(val_str) + idx_from
+                    if idx_from < 0:
+                        idx_from = 0
                 if idx_from + idx_count >= len(val_str):
                     idx_count = len(val_str) - idx_from
                 result_value.value = val_str[idx_from:idx_from+idx_count]
                 push(result_value)
         elif "JUMP" == command.command:
             pc = label_to_pc[command.arguments[0].value] - 1
+        elif "CALL" == command.command:
+            return_stack.append(pc)
+            pc = label_to_pc[command.arguments[0].value] - 1
+        elif "RTRN" == command.command:
+            if not return_stack:
+                nambly_error("Empty return stack.")
+            pc = return_stack.pop()
         elif "JPIF" == command.command:  #JumP If False
             value_1 = pop(command)
             if value_1.type in (Types.INT, Types.FLO):
