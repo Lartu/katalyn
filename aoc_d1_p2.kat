@@ -1,7 +1,12 @@
 (* Advent of Code 2023 - Day 1, part 1*)
 
+def array;
+    return $_;
+ok;
+
 in $file: open_rw("aoc1_input.txt");
 in $total: 0;
+in $numbers: array("one", "two", "three", "four", "five", "six", "seven", "eight", "nine");
 
 while read_line($file);
     in $line: trim($_r);
@@ -12,6 +17,14 @@ while read_line($file);
     in $i: 1;
     while slice($line, $i, 1);
         in $char: $_r;
+        in $j: 1;
+        until $j > len($numbers);
+            if slice($line, $i, len($numbers[$j])) = $numbers[$j];
+                in $first_digit: $j;
+                break 2;
+            ok;
+            in $j: $j + 1;
+        ok;
         if $char :: "0123456789";
             in $first_digit: $char;
             break;
@@ -20,9 +33,17 @@ while read_line($file);
     ok;
 
     (* Find last digit *)
-    in $i: len($line); (* This is why Katalyn indexes from 1 *)
+    in $i: -1;
     while slice($line, $i, 1);
         in $char: $_r;
+        in $j: 1;
+        until $j > len($numbers);
+            if slice($line, $i, len($numbers[$j])) = $numbers[$j];
+                in $last_digit: $j;
+                break 2;
+            ok;
+            in $j: $j + 1;
+        ok;
         if $char :: "0123456789";
             in $last_digit: $char;
             break;

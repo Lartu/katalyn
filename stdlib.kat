@@ -11,11 +11,5 @@ ok;
 
 
 def array;
-    in $array: table;
-    in $i: 1;
-    until $i > $_{size};
-        in $array[$i]: $_[$i];
-        in $i: $i + 1;
-    ok;
-    return $array;
+    return $_;
 ok;

@@ -58,11 +58,14 @@ class CompilerState:
             if self.__block_end_code_stack[-1][1].value in LOOP_TAGS:
                 self.__open_loop_tags.pop()
 
-    def get_open_loop_tags(self) -> Optional[Tuple[str, str]]:
+    def get_open_loop_tags(self, depth: int = 0) -> Optional[Tuple[str, str]]:
         """Returns the start and end tags of a loop if a loops is open, otherwise None.
         """
         if self.__open_loop_tags:
-            return self.__open_loop_tags[-1]
+            index: int = 1 + depth
+            if index > len(self.__open_loop_tags):
+                index = 0
+            return self.__open_loop_tags[-index]
         else:
             return None
 
@@ -1349,13 +1352,17 @@ def parse_command_continue(command_token: Token, args: List[Token]) -> str:
 
 def parse_command_break(command_token: Token, args: List[Token]) -> str:
     compiled_code: str = ""
+    if len(args) > 1:
+        parse_error(f"Wrong number of arguments for command '{command_token.value}' (expected 0 or 1).", command_token.line, command_token.file)
+    count: int = 1
     if args:
-        parse_error(f"Unexpected arguments for command '{command_token.value}'.", command_token.line, command_token.file)
-    if global_compiler_state.get_open_loop_tags() is None:
+        if not is_integer(args[0].value):
+            parse_error(f"Expected zero or one integer arguments for command '{command_token.value}'.", command_token.line, command_token.file)
+        count = int(args[0].value)
+    if global_compiler_state.get_open_loop_tags(depth=count - 1) is None:
         parse_error(f"Break can only be used inside loops.", command_token.line, command_token.file)
-    else:
-        end_tag: str = global_compiler_state.get_open_loop_tags()[1]
-        compiled_code += f"\nJUMP {end_tag}"
+    end_tag: str = global_compiler_state.get_open_loop_tags(depth=count - 1)[1]
+    compiled_code += f"\nJUMP {end_tag}"
     return compiled_code
 
 

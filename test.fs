@@ -1,4 +1,11 @@
-print(floor(1.2));
+while 1;
+    while 1;
+        break;
+    ok
+    print("Saliste del while de adentro.");
+ok;
+print("Saliste del while de afuera.");
+
 
 (*in $file: open_rw("aoc1_input.txt");
 in $total: 0;

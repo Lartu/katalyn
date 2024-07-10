@@ -543,8 +543,6 @@ def execute_code_listing(code_listing: List[Command]):
             else:
                 if idx_from < 0:
                     idx_from = len(val_str) + idx_from
-                    if idx_from < 0:
-                        idx_from = 0
                 if idx_from + idx_count >= len(val_str):
                     idx_count = len(val_str) - idx_from
                 result_value.value = val_str[idx_from:idx_from+idx_count]
@@ -605,7 +603,6 @@ def execute_code_listing(code_listing: List[Command]):
             size_value = Value()
             size_value.value = arr_index
             size_value.type = Types.INT
-            result_value.value["size"] = size_value
             push(result_value)
         elif "DUPL" == command.command:
             push(execution_stack[-1])
@@ -722,8 +719,13 @@ def execute_code_listing(code_listing: List[Command]):
         elif "SLEN" == command.command:  # String Length
             string = pop(command)
             result_value = Value()
-            result_value.value = len(string.get_as_string())
             result_value.type = Types.INT
+            if string.type == Types.NIL:
+                nambly_error(f"You cannot get the length of a nil value")
+            elif string.type == Types.TAB:
+                result_value.value = len(string.value)
+            else:
+                result_value.value = len(string.get_as_string())
             push(result_value)
         elif "SWAP" == command.command:
             v2 = pop(command)
