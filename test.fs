@@ -1,4 +1,6 @@
-in $file: open_rw("aoc1_input.txt");
+print(floor(1.2));
+
+(*in $file: open_rw("aoc1_input.txt");
 in $total: 0;
 while read_line($file);
     in $line: trim($_r); (* $_r es el resultado del while y es local *)

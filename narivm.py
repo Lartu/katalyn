@@ -764,7 +764,7 @@ def execute_code_listing(code_listing: List[Command]):
         elif "FLOR" == command.command:  # FLOoR
             com_1: Value = pop(command)
             result_value = Value()
-            result_value.value = math.floor(om_1.get_as_number())
+            result_value.value = math.floor(com_1.get_as_number())
             result_value.type = Types.INT 
             push(result_value)
         else:
