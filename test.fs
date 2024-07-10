@@ -1,14 +1,29 @@
-in $a: 10;
-
-def isspace;
-    in $a: $a + 10;
+(*def isspace;
+    in $char: $_{1};
+    print($_);
+    if len($char);
+        if $char :: " \t\n";
+            return 1;
+        ok;
+    ok;
+    return 0;
 ok;
 
-isspace(" ");
-isspace(" ");
-isspace(" ");
-isspace(" ");
-print($a);
+print(isspace(" "));*)
+
+def array;
+    in $array: table;
+    in $i: 1;
+    until $i > $_{size};
+        in $array[$i]: $_[$i];
+        in $i: $i + 1;
+    ok;
+    return $array;
+ok;
+
+in $b: table;
+in $b: array("a", "b", "c", "d");
+print($b);
 
 (*in $file: open_rw("aoc1_input.txt");
 while read_line($file);

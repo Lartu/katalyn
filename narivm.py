@@ -5,7 +5,7 @@ from enum import Enum
 import math
 import sys
 
-value_table: Dict[str, Value] = {}
+variable_table: Dict[str, Value] = {}
 label_to_pc: Dict[str, int] = {}
 pc_to_label: Dict[int, str] = {}
 execution_stack: List[Any] = []
@@ -93,7 +93,12 @@ class Value:
         TODO: Optimizar esto para que no haya que convertir cada vez.
         """
         if self.type == Types.NIL:
-            nambly_error("Runtime error: a NIL value cannot be turned into a string.")
+            return "nil"
+        elif self.type == Types.TAB:
+            table_values: List[str] = []
+            for key in self.value:
+                table_values.append(f"{key}: '{self.value[key].get_as_string()}'")
+            return "[" + ", ".join(table_values) + "]"
         return str(self.value)
     
     def get_as_number(self) -> Union[float|int]:
@@ -242,12 +247,37 @@ def print_code_listing(code_listing: List[Command]):
         pc += 1
 
 
-def print_value_table(table: Dict[Value] = value_table, prefix: str = "- "):
-    """Prints all values in the value_table"""
+def print_stack():
+    """Prints the values in the current execution stack.
+    """
+    print("")
+    print("--- EXECUTION STACK ---")
+    print("(BOTTOM)")
+    for value in execution_stack:
+        print(value)
+    print("(TOP)")
+
+
+def print_return_stack():
+    """Prints the values in the current return stack.
+    """
+    print("")
+    print("--- RETURN STACK ---")
+    print("(BOTTOM)")
+    for value in return_stack:
+        print(value)
+    print("(TOP)")
+
+
+def print_variable_table(table: Dict[Value] = variable_table, prefix: str = "- "):
+    """Prints all values in the variable_table"""
+    if table == variable_table:
+        print("")
+        print("--- VARIABLE TABLE ---")
     for key in table:
         if isinstance(table[key].value, dict):
             print(f"{prefix}{key}: (table)")
-            print_value_table(table[key].value, "  " + prefix)
+            print_variable_table(table[key].value, "  " + prefix)
         else:
             print(f"{prefix}{key}: {table[key]}")
 
@@ -289,20 +319,7 @@ def push(v: Value):
 
 
 def display(v: Value):
-    if v.type == Types.NIL:
-        print("nil", end="")
-    elif v.type == Types.TAB:
-        print("(table)", end="")
-    elif v.type == Types.INT:
-        print(str(v.value), end="")
-    elif v.type == Types.FLO:
-        float_text: str = str(v.value)
-        float_text.strip("0")
-        if float_text[-1] == ".":
-            float_text += "0"
-        print(float_text, end="")
-    elif v.type == Types.TXT:
-        print(v.value, end="")
+    print(v.get_as_string(), end="")
 
 
 def execute_code_listing(code_listing: List[Command]):
@@ -496,10 +513,10 @@ def execute_code_listing(code_listing: List[Command]):
                 result_value.value = 1
             push(result_value)
         elif "VSET" == command.command:
-            value_table[command.arguments[0].value] = pop(command)
+            variable_table[command.arguments[0].value] = pop(command)
         elif "VGET" == command.command:
-            if command.arguments[0].value in value_table:
-                push(value_table[command.arguments[0].value])
+            if command.arguments[0].value in variable_table:
+                push(variable_table[command.arguments[0].value])
             else:
                 result_value = Value()
                 result_value.value = None
@@ -508,6 +525,7 @@ def execute_code_listing(code_listing: List[Command]):
         elif "JOIN" == command.command:
             value_2: str = pop(command).get_as_string()
             value_1: str = pop(command).get_as_string()
+            print(f"Joining: '{value_1}' to '{value_2}'")
             result_value = Value()
             result_value.value = value_1 + value_2
             result_value.type = Types.TXT
@@ -566,6 +584,31 @@ def execute_code_listing(code_listing: List[Command]):
             index: Value = pop(command)
             table: Value = pop(command)
             table.value[index.get_as_string()] = value
+        elif "ARRR" == command.command:  # ARRRay, like the pirates - Create array until NIL value is found
+            array_name: str = command.arguments[0].value
+            # Create array table
+            result_value = Value()
+            result_value.value = {}
+            result_value.type = Types.TAB
+            variable_table[array_name] = result_value
+            array_values: List[Value] = []
+            # Pop values until we find a nil
+            while True:
+                value: Value = pop(command)
+                if value.type == Types.NIL:
+                    break
+                else:
+                    array_values.append(value)
+            # Add the values to the array in reverse order
+            arr_index: int = 0
+            for value in array_values:
+                result_value.value[str(len(array_values) - arr_index)] = value
+                arr_index += 1
+            # Add size to array
+            size_value = Value()
+            size_value.value = arr_index
+            size_value.type = Types.INT
+            result_value.value["size"] = size_value
         elif "DUPL" == command.command:
             push(execution_stack[-1])
         elif "PGET" == command.command:
@@ -600,7 +643,7 @@ def execute_code_listing(code_listing: List[Command]):
         elif "EXIT" == command.command:
             exit(int(pop(command).get_as_number()))
         elif "UNST" == command.command:  #UNSeT
-            del value_table[command.arguments[0].value]
+            del variable_table[command.arguments[0].value]
         elif "PUST" == command.command: #Position UnSeT
             index = pop(command)
             table = pop(command)
@@ -745,11 +788,15 @@ def is_true(value: Value) -> bool:
 def nari_run(code: str) -> None:
     """Executes a NariVM code.
     """
+    debug: bool = not False
     sys.set_int_max_str_digits(1000000000)
     code_listing: List[Command] = split_lines(code)
     code_listing = generate_label_map(code_listing)
     execute_code_listing(code_listing)
-    # print_value_table(value_table)
+    if debug:
+        print_variable_table(variable_table)
+        print_stack()
+        print_return_stack()
 
 
 if __name__ == "__main__":

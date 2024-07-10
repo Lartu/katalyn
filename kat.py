@@ -12,8 +12,7 @@
 # TODO: Else
 # TODO: Else if
 # TODO: Lógica de cortocircuito para 'and' and 'or' (Es saltar al final del right side si and es false u or es true en el left side)
-# TODO: Function scoping for variables (automatic)
-# TODO: Check that functions have been declared
+# TODO: Calling functions before declaring them
 # TODO: for key in table
 # TODO: Ceil
 # TODO: Floor
@@ -25,6 +24,10 @@ from narivm import nari_run
 
 
 OPERATOR_PRESEDENCE = ("*", "^", "/", "%", "//", "+", "&", "-", "::", "!", "<", ">", "<=", ">=", "<>", "=", "||", "&&")
+LOOP_TAGS = ("while", "until")
+NON_DEF_BLOCK_TAGS = ("if", "unless", "while", "until")
+ARGS_VAR = "$_"
+RESULT_VAR = "$_r"
 
 
 class ScopeSearchType(Enum):
@@ -38,24 +41,10 @@ class CompilerState:
         self.block_count: int = 0
         self.__block_end_code_stack: List[Tuple[str, Token]] = []
         self.__declared_variables: List[Dict[str, str]] = []
-        self.__user_labels: Set[str] = set()
         self.__expected_labels: Dict[str, Token] = {}
         self.__open_loop_tags: List[Tuple[str, str]] = []
         self.__function_to_labels: Dict[str, Tuple[str, str]] = {}
         self.add_scope()
-
-    def add_label(self, label: str, reference_token: Token) -> None:
-        if label not in self.__user_labels:
-            self.__user_labels.add(label)
-        else:
-            parse_error(
-                f"Duplicate label '{label}'",
-                reference_token.line,
-                reference_token.file
-            )
-
-    def add_expected_label(self, label: str, reference_token: Token) -> None:
-        self.__expected_labels[label] = reference_token
 
     def add_open_loop(self, start_label: str, end_label: str) -> None:
         self.__open_loop_tags.append((start_label, end_label))
@@ -64,7 +53,7 @@ class CompilerState:
         """Closes an open loop only if the current scope is that of a loop.
         """
         if self.__block_end_code_stack:
-            if self.__block_end_code_stack[-1][1].value == "while":
+            if self.__block_end_code_stack[-1][1].value in LOOP_TAGS:
                 self.__open_loop_tags.pop()
 
     def get_open_loop_tags(self) -> Optional[Tuple[str, str]]:
@@ -108,13 +97,18 @@ class CompilerState:
             expression_error(f"Variable {var.value} read before assignment.", var.line, var.file)
         return None
     
-    def declare_variable(self, var: Token, global_var: bool = False) -> str:
+    def declare_variable(self, var: Token, global_var: bool = False, next_scope: bool = False) -> str:
         """Adds a new variable, if it didn't exist, to the context. Then,
         existed or not, returns its scope_id (the id for the variable in
         the current context). If the variable is declared as global_var, the
         variable is declared only if it didn't exist in the global context.
+        If next_scope, the id of the variable is returned as if it existed in the
+        next, nonexistant scope.
         """
         var_name = var.get_var_name()
+        if next_scope:
+            scope_id = f"${len(self.__declared_variables) + 1}${var_name}"
+            return scope_id
         scope_search_type: ScopeSearchType = ScopeSearchType.ONLY_LOCAL
         if global_var:
             scope_search_type = ScopeSearchType.ONLY_GLOBAL
@@ -180,6 +174,15 @@ class CompilerState:
                     self.__expected_labels[label].line,
                     self.__expected_labels[label].file,
                 )
+
+    def get_in_function_declaration(self) -> bool:
+        """Returns if the current code is inside a function declaration.
+        """
+        for tuple_code_token in self.__block_end_code_stack:
+            if tuple_code_token[1] not in NON_DEF_BLOCK_TAGS:
+                return True
+        return False
+
 
 
 class LexType(Enum):
@@ -928,15 +931,15 @@ def compile_lines(tokenized_lines: List[List[Token]]) -> str:
                 compiled_code += "\n" + parse_command_continue(command, args)
             elif command.value == "break":
                 compiled_code += "\n" + parse_command_break(command, args)
-            elif command.value == "label":
-                compiled_code += "\n" + parse_command_label(command, args)
-            elif command.value == "goto":
-                compiled_code += "\n" + parse_command_goto(command, args)
             elif command.value == "def":
                 compiled_code += "\n" + parse_command_def(command, args)
+            elif command.value == "return":
+                compiled_code += "\n" + parse_command_return(command, args)
             else:
                 # Commands that are "function-like" such as print
                 compiled_code += "\n" + compile_expression(line, True)
+        else:
+            parse_error(f"Unexpected command '{command.value}'.", command.line, command.file)
     return compiled_code
 
 
@@ -1021,7 +1024,7 @@ def parse_command_in(command_token: Token, args: List[Token], global_var: bool) 
             parse_error("Function calls not yet supported in the left side of an assignment.", var.line, var.file)
             # TODO: support them!
         elif var.type != LexType.VARIABLE:
-            parse_error(f"Variable expected ({var} found).", var.line, var.file)
+            parse_error(f"Variable expected ('{var.value}' found).", var.line, var.file)
         else:
             if not has_accesses:
                 if len(left_side) > 1:
@@ -1071,8 +1074,9 @@ def parse_command_in(command_token: Token, args: List[Token], global_var: bool) 
 
 
 def parse_command_print(command_token: Token, args_list: List[List[Token]], discard_return_value: bool = False) -> str:
+    if not args_list:
+        parse_error(f"Wrong number of arguments for function '{command_token.value}' (expected 1+).", command_token.line, command_token.file)
     compiled_code: str = ""
-    # TODO solo debería devolver el último valor printeado - un solo return value!
     if discard_return_value:
         for args in args_list:
             compiled_code += "\n" + compile_expression(args)
@@ -1105,8 +1109,9 @@ def parse_command_accept(command_token: Token, args_list: List[List[Token]], dis
 
 
 def parse_command_printc(command_token: Token, args_list: List[List[Token]], discard_return_value: bool = False) -> str:
+    if not args_list:
+        parse_error(f"Wrong number of arguments for function '{command_token.value}' (expected 1+).", command_token.line, command_token.file)
     compiled_code: str = ""
-    # TODO solo debería devolver el último valor printeado - un solo return value!
     if discard_return_value:
         for args in args_list:
             compiled_code += "\n" + compile_expression(args)
@@ -1236,7 +1241,7 @@ def parse_command_while(command_token: Token, args: List[Token]) -> str:
     compiled_code += f"\n@{start_tag}"
     compiled_code += "\n" + compile_expression(args)
     compiled_code += "\nDUPL"
-    it_var: Token = Token("$_r", command_token.line, command_token.file)
+    it_var: Token = Token(RESULT_VAR, command_token.line, command_token.file)
     it_var.type = LexType.VARIABLE
     it_var_id: str = global_compiler_state.declare_variable(it_var, True)
     compiled_code += f'\nVSET "{it_var_id}"'
@@ -1259,7 +1264,7 @@ def parse_command_until(command_token: Token, args: List[Token]) -> str:
     compiled_code += f"\n@{start_tag}"
     compiled_code += "\n" + compile_expression(args)
     compiled_code += "\nDUPL"
-    it_var: Token = Token("$_r", command_token.line, command_token.file)
+    it_var: Token = Token(RESULT_VAR, command_token.line, command_token.file)
     it_var.type = LexType.VARIABLE
     it_var_id: str = global_compiler_state.declare_variable(it_var, True)
     compiled_code += f'\nVSET "{it_var_id}"'
@@ -1283,7 +1288,7 @@ def parse_command_if(command_token: Token, args: List[Token]) -> str:
     compiled_code += f"\n@{start_tag}"
     compiled_code += "\n" + compile_expression(args)
     compiled_code += "\nDUPL"
-    it_var: Token = Token("$_r", command_token.line, command_token.file)
+    it_var: Token = Token(RESULT_VAR, command_token.line, command_token.file)
     it_var.type = LexType.VARIABLE
     it_var_id: str = global_compiler_state.declare_variable(it_var, True)
     compiled_code += f'\nVSET "{it_var_id}"'
@@ -1304,7 +1309,7 @@ def parse_command_unless(command_token: Token, args: List[Token]) -> str:
     compiled_code += f"\n@{start_tag}"
     compiled_code += "\n" + compile_expression(args)
     compiled_code += "\nDUPL"
-    it_var: Token = Token("$_r", command_token.line, command_token.file)
+    it_var: Token = Token(RESULT_VAR, command_token.line, command_token.file)
     it_var.type = LexType.VARIABLE
     it_var_id: str = global_compiler_state.declare_variable(it_var, True)
     compiled_code += f'\nVSET "{it_var_id}"'
@@ -1319,25 +1324,11 @@ def parse_command_unless(command_token: Token, args: List[Token]) -> str:
 def parse_command_ok(command_token: Token, args: List[Token]) -> str:
     if args:
         parse_error(f"Unexpected arguments for command '{command_token.value}'.", command_token.line, command_token.file)
-    global_compiler_state.del_scope()
+    compiled_code: str = ""
     global_compiler_state.close_open_loop()
-    return global_compiler_state.get_block_end_code(command_token)
-
-
-def parse_command_label(command_token: Token, args: List[Token]) -> str:
-    if len(args) != 1:
-        parse_error(f"Wrong number of arguments for command '{command_token.value}' (expected 1).", command_token.line, command_token.file)
-    label: str = args[0].value
-    global_compiler_state.add_label(label, command_token)
-    return f"@USR_LBL_{label}"
-
-
-def parse_command_goto(command_token: Token, args: List[Token]) -> str:
-    if len(args) != 1:
-        parse_error(f"Wrong number of arguments for command '{command_token.value}' (expected 1).", command_token.line, command_token.file)
-    label: str = args[0].value
-    global_compiler_state.add_expected_label(label, command_token)
-    return f"JUMP USR_LBL_{label}"
+    compiled_code += global_compiler_state.del_scope()
+    compiled_code += global_compiler_state.get_block_end_code(command_token)
+    return compiled_code
 
 
 def parse_command_continue(command_token: Token, args: List[Token]) -> str:
@@ -1407,7 +1398,7 @@ def parse_command_slice(command_token: Token, args_list: List[List[Token]], disc
 
 def parse_command_def(command_token: Token, args: List[Token]) -> str:
     if len(args) != 1:
-        parse_error(f"Unexpected token in def line: {args[1]}.", args[1].line, args[1].file)
+        parse_error(f"Unexpected token in def line '{args[1].value}'.", args[1].line, args[1].file)
     global_compiler_state.add_scope()
     block_number: int = global_compiler_state.block_count
     global_compiler_state.block_count += 1
@@ -1419,9 +1410,9 @@ def parse_command_def(command_token: Token, args: List[Token]) -> str:
     block_end_code: str = ""
     compiled_code += f"\nJUMP {post_tag}"
     compiled_code += f"\n@{start_tag}"
-    args_var: Token = Token("$_", command_token.line, command_token.file)
+    args_var: Token = Token(ARGS_VAR, command_token.line, command_token.file)
     args_var.type = LexType.VARIABLE
-    args_var: str = global_compiler_state.declare_variable(args_var, True)
+    args_var: str = global_compiler_state.declare_variable(args_var, False)
     compiled_code += f'\nPNIL'  # Default return value
     # Push end code to state for it to be used on next ok;
     block_end_code += f"\n@{end_tag}"
@@ -1435,13 +1426,28 @@ def parse_command_def(command_token: Token, args: List[Token]) -> str:
 def parse_function_call(command_token: Token, args_list: List[List[Token]], discard_return_value: bool = False) -> str:
     # All functions are variadic in Katalyn
     compiled_code: str = ""
-    # TODO: Push parameters
-    # compiled_code += "\n" + compile_expression(args_list[0])
+    compiled_code += f'\nPNIL'
+    for args in args_list:
+        compiled_code += "\n" + compile_expression(args)
     function_end_label: str = global_compiler_state.get_function_label(command_token)[0]
+    args_var: Token = Token(ARGS_VAR, command_token.line, command_token.file)
+    args_var.type = LexType.VARIABLE
+    compiled_code += f'\nARRR "{global_compiler_state.declare_variable(args_var, False, True)}"'
     compiled_code += f'\nCALL {function_end_label}'
-    # TODO return values
-    #if discard_return_value:
-    #    compiled_code += f"\nPOPV"
+    if discard_return_value:
+        compiled_code += f"\nPOPV"
+    return compiled_code
+
+
+def parse_command_return(command_token: Token, args: List[Token]) -> str:
+    compiled_code: str = ""
+    if not global_compiler_state.get_in_function_declaration():
+        parse_error(f"Return can only be used inside functions.", command_token.line, command_token.file)
+    if len(args):
+        compiled_code += f"\nPOPV"  # To remove the default nil
+        compiled_code += "\n" + compile_expression(args)
+    compiled_code += global_compiler_state.del_scope()
+    compiled_code += f"\nRTRN"
     return compiled_code
 
 

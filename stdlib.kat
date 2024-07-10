@@ -1,0 +1,20 @@
+def isspace;
+    in $char: $_{1};
+    print($_);
+    if len($char);
+        if $char :: " \t\n";
+            return 1;
+        ok;
+    ok;
+    return 0;
+ok;
+
+def array;
+    in $array: table;
+    in $i: 1;
+    until $i > $_{size};
+        in $array[$i]: $_[$i];
+        in $i: $i + 1;
+    ok;
+    return $array;
+ok;
