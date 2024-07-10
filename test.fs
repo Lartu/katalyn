@@ -1,3 +1,40 @@
+in $file: open_rw("aoc1_input.txt");
+in $total: 0;
+while read_line($file);
+    in $line: trim($_r); (* $_r es el resultado del while y es local *)
+    print($line); (* $_r es el resultado del if y es local *)
+    in $first_digit: 0;
+    in $last_digit: 0;
+
+    (* Find first digit *)
+    in $i: 1;
+    while slice($line, $i, 1);
+        (* Lo razonable acá sería un for $line con $_k y $_v*)
+        in $char: $_r;
+        if $char :: "0123456789";
+            in $first_digit: $char;
+            print("Found first digit: ", $first_digit);
+            break;
+        ok;
+        in $i: $i + 1;
+    ok;
+
+    (* Find list digit *)
+    in $i: len($line); (* Por casos como este es que Katalyn indexa desde 1 *)
+    while slice($line, $i, 1);
+        in $char: $_r;
+        if $char :: "0123456789";
+            in $last_digit: $char;
+            print("Found last digit: ", $last_digit);
+            break;
+        ok;
+        in $i: $i - 1;
+    ok;
+    in $total: $total + ($first_digit & $last_digit);
+ok;
+
+print("Total: ", $total);
+
 (*def isspace;
     in $char: $_{1};
     print($_);
@@ -10,20 +47,6 @@
 ok;
 
 print(isspace(" "));*)
-
-def array;
-    in $array: table;
-    in $i: 1;
-    until $i > $_{size};
-        in $array[$i]: $_[$i];
-        in $i: $i + 1;
-    ok;
-    return $array;
-ok;
-
-in $b: table;
-in $b: array("a", "b", "c", "d");
-print($b);
 
 (*in $file: open_rw("aoc1_input.txt");
 while read_line($file);

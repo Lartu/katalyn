@@ -9,6 +9,7 @@ def isspace;
     return 0;
 ok;
 
+
 def array;
     in $array: table;
     in $i: 1;

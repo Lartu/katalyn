@@ -525,7 +525,6 @@ def execute_code_listing(code_listing: List[Command]):
         elif "JOIN" == command.command:
             value_2: str = pop(command).get_as_string()
             value_1: str = pop(command).get_as_string()
-            print(f"Joining: '{value_1}' to '{value_2}'")
             result_value = Value()
             result_value.value = value_1 + value_2
             result_value.type = Types.TXT
@@ -585,12 +584,10 @@ def execute_code_listing(code_listing: List[Command]):
             table: Value = pop(command)
             table.value[index.get_as_string()] = value
         elif "ARRR" == command.command:  # ARRRay, like the pirates - Create array until NIL value is found
-            array_name: str = command.arguments[0].value
             # Create array table
             result_value = Value()
             result_value.value = {}
             result_value.type = Types.TAB
-            variable_table[array_name] = result_value
             array_values: List[Value] = []
             # Pop values until we find a nil
             while True:
@@ -609,6 +606,7 @@ def execute_code_listing(code_listing: List[Command]):
             size_value.value = arr_index
             size_value.type = Types.INT
             result_value.value["size"] = size_value
+            push(result_value)
         elif "DUPL" == command.command:
             push(execution_stack[-1])
         elif "PGET" == command.command:
@@ -763,6 +761,12 @@ def execute_code_listing(code_listing: List[Command]):
                 if value.get_as_string() in container.get_as_string():
                     result_value.value = 1
             push(result_value)
+        elif "FLOR" == command.command:  # FLOoR
+            com_1: Value = pop(command)
+            result_value = Value()
+            result_value.value = math.floor(om_1.get_as_number())
+            result_value.type = Types.INT 
+            push(result_value)
         else:
             nambly_error(f"Unknown Nambly command: {command}")
         pc += 1
@@ -788,7 +792,7 @@ def is_true(value: Value) -> bool:
 def nari_run(code: str) -> None:
     """Executes a NariVM code.
     """
-    debug: bool = not False
+    debug: bool = False
     sys.set_int_max_str_digits(1000000000)
     code_listing: List[Command] = split_lines(code)
     code_listing = generate_label_map(code_listing)

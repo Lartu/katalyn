@@ -18,6 +18,7 @@
 # TODO: Floor
 
 from __future__ import annotations
+import sys
 from typing import Dict, List, Set, Tuple, Any, Optional
 from enum import Enum, auto
 from narivm import nari_run
@@ -28,6 +29,7 @@ LOOP_TAGS = ("while", "until")
 NON_DEF_BLOCK_TAGS = ("if", "unless", "while", "until")
 ARGS_VAR = "$_"
 RESULT_VAR = "$_r"
+FLAGS_VAR = "$_argv"
 
 
 class ScopeSearchType(Enum):
@@ -974,6 +976,8 @@ def compile_function_call(command: Token, args_list: List[List[Token]], discard_
         return parse_command_len(command, args_list, discard_return_value)
     elif command.value == "slice":
         return parse_command_slice(command, args_list, discard_return_value)
+    elif command.value == "floor":
+        return parse_command_floor(command, args_list, discard_return_value)
     else:
         return parse_function_call(command, args_list, discard_return_value)
     
@@ -1432,7 +1436,8 @@ def parse_function_call(command_token: Token, args_list: List[List[Token]], disc
     function_end_label: str = global_compiler_state.get_function_label(command_token)[0]
     args_var: Token = Token(ARGS_VAR, command_token.line, command_token.file)
     args_var.type = LexType.VARIABLE
-    compiled_code += f'\nARRR "{global_compiler_state.declare_variable(args_var, False, True)}"'
+    compiled_code += f'\nARRR'
+    compiled_code += f'\nVSET "{global_compiler_state.declare_variable(args_var, False, True)}"'
     compiled_code += f'\nCALL {function_end_label}'
     if discard_return_value:
         compiled_code += f"\nPOPV"
@@ -1451,12 +1456,41 @@ def parse_command_return(command_token: Token, args: List[Token]) -> str:
     return compiled_code
 
 
+def parse_command_floor(command_token: Token, args_list: List[List[Token]], discard_return_value: bool = False) -> str:
+    compiled_code: str = ""
+    if len(args_list) != 1:
+        parse_error(f"Wrong number of arguments for function '{command_token.value}' (expected 1).", command_token.line, command_token.file)
+    compiled_code += "\n" + compile_expression(args_list[0])
+    compiled_code += f"\nFLOR"
+    if discard_return_value:
+        compiled_code += f"\nPOPV"
+    return compiled_code
+
+
 global_compiler_state = CompilerState()
 
 
 if __name__ == "__main__":
+    flags_var: Token = Token(FLAGS_VAR, 0, "")
+    flags_var.type = LexType.VARIABLE
+    flags_var_id = global_compiler_state.declare_variable(flags_var, True)
+    extra_nambly: str = "PNIL"
     code: str = ""
-    filename: str = "test.fs"
+    filename: str = ""
+    for arg in sys.argv[1:]:
+        if filename:
+            # Pass arguments to Nambly
+            extra_nambly += f"\nPUSH \"{arg}\""
+        else:
+            if arg == "-h":
+                print("Help!")
+            else:
+                filename = arg
+    extra_nambly += f"\nARRR"
+    extra_nambly += f"\nVSET \"{flags_var_id}\""
+    if not filename:
+        print("Usage: katalyn <source file>")
+        exit(1)
     with open(filename) as f:
         code = f.read()
     tokenized_lines: List[List[Token]] = tokenize_source(code, filename)
@@ -1466,6 +1500,6 @@ if __name__ == "__main__":
         #print_tokens(tokenized_lines, filename, "Lexing")
         nambly = compile_lines(tokenized_lines)
         global_compiler_state.check_for_errors()
-        nambly = stylize_namby(nambly)
+        nambly = stylize_namby(nambly + "\n" + extra_nambly)
         # print(nambly)
         nari_run(nambly)
