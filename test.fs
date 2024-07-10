@@ -1,11 +1,19 @@
-while 1;
-    while 1;
-        break;
-    ok
-    print("Saliste del while de adentro.");
+def fibonacci;
+    in $n: $_[1];
+    if $n <= 2;
+        return $n;
+    ok;
+    if $n > 2;
+        return fibonacci($n - 1) + fibonacci($n - 2);
+    ok;
+    in $a: 0;
 ok;
-print("Saliste del while de afuera.");
 
+in $a: "Roberto";
+print($a);
+
+fibonacci(3);
+print(fibonacci(6));
 
 (*in $file: open_rw("aoc1_input.txt");
 in $total: 0;

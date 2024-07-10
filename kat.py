@@ -14,8 +14,6 @@
 # TODO: Lógica de cortocircuito para 'and' and 'or' (Es saltar al final del right side si and es false u or es true en el left side)
 # TODO: Calling functions before declaring them
 # TODO: for key in table
-# TODO: Ceil
-# TODO: Floor
 
 from __future__ import annotations
 import sys
@@ -102,32 +100,27 @@ class CompilerState:
             expression_error(f"Variable {var.value} read before assignment.", var.line, var.file)
         return None
     
-    def declare_variable(self, var: Token, global_var: bool = False, next_scope: bool = False) -> str:
+    def declare_variable(self, var: Token, global_var: bool = False) -> str:
         """Adds a new variable, if it didn't exist, to the context. Then,
         existed or not, returns its scope_id (the id for the variable in
         the current context). If the variable is declared as global_var, the
         variable is declared only if it didn't exist in the global context.
-        If next_scope, the id of the variable is returned as if it existed in the
-        next, nonexistant scope.
         """
         var_name = var.get_var_name()
-        if next_scope:
-            scope_id = f"${len(self.__declared_variables) + 1}${var_name}"
-            return scope_id
         scope_search_type: ScopeSearchType = ScopeSearchType.ONLY_LOCAL
         if global_var:
             scope_search_type = ScopeSearchType.ONLY_GLOBAL
         if self.get_var_identifier(var, False, scope_search_type) is not None:
             return self.get_var_identifier(var, True, scope_search_type)
-        if global_var:
+        self.__declared_variables[-1][var_name] = var_name
+        return var_name
+        """if global_var:
             scope_id = var_name
         else:
             if len(self.__declared_variables) > 1:
                 scope_id = f"${len(self.__declared_variables)}${var_name}"
             else:
-                scope_id = var_name
-        self.__declared_variables[-1][var_name] = scope_id
-        return scope_id
+                scope_id = var_name"""
     
     def unset_variable(self, var: Token, global_var: bool = False):
         i = len(self.__declared_variables) - 1
@@ -187,7 +180,6 @@ class CompilerState:
             if tuple_code_token[1] not in NON_DEF_BLOCK_TAGS:
                 return True
         return False
-
 
 
 class LexType(Enum):
@@ -1042,7 +1034,10 @@ def parse_command_in(command_token: Token, args: List[Token], global_var: bool) 
                     )
                 else:
                     var_id = global_compiler_state.declare_variable(var, global_var)
-                    set_compiled_code += f'\nVSET "{var_id}"'
+                    if global_var:
+                        set_compiled_code += f'\nGSET "{var_id}"'
+                    else:
+                        set_compiled_code += f'\nVSET "{var_id}"'
             else:
                 var_id = global_compiler_state.declare_variable(var, global_var)
                 access_compiled_code += f'\nVGET "{var_id}"'
@@ -1421,12 +1416,18 @@ def parse_command_def(command_token: Token, args: List[Token]) -> str:
     block_end_code: str = ""
     compiled_code += f"\nJUMP {post_tag}"
     compiled_code += f"\n@{start_tag}"
+    compiled_code += f"\nADSC"
+    args_var: Token = Token(ARGS_VAR, command_token.line, command_token.file)
+    args_var.type = LexType.VARIABLE
+    compiled_code += f'\nARRR'
+    compiled_code += f'\nVSET "{global_compiler_state.declare_variable(args_var, False)}"'
     args_var: Token = Token(ARGS_VAR, command_token.line, command_token.file)
     args_var.type = LexType.VARIABLE
     args_var: str = global_compiler_state.declare_variable(args_var, False)
     compiled_code += f'\nPNIL'  # Default return value
     # Push end code to state for it to be used on next ok;
     block_end_code += f"\n@{end_tag}"
+    block_end_code += f"\nDLSC"
     block_end_code += f"\nRTRN"
     block_end_code += f"\n@{post_tag}"
     global_compiler_state.add_function(args[0], start_tag, end_tag)
@@ -1441,10 +1442,6 @@ def parse_function_call(command_token: Token, args_list: List[List[Token]], disc
     for args in args_list:
         compiled_code += "\n" + compile_expression(args)
     function_end_label: str = global_compiler_state.get_function_label(command_token)[0]
-    args_var: Token = Token(ARGS_VAR, command_token.line, command_token.file)
-    args_var.type = LexType.VARIABLE
-    compiled_code += f'\nARRR'
-    compiled_code += f'\nVSET "{global_compiler_state.declare_variable(args_var, False, True)}"'
     compiled_code += f'\nCALL {function_end_label}'
     if discard_return_value:
         compiled_code += f"\nPOPV"
@@ -1459,6 +1456,7 @@ def parse_command_return(command_token: Token, args: List[Token]) -> str:
         compiled_code += f"\nPOPV"  # To remove the default nil
         compiled_code += "\n" + compile_expression(args)
     compiled_code += global_compiler_state.del_scope()
+    compiled_code += f"\nDLSC"
     compiled_code += f"\nRTRN"
     return compiled_code
 

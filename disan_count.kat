@@ -1,0 +1,9 @@
+(* Disan Count *)
+in $max: accept("Enter the starting value: ");
+until $max < 0;
+    if $max % 2 = 0;
+        print($max, " is even!");
+    ok;
+    in $max: $max - 1;
+ok;
+print("Done!");

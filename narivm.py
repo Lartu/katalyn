@@ -5,7 +5,7 @@ from enum import Enum
 import math
 import sys
 
-variable_table: Dict[str, Value] = {}
+variable_tables: List[Dict[str, Value]] = [{}]
 label_to_pc: Dict[str, int] = {}
 pc_to_label: Dict[int, str] = {}
 execution_stack: List[Any] = []
@@ -269,11 +269,41 @@ def print_return_stack():
     print("(TOP)")
 
 
-def print_variable_table(table: Dict[Value] = variable_table, prefix: str = "- "):
+def get_variable(name: str) -> Optional[Value]:
+    if name in variable_tables[-1]:
+        return variable_tables[-1][name]
+    if name in variable_tables[0]:
+        return variable_tables[0][name]
+    return None
+
+
+def set_variable(name: str, value: Value) -> None:
+    variable_tables[-1][name] = value
+
+
+def set_global_variable(name: str, value: Value) -> None:
+    variable_tables[0][name] = value
+
+
+def delete_variable(name: str) -> None:
+    if name in variable_tables[-1]:
+        del variable_tables[-1][name]
+        return
+    if name in variable_tables[0]:
+        del variable_tables[0][name]
+        return
+
+
+def print_variable_tables():
+    print("--- VARIABLES ---")
+    print("(First scope is global)")
+    for scope in variable_tables:
+        print("(SCOPE)")
+        print_variable_table(scope)
+
+
+def print_variable_table(table: Dict[Value], prefix: str = "- "):
     """Prints all values in the variable_table"""
-    if table == variable_table:
-        print("")
-        print("--- VARIABLE TABLE ---")
     for key in table:
         if isinstance(table[key].value, dict):
             print(f"{prefix}{key}: (table)")
@@ -513,10 +543,13 @@ def execute_code_listing(code_listing: List[Command]):
                 result_value.value = 1
             push(result_value)
         elif "VSET" == command.command:
-            variable_table[command.arguments[0].value] = pop(command)
+            set_variable(command.arguments[0].value, pop(command))
+        elif "GSET" == command.command:  # Global (variable) SET
+            set_global_variable(command.arguments[0].value, pop(command))
         elif "VGET" == command.command:
-            if command.arguments[0].value in variable_table:
-                push(variable_table[command.arguments[0].value])
+            value: Optional[Value] = get_variable(command.arguments[0].value)
+            if value:
+                push(value)
             else:
                 result_value = Value()
                 result_value.value = None
@@ -551,6 +584,8 @@ def execute_code_listing(code_listing: List[Command]):
             pc = label_to_pc[command.arguments[0].value] - 1
         elif "CALL" == command.command:
             return_stack.append(pc)
+            if len(return_stack) > 5:
+                exit(0)
             pc = label_to_pc[command.arguments[0].value] - 1
         elif "RTRN" == command.command:
             if not return_stack:
@@ -638,7 +673,7 @@ def execute_code_listing(code_listing: List[Command]):
         elif "EXIT" == command.command:
             exit(int(pop(command).get_as_number()))
         elif "UNST" == command.command:  #UNSeT
-            del variable_table[command.arguments[0].value]
+            delete_variable(command.arguments[0].value)
         elif "PUST" == command.command: #Position UnSeT
             index = pop(command)
             table = pop(command)
@@ -769,6 +804,13 @@ def execute_code_listing(code_listing: List[Command]):
             result_value.value = math.floor(com_1.get_as_number())
             result_value.type = Types.INT 
             push(result_value)
+        elif "ADSC" == command.command:  # ADd SCope
+            variable_tables.append({})
+        elif "DLSC" == command.command:  # DeLete SCope
+            if variable_tables:
+                variable_tables.pop()
+            else:
+                nambly_error("No more scopes left.")
         else:
             nambly_error(f"Unknown Nambly command: {command}")
         pc += 1
@@ -800,7 +842,7 @@ def nari_run(code: str) -> None:
     code_listing = generate_label_map(code_listing)
     execute_code_listing(code_listing)
     if debug:
-        print_variable_table(variable_table)
+        print_variable_tables()
         print_stack()
         print_return_stack()
 
