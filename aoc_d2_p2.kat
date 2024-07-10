@@ -1,0 +1,110 @@
+(* Advent of Code 2023 - Day 2, Part 2 *)
+
+def append;
+    in $table: $_[1];
+    in $table[len($_[1]) + 1]: $_[2];
+    return $table;
+ok;
+
+def split;
+    in $string: $_[1];
+    in $separator: $_[2];
+    in $max_split: -1;
+    if $_[3];
+        in $max_split: $_[3];
+    ok;
+    in $token: "";
+    in $tokens: table;
+    if len($string) < len($separator);
+        return append($tokens, $string);
+    ok;
+    in $i: 1;
+    while slice($string, $i, len($separator));
+        in $result: 0;
+        if $_r = $separator;
+            in $result: $_r;
+            in $i: $i + len($separator);
+            if len($token);
+                append($tokens, $token);
+                in $token: "";
+                if len($tokens) = $max_split;
+                    append($tokens, slice($string, $i));
+                    break;
+                ok;
+            ok;
+            continue;
+        ok;
+        if !$result;
+            in $token: $token & slice($string, $i, 1);
+        ok;
+        in $i: $i + 1;
+    ok;
+    if len($token);
+        append($tokens, $token);
+    ok;
+    return $tokens;
+ok;
+
+def init_table;
+    in $table: table;
+    in $i: 1;
+    in $key: "";
+    while is($_, $i);
+        in $token: $_[$i];
+        if $i % 2 = 1;
+            in $key: $token;
+        ok;
+        if $i % 2 = 0;
+            in $table[$key]: $token;
+        ok;
+        in $i: $i + 1;
+    ok;
+    return $table;
+ok;
+
+(* --- *)
+
+def get_minimum;
+    in $min_required: init_table(
+        "blue", 0,
+        "green", 0,
+        "red", 0
+    );
+    in $result: table;
+    in $game_str: $_[1];
+    in $result{game_id}: trim(split(slice($game_str, 5), ":", 1)[1]);
+    in $result{min_req}: $min_required;
+    in $plays: split(split($game_str, ":", 1)[2], ";");
+    in $i: 1;
+    while $plays[$i];
+        in $cubes: split($_r, ",");
+        in $j: 1;
+        while $cubes[$j];
+            in $count_cube: split(trim($_r), " ");  # Count, Color
+            if $count_cube[1] > $min_required[$count_cube[2]];
+                in $min_required[$count_cube[2]]: $count_cube[1];
+            ok;
+            in $j: $j + 1;
+        ok;
+        in $i: $i + 1;
+    ok;
+    return $result;
+ok;
+
+in $file: open_rw("aoc2_input.txt");
+in $sum: 0;
+while read_line($file);
+    in $game_result: get_minimum($_r);
+    print("For game ", $game_result{game_id}, " the minimum is:");
+    print(" - Blue: ", $game_result{min_req}{blue});
+    print(" - Green: ", $game_result{min_req}{green});
+    print(" - Red: ", $game_result{min_req}{red});
+    in $power:
+        $game_result{min_req}{blue}
+        * $game_result{min_req}{red}
+        * $game_result{min_req}{green};
+    print("The power for game ", $game_result{game_id}, " is ", $power);
+    print("");
+    in $sum: $sum + $power;
+ok;
+print("The total power is: ", $sum);

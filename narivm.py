@@ -114,9 +114,10 @@ class Value:
         if self.type == Types.FLO:
             return float(self.value)
         if self.type == Types.TXT:
-            if self.value[0] in "+-":
+            txt_value = self.get_as_string().strip()
+            if txt_value[0] in "+-":
                 begin = 1
-            for char in self.value[begin:]:
+            for char in txt_value[begin:]:
                 if char not in "0123456789.":
                     nambly_error(f"Invalid number: {self}")
                 if char == ".":
@@ -125,9 +126,9 @@ class Value:
                     else:
                         found_period = True
             if not found_period:
-                return int(self.value)
+                return int(txt_value)
             else:
-                return float(self.value)
+                return float(txt_value)
     
 
 def nambly_error(message: str):
@@ -584,8 +585,6 @@ def execute_code_listing(code_listing: List[Command]):
             pc = label_to_pc[command.arguments[0].value] - 1
         elif "CALL" == command.command:
             return_stack.append(pc)
-            if len(return_stack) > 5:
-                exit(0)
             pc = label_to_pc[command.arguments[0].value] - 1
         elif "RTRN" == command.command:
             if not return_stack:
@@ -644,6 +643,8 @@ def execute_code_listing(code_listing: List[Command]):
         elif "PGET" == command.command:
             index = pop(command)
             table = pop(command)
+            if table.type != Types.TAB:
+                nambly_error("Cannot index a non-table.")
             index_value: str = index.get_as_string()
             if index_value in table.value:
                 push(table.value[index_value])
@@ -658,7 +659,7 @@ def execute_code_listing(code_listing: List[Command]):
             result_value = Value()
             result_value.value = 0
             result_value.type = Types.INT
-            if index.value in table.value:
+            if index.get_as_string() in table.value:
                 result_value.value = 1
             push(result_value)
         elif "DISP" == command.command:

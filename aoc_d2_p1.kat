@@ -1,34 +1,4 @@
-def isspace;
-    in $char: $_[1];
-    print($_);
-    if len($char);
-        if $char :: " \t\n";
-            return 1;
-        ok;
-    ok;
-    return 0;
-ok;
-
-def array;
-    return $_;
-ok;
-
-def in_array;
-    in $needle: $_[1];
-    in $haystack: $_[2];
-    in $i: 1;
-    while $haystack[$i];
-        if $haystack[$i] = $needle;
-            return $i;
-        ok;
-        in $i: $i + 1;
-    ok;
-    return 0;
-ok;
-
-def ceil;
-    return floor($_[1]) + 1;
-ok;
+(* Advent of Code 2023 - Day 2, Part 1 *)
 
 def append;
     in $table: $_[1];
@@ -79,8 +49,8 @@ def init_table;
     in $table: table;
     in $i: 1;
     in $key: "";
-    while is($_, $i);
-        in $token: $_[$i];
+    while $_[$i];
+        in $token: $_r;
         if $i % 2 = 1;
             in $key: $token;
         ok;
@@ -91,3 +61,44 @@ def init_table;
     ok;
     return $table;
 ok;
+
+(* --- *)
+
+in $bag_contents: init_table(
+    "red", 12,
+    "green", 13,
+    "blue", 14
+);
+
+def is_game_possible;
+    in $result: table;
+    in $game_str: $_[1];
+    in $result{game_id}: trim(split(slice($game_str, 5), ":", 1)[1]);
+    in $result{possible}: 1;
+    in $plays: split(split($game_str, ":", 1)[2], ";");
+    in $i: 1;
+    while $plays[$i];
+        in $cubes: split($_r, ",");
+        in $j: 1;
+        while $cubes[$j];
+            in $count_cube: split(trim($_r), " ");
+            if $count_cube[1] > $bag_contents[$count_cube[2]];
+                in $result{possible}: 0;
+                break 2;
+            ok;
+            in $j: $j + 1;
+        ok;
+        in $i: $i + 1;
+    ok;
+    return $result;
+ok;
+
+in $file: open_rw("aoc2_input.txt");
+in $sum: 0;
+while read_line($file);
+    in $game_result: is_game_possible($_r);
+    if $game_result{possible};
+        in $sum: $sum + $game_result{game_id};
+    ok;
+ok;
+print("Total ID Sum: ", $sum);

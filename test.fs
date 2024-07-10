@@ -1,19 +1,27 @@
+in $fibocache: table;
+
+def getcache;
+    return $fibocache;
+ok;
+
 def fibonacci;
     in $n: $_[1];
     if $n <= 2;
         return $n;
     ok;
-    if $n > 2;
-        return fibonacci($n - 1) + fibonacci($n - 2);
+    if $n :: $fibocache;
+        return $fibocache[$n];
     ok;
-    in $a: 0;
+    in $res: fibonacci($n - 1) + fibonacci($n - 2);
+    in $f: getcache();
+    in $f[$n]: $res;
+    return $res;
 ok;
 
 in $a: "Roberto";
 print($a);
 
-fibonacci(3);
-print(fibonacci(6));
+print(fibonacci(9000));
 
 (*in $file: open_rw("aoc1_input.txt");
 in $total: 0;

@@ -1,4 +1,4 @@
-(* Advent of Code 2023 - Day 1, part 1*)
+(* Advent of Code 2023 - Day 1, Part 1 *)
 
 in $file: open_rw("aoc1_input.txt");
 in $total: 0;

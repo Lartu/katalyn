@@ -14,6 +14,12 @@
 # TODO: Lógica de cortocircuito para 'and' and 'or' (Es saltar al final del right side si and es false u or es true en el left side)
 # TODO: Calling functions before declaring them
 # TODO: for key in table
+# TODO: Hacer $a[x][y] no está andando bien me parece
+# TODO: if !($result); esto no anda, lo toma como una función
+# TODO: Operador de composición fun1() => fun2() eq a fun2(fun1())
+# TODO: Sería piola poder "string"[0]
+# TODO: Hace falta $n: 10; sin "in".
+# TODO: import. Si compilo uno y después el otro, etc, sin eliminar el global thingy, las referencias se van a mantener
 
 from __future__ import annotations
 import sys
@@ -75,10 +81,7 @@ class CompilerState:
         """
         compiled_code: str = ""
         if self.__block_end_code_stack[-1][1].value in self.__function_to_labels:
-            if len(self.__declared_variables) > 1:
-                for var in self.__declared_variables[-1]:
-                    compiled_code += f"\nUNST {self.__declared_variables[-1][var]}"
-                self.__declared_variables.pop()
+            self.__declared_variables.pop()
         return compiled_code
 
     def get_var_identifier(self, var: Token, fail_if_not_found: bool, scope_type: ScopeSearchType = ScopeSearchType.LOCAL_AND_GLOBAL) -> Optional[str]:
@@ -1438,7 +1441,7 @@ def parse_command_def(command_token: Token, args: List[Token]) -> str:
 def parse_function_call(command_token: Token, args_list: List[List[Token]], discard_return_value: bool = False) -> str:
     # All functions are variadic in Katalyn
     compiled_code: str = ""
-    compiled_code += f'\nPNIL'
+    compiled_code += f'\nPNIL'  # So the ARRR works.
     for args in args_list:
         compiled_code += "\n" + compile_expression(args)
     function_end_label: str = global_compiler_state.get_function_label(command_token)[0]
@@ -1455,7 +1458,6 @@ def parse_command_return(command_token: Token, args: List[Token]) -> str:
     if len(args):
         compiled_code += f"\nPOPV"  # To remove the default nil
         compiled_code += "\n" + compile_expression(args)
-    compiled_code += global_compiler_state.del_scope()
     compiled_code += f"\nDLSC"
     compiled_code += f"\nRTRN"
     return compiled_code
