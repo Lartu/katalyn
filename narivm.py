@@ -666,7 +666,10 @@ def execute_code_listing(code_listing: List[Command]):
             display(pop(command))
         elif "ACCP" == command.command:
             result_value = Value()
-            result_value.value = input()
+            try:
+                result_value.value = input()
+            except EOFError:
+                result_value.value = ""
             result_value.type = Types.TXT
             push(result_value)
         elif "POPV" == command.command:
