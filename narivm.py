@@ -633,10 +633,6 @@ def execute_code_listing(code_listing: List[Command]):
             for value in array_values:
                 result_value.value[str(len(array_values) - arr_index)] = value
                 arr_index += 1
-            # Add size to array
-            size_value = Value()
-            size_value.value = arr_index
-            size_value.type = Types.INT
             push(result_value)
         elif "DUPL" == command.command:
             push(execution_stack[-1])
@@ -668,7 +664,7 @@ def execute_code_listing(code_listing: List[Command]):
             result_value = Value()
             try:
                 result_value.value = input()
-            except EOFError:
+            except (EOFError, KeyboardInterrupt):
                 result_value.value = ""
             result_value.type = Types.TXT
             push(result_value)
