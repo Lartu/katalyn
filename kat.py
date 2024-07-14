@@ -34,6 +34,7 @@ NON_DEF_BLOCK_TAGS = ("if", "unless", "while", "until")
 ARGS_VAR = "$_"
 RESULT_VAR = "$_r"
 FLAGS_VAR = "$_argv"
+STDLIB_LOCATION = "/Users/lartu/No Sync/Katalyn"
 
 
 class ScopeSearchType(Enum):
@@ -1481,32 +1482,34 @@ if __name__ == "__main__":
     flags_var: Token = Token(FLAGS_VAR, 0, "")
     flags_var.type = LexType.VARIABLE
     flags_var_id = global_compiler_state.declare_variable(flags_var, True)
-    extra_nambly: str = "PNIL"
+    full_nambly: str = "PNIL"
     code: str = ""
     filename: str = ""
     for arg in sys.argv[1:]:
         if filename:
             # Pass arguments to Nambly
-            extra_nambly += f"\nPUSH \"{arg}\""
+            full_nambly += f"\nPUSH \"{arg}\""
         else:
             if arg == "-h":
                 print("Help!")
             else:
                 filename = arg
-    extra_nambly += f"\nARRR"
-    extra_nambly += f"\nVSET \"{flags_var_id}\""
+    full_nambly += f"\nARRR"
+    full_nambly += f"\nVSET \"{flags_var_id}\""
     if not filename:
         print("Usage: katalyn <source file>")
         exit(1)
-    with open(filename) as f:
-        code = f.read()
-    tokenized_lines: List[List[Token]] = tokenize_source(code, filename)
-    if tokenized_lines:
-        # print_tokens(tokenized_lines, filename, "Tokenization")
-        lex_tokens(tokenized_lines)
-        #print_tokens(tokenized_lines, filename, "Lexing")
-        nambly = compile_lines(tokenized_lines)
-        global_compiler_state.check_for_errors()
-        nambly = stylize_namby(nambly + "\n" + extra_nambly)
-        # print(nambly)
-        nari_run(nambly)
+    files: List[str] = (f"{STDLIB_LOCATION}/stdlit.kat", filename)
+    for filename in files:
+        with open(filename) as f:
+            code = f.read()
+        tokenized_lines: List[List[Token]] = tokenize_source(code, filename)
+        if tokenized_lines:
+            # print_tokens(tokenized_lines, filename, "Tokenization")
+            lex_tokens(tokenized_lines)
+            #print_tokens(tokenized_lines, filename, "Lexing")
+            full_nambly += compile_lines(tokenized_lines)
+            global_compiler_state.check_for_errors()
+    nambly = stylize_namby(full_nambly)
+    # print(nambly)
+    nari_run(nambly)
