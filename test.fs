@@ -1,11 +1,35 @@
-in $fibocache: table;
+in $edades: init_table(
+    "lartu", 28,
+    "damian", 28,
+    "wendy", 29
+);
+
+# for $edades; debería ser:
+
+in $_i1: 1;  # $_iX donde X es el número de for en todo el programa
+while is(keys($edades)[$_i1]);
+    in $_k: keys($edades)[$_i1];
+    in $_v: $edades[$_k];
+    print($_k, " -> ", $_v);
+    in $_i1: $_i1 + 1;
+ok;
+
+(*in $t: arr("lartu", "moncho", "damian", "dylan");
+
+in $i: 1;
+while is(keys($edades)[$i]);
+    print(keys($edades)[$i], " tiene ", $edades[keys($edades)[$i]], " años!");
+    in $i: $i + 1;
+ok;
+
+(*in $fibocache: table;
 
 def getcache;
     return $fibocache;
 ok;
 
 def fibonacci;
-    in $n: $_[1];
+    in $n: $_[1]å;
     if $n <= 2;
         return $n;
     ok;

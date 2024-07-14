@@ -4,6 +4,8 @@ from typing import Dict, List, Set, Tuple, Any, Optional, Union
 from enum import Enum
 import math
 import sys
+import subprocess
+import time
 
 variable_tables: List[Dict[str, Value]] = [{}]
 label_to_pc: Dict[str, int] = {}
@@ -649,17 +651,17 @@ def execute_code_listing(code_listing: List[Command]):
                 result_value.value = None
                 result_value.type = Types.NIL
                 push(result_value)
-        elif "PIST" == command.command:  # check if Position Is SeT
-            index = pop(command)
-            table = pop(command)
+        elif "NIL?" == command.command:  # check if value is NIL?
+            value = pop(command)
             result_value = Value()
             result_value.value = 0
             result_value.type = Types.INT
-            if index.get_as_string() in table.value:
+            if value.type == Types.NIL:
                 result_value.value = 1
             push(result_value)
         elif "DISP" == command.command:
-            display(pop(command))
+            value: Value = pop(command)
+            display(value)
         elif "ACCP" == command.command:
             result_value = Value()
             try:
@@ -751,7 +753,7 @@ def execute_code_listing(code_listing: List[Command]):
             result_value.value = string.get_as_string().strip()
             result_value.type = Types.TXT
             push(result_value)
-        elif "SLEN" == command.command:  # String Length
+        elif "SLEN" == command.command:  # String Length (or table length)
             string = pop(command)
             result_value = Value()
             result_value.type = Types.INT
@@ -811,9 +813,46 @@ def execute_code_listing(code_listing: List[Command]):
                 variable_tables.pop()
             else:
                 nambly_error("No more scopes left.")
+        elif "EXEC" == command.command:  # EXECute Subprocess
+            com_1: Value = pop(command)
+            output, error, exit_code = run_subprocess(com_1.get_as_string())
+            result_value1 = Value()
+            result_value1.value = int(exit_code)
+            result_value1.type = Types.INT 
+            result_value2 = Value()
+            result_value2.value = error
+            result_value2.type = Types.TXT 
+            result_value3 = Value()
+            result_value3.value = output
+            result_value3.type = Types.TXT 
+            push(result_value3)
+            push(result_value2)
+            push(result_value1)
+        elif "WAIT" == command.command:
+            time.sleep(pop(command).get_as_number())
+        elif "KEYS" == command.command:  # Pushes all keys of a dict to the stack
+            value = pop(command)
+            if value.type != Types.TAB:
+                nambly_error(f"Cannot get keys of a non-table value.")
+            result_value = Value()
+            result_value.type = Types.TAB
+            result_value.value = {}
+            ind: int = 1
+            for key in value.value:
+                key_value = Value()
+                key_value.type = Types.TXT
+                key_value.value = str(key)
+                result_value.value[str(ind)] = key_value
+                ind += 1
+            push(result_value)
         else:
             nambly_error(f"Unknown Nambly command: {command}")
         pc += 1
+
+
+def run_subprocess(command):
+    result = subprocess.run(command, shell=True, capture_output=True, text=True)
+    return result.stdout, result.stderr, result.returncode
 
     
 def is_true(value: Value) -> bool:
@@ -836,15 +875,18 @@ def is_true(value: Value) -> bool:
 def nari_run(code: str) -> None:
     """Executes a NariVM code.
     """
-    debug: bool = False
-    sys.set_int_max_str_digits(1000000000)
-    code_listing: List[Command] = split_lines(code)
-    code_listing = generate_label_map(code_listing)
-    execute_code_listing(code_listing)
-    if debug:
-        print_variable_tables()
-        print_stack()
-        print_return_stack()
+    try:
+        debug: bool = False
+        sys.set_int_max_str_digits(1000000000)
+        code_listing: List[Command] = split_lines(code)
+        code_listing = generate_label_map(code_listing)
+        execute_code_listing(code_listing)
+        if debug:
+            print_variable_tables()
+            print_stack()
+            print_return_stack()
+    except KeyboardInterrupt:
+        pass
 
 
 if __name__ == "__main__":

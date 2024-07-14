@@ -28,12 +28,15 @@ from enum import Enum, auto
 from narivm import nari_run
 
 
-OPERATOR_PRESEDENCE = ("*", "^", "/", "%", "//", "+", "&", "-", "::", "!", "<", ">", "<=", ">=", "<>", "=", "||", "&&")
+OPERATOR_PRESEDENCE = ("*", "^", "/", "%", "//", "+", "&", "-", "::", "!", "<", ">", "<=", ">=", "<>", "!=", "=", "||", "&&")
 LOOP_TAGS = ("while", "until")
 NON_DEF_BLOCK_TAGS = ("if", "unless", "while", "until")
 ARGS_VAR = "$_"
 RESULT_VAR = "$_r"
-FLAGS_VAR = "$_argv"
+FLAGS_VAR = "$_args"
+EXEC_STDOUT_VAR = "$_stdout"
+EXEC_STDERR_VAR = "$_stderr"
+EXEC_EXITCODE_VAR = "$_exitcode"
 STDLIB_LOCATION = "/Users/lartu/No Sync/Katalyn"
 
 
@@ -393,7 +396,7 @@ def tokenize_source(code: str, filename: str) -> List[List[Token]]:
             if len(current_line):
                 lines.append(current_line)
             current_line = []
-        elif not in_inline_comment and comment_depth == 0 and not in_string and not in_access_string and current_char + next_char in (">=", "<=", "::", "<>", "//", "&&", "||"):
+        elif not in_inline_comment and comment_depth == 0 and not in_string and not in_access_string and current_char + next_char in (">=", "<=", "::", "<>", "!=", "//", "&&", "||"):
             # Biglyphs
             if len(current_token):
                 current_line.append(Token(current_token, line_num, filename))
@@ -681,7 +684,7 @@ def compile_expression(expr_tokens: List[Token], discard_return_value: bool = Fa
             compiled_code += "\nMODL"
         elif operator.value == "=":
             compiled_code += "\nISEQ"
-        elif operator.value == "<>":
+        elif operator.value in ("<>", "!="):
             compiled_code += "\nISNE"
         elif operator.value == "<":
             compiled_code += "\nISLT"
@@ -936,6 +939,8 @@ def compile_lines(tokenized_lines: List[List[Token]]) -> str:
                 compiled_code += "\n" + parse_command_def(command, args)
             elif command.value == "return":
                 compiled_code += "\n" + parse_command_return(command, args)
+            elif command.value == "sleep":
+                compiled_code += "\n" + parse_command_sleep(command, args)
             else:
                 # Commands that are "function-like" such as print
                 compiled_code += "\n" + compile_expression(line, True)
@@ -973,10 +978,14 @@ def compile_function_call(command: Token, args_list: List[List[Token]], discard_
         return parse_command_trim(command, args_list, discard_return_value)
     elif command.value == "len":
         return parse_command_len(command, args_list, discard_return_value)
-    elif command.value == "slice":
-        return parse_command_slice(command, args_list, discard_return_value)
+    elif command.value == "substr":
+        return parse_command_substr(command, args_list, discard_return_value)
     elif command.value == "floor":
         return parse_command_floor(command, args_list, discard_return_value)
+    elif command.value == "exec":
+        return parse_command_exec(command, args_list, discard_return_value)
+    elif command.value == "keys":
+        return parse_command_keys(command, args_list, discard_return_value)
     else:
         return parse_function_call(command, args_list, discard_return_value)
     
@@ -1137,11 +1146,11 @@ def parse_command_printc(command_token: Token, args_list: List[List[Token]], dis
 
 def parse_command_is(command_token: Token, args_list: List[List[Token]], discard_return_value: bool = False) -> str:
     compiled_code: str = ""
-    if len(args_list) != 2:
-        parse_error(f"Wrong number of arguments for function '{command_token.value}' (expected 2).", command_token.line, command_token.file)
+    if len(args_list) != 1:
+        parse_error(f"Wrong number of arguments for function '{command_token.value}' (expected 1).", command_token.line, command_token.file)
     compiled_code += "\n" + compile_expression(args_list[0])
-    compiled_code += "\n" + compile_expression(args_list[1])
-    compiled_code += "\nPIST"
+    compiled_code += "\nNIL?"
+    compiled_code += "\nLNOT"
     if discard_return_value:
         compiled_code += "\nPOPV"
         return compiled_code
@@ -1387,7 +1396,7 @@ def parse_command_len(command_token: Token, args_list: List[List[Token]], discar
     return compiled_code
 
 
-def parse_command_slice(command_token: Token, args_list: List[List[Token]], discard_return_value: bool = False) -> str:
+def parse_command_substr(command_token: Token, args_list: List[List[Token]], discard_return_value: bool = False) -> str:
     compiled_code: str = ""
     if len(args_list) != 2 and len(args_list) != 3:
         parse_error(f"Wrong number of arguments for function '{command_token.value}' (expected 2 or 3).", command_token.line, command_token.file)
@@ -1475,6 +1484,54 @@ def parse_command_floor(command_token: Token, args_list: List[List[Token]], disc
     return compiled_code
 
 
+def parse_command_exec(command_token: Token, args_list: List[List[Token]], discard_return_value: bool = False) -> str:
+    if not args_list:
+        parse_error(f"Wrong number of arguments for function '{command_token.value}' (expected 1+).", command_token.line, command_token.file)
+    compiled_code: str = ""
+    pushed_count: int = 0
+    for args in args_list:
+        compiled_code += "\n" + compile_expression(args)
+        if pushed_count > 0:
+            compiled_code += "\nJOIN"
+        pushed_count += 1
+    compiled_code += '\nEXEC'
+    stdout_var: Token = Token(EXEC_STDOUT_VAR, command_token.line, command_token.file)
+    stdout_var.type = LexType.VARIABLE
+    stdout_var_id = global_compiler_state.declare_variable(stdout_var, False)
+    stderr_var: Token = Token(EXEC_STDERR_VAR, command_token.line, command_token.file)
+    stderr_var.type = LexType.VARIABLE
+    stderr_var_id = global_compiler_state.declare_variable(stderr_var, False)
+    exitcode_var: Token = Token(EXEC_EXITCODE_VAR, command_token.line, command_token.file)
+    exitcode_var.type = LexType.VARIABLE
+    exitcode_var_id = global_compiler_state.declare_variable(exitcode_var, False)
+    compiled_code += f"\nVSET \"{exitcode_var_id}\""
+    compiled_code += f"\nVSET \"{stderr_var_id}\""
+    compiled_code += f"\nVSET \"{stdout_var_id}\""
+    if not discard_return_value:
+        compiled_code += f"\nVGET \"{exitcode_var_id}\""
+    return compiled_code
+
+
+def parse_command_sleep(command_token: Token, args: List[Token]) -> str:
+    compiled_code: str = ""
+    if len(args):
+        compiled_code += "\n" + compile_expression(args)
+    compiled_code += f"\nWAIT"
+    return compiled_code
+
+
+def parse_command_keys(command_token: Token, args_list: List[List[Token]], discard_return_value: bool = False) -> str:
+    compiled_code: str = ""
+    if len(args_list) != 1:
+        parse_error(f"Wrong number of arguments for function '{command_token.value}' (expected 1).", command_token.line, command_token.file)
+    compiled_code += "\n" + compile_expression(args_list[0])
+    if discard_return_value:
+        compiled_code += f"\nPOPV"
+    else:
+        compiled_code += f"\nKEYS"
+    return compiled_code
+
+
 global_compiler_state = CompilerState()
 
 
@@ -1499,10 +1556,14 @@ if __name__ == "__main__":
     if not filename:
         print("Usage: katalyn <source file>")
         exit(1)
-    files: List[str] = (f"{STDLIB_LOCATION}/stdlit.kat", filename)
+    files: List[str] = (f"{STDLIB_LOCATION}/stdlib.kat", filename)
     for filename in files:
-        with open(filename) as f:
-            code = f.read()
+        try:
+            with open(filename) as f:
+                code = f.read()
+        except:
+            print(f"File {filename} not found.")
+            exit(1)
         tokenized_lines: List[List[Token]] = tokenize_source(code, filename)
         if tokenized_lines:
             # print_tokens(tokenized_lines, filename, "Tokenization")
