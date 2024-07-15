@@ -778,6 +778,15 @@ def execute_code_listing(code_listing: List[Command]):
             if is_true(com_1) and is_true(com_2):
                 result_value.value = 1
             push(result_value)
+        elif "LGOR" == command.command:
+            com_2: Value = pop(command)
+            com_1: Value = pop(command)
+            result_value = Value()
+            result_value.type = Types.INT
+            result_value.value = 0
+            if is_true(com_1) or is_true(com_2):
+                result_value.value = 1
+            push(result_value)
         elif "ISNE" == command.command:
             com_2: Value = pop(command)
             com_1: Value = pop(command)

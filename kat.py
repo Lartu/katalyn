@@ -20,6 +20,8 @@
 # TODO: Sería piola poder "string"[0]
 # TODO: Hace falta $n: 10; sin "in".
 # TODO: import. Si compilo uno y después el otro, etc, sin eliminar el global thingy, las referencias se van a mantener
+# TODO: La resta está agrupando a derecha. 10 - 5 - 1 da 6 porque hace 10 - (5 - 1), no está bien eso!
+# TODO: desde una función debería poder acceder a una variable del scope global que se declara más adelante siempre que se declare antes del primer llamado a la función
 
 from __future__ import annotations
 import sys
@@ -349,7 +351,7 @@ def tokenize_source(code: str, filename: str) -> List[List[Token]]:
             if next_char == "n":
                 current_token += "\n"
             elif next_char == "t":
-                current_token += "\v"
+                current_token += "\t"
             elif next_char == '"':
                 current_token += '"'
             elif next_char.isspace():
@@ -974,8 +976,6 @@ def compile_function_call(command: Token, args_list: List[List[Token]], discard_
         return parse_command_read(command, args_list, discard_return_value)
     elif command.value == "read_line":
         return parse_command_read_line(command, args_list, discard_return_value)
-    elif command.value == "trim":
-        return parse_command_trim(command, args_list, discard_return_value)
     elif command.value == "len":
         return parse_command_len(command, args_list, discard_return_value)
     elif command.value == "substr":
@@ -1371,17 +1371,6 @@ def parse_command_break(command_token: Token, args: List[Token]) -> str:
         parse_error(f"Break can only be used inside loops.", command_token.line, command_token.file)
     end_tag: str = global_compiler_state.get_open_loop_tags(depth=count - 1)[1]
     compiled_code += f"\nJUMP {end_tag}"
-    return compiled_code
-
-
-def parse_command_trim(command_token: Token, args_list: List[List[Token]], discard_return_value: bool = False) -> str:
-    compiled_code: str = ""
-    if len(args_list) != 1:
-        parse_error(f"Wrong number of arguments for function '{command_token.value}' (expected 1).", command_token.line, command_token.file)
-    compiled_code += "\n" + compile_expression(args_list[0])
-    compiled_code += f"\nTRIM"
-    if discard_return_value:
-        compiled_code += f"\nPOPV"
     return compiled_code
 
 
