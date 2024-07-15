@@ -1504,11 +1504,11 @@ def parse_command_exec(command_token: Token, args_list: List[List[Token]], disca
     exitcode_var: Token = Token(EXEC_EXITCODE_VAR, command_token.line, command_token.file)
     exitcode_var.type = LexType.VARIABLE
     exitcode_var_id = global_compiler_state.declare_variable(exitcode_var, False)
-    compiled_code += f"\nVSET \"{exitcode_var_id}\""
-    compiled_code += f"\nVSET \"{stderr_var_id}\""
     compiled_code += f"\nVSET \"{stdout_var_id}\""
+    compiled_code += f"\nVSET \"{stderr_var_id}\""
     if not discard_return_value:
-        compiled_code += f"\nVGET \"{exitcode_var_id}\""
+        compiled_code += f"\nDUPL"
+    compiled_code += f"\nVSET \"{exitcode_var_id}\""
     return compiled_code
 
 

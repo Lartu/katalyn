@@ -816,18 +816,18 @@ def execute_code_listing(code_listing: List[Command]):
         elif "EXEC" == command.command:  # EXECute Subprocess
             com_1: Value = pop(command)
             output, error, exit_code = run_subprocess(com_1.get_as_string())
-            result_value1 = Value()
-            result_value1.value = int(exit_code)
-            result_value1.type = Types.INT 
-            result_value2 = Value()
-            result_value2.value = error
-            result_value2.type = Types.TXT 
-            result_value3 = Value()
-            result_value3.value = output
-            result_value3.type = Types.TXT 
-            push(result_value3)
-            push(result_value2)
-            push(result_value1)
+            exit_code_value = Value()
+            exit_code_value.value = int(exit_code)
+            exit_code_value.type = Types.INT 
+            stderr_value = Value()
+            stderr_value.value = error
+            stderr_value.type = Types.TXT 
+            stdout_value = Value()
+            stdout_value.value = output
+            stdout_value.type = Types.TXT 
+            push(exit_code_value)
+            push(stderr_value)
+            push(stdout_value)
         elif "WAIT" == command.command:
             time.sleep(pop(command).get_as_number())
         elif "KEYS" == command.command:  # Pushes all keys of a dict to the stack
@@ -877,7 +877,7 @@ def nari_run(code: str) -> None:
     """
     try:
         debug: bool = False
-        sys.set_int_max_str_digits(1000000000)
+        #sys.set_int_max_str_digits(1000000000)
         code_listing: List[Command] = split_lines(code)
         code_listing = generate_label_map(code_listing)
         execute_code_listing(code_listing)

@@ -1,3 +1,6 @@
+in $true: 1;
+in $false: 0;
+
 def isspace;
     in $char: $_[1];
     print($_);
