@@ -1,0 +1,50 @@
+syntax "Katalyn" "\.kat$"
+
+# Separator :
+color white ":"
+
+# Operators
+color brightmagenta "(\*|\^|\/|%|\/\/|\+|&|\-|::|!|<|>|<=|>=|<>|!=|=|\|\||&&)"
+
+# Floats
+color yellow "[0-9]+\.[0-9]+"
+
+# Integers
+color yellow "\<[0-9]+\>"
+
+# Keywords
+color blue "\<[A-Za-z_]+[A-Za-z0-9_]*\>"
+
+# Table Keyword
+color brightcyan "table"
+
+# Functions (followed by parenthesis)
+color magenta "[A-Za-z0-9_]+\("
+
+# Regular Variables
+color brightcyan "\$[A-Za-z0-9]+[A-Za-z0-9_]*"
+
+# Reserved variables
+color brightred "\$_[A-Za-z0-9_]*"
+
+# Punctuation
+color white ";"
+color white "\["
+color white "\]"
+color white "\("
+color white "\)"
+
+# Strings
+color brightgreen start="\"" end="\""
+
+# Access Strings
+color brightgreen start="\{" end="\}"
+
+# Escape sequences
+color red "\\[\"ntr]"
+
+# Line comments
+color white "#.*$"
+
+# Block comments
+color white start="\(\*" end="\*\)"

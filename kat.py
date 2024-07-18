@@ -17,10 +17,7 @@
 # TODO: Hacer $a[x][y] no está andando bien me parece
 # TODO: if !($result); esto no anda, lo toma como una función
 # TODO: Operador de composición fun1() => fun2() eq a fun2(fun1())
-# TODO: Sería piola poder "string"[0]
-# TODO: Hace falta $n: 10; sin "in".
 # TODO: import. Si compilo uno y después el otro, etc, sin eliminar el global thingy, las referencias se van a mantener
-# TODO: La resta está agrupando a derecha. 10 - 5 - 1 da 6 porque hace 10 - (5 - 1), no está bien eso!
 # TODO: desde una función debería poder acceder a una variable del scope global que se declara más adelante siempre que se declare antes del primer llamado a la función
 
 from __future__ import annotations
@@ -611,7 +608,7 @@ def compile_expression(expr_tokens: List[Token], discard_return_value: bool = Fa
             if operator is None:
                 operator = token
             else:
-                if OPERATOR_PRESEDENCE.index(operator.value) < OPERATOR_PRESEDENCE.index(token.value):
+                if OPERATOR_PRESEDENCE.index(operator.value) <= OPERATOR_PRESEDENCE.index(token.value):
                     left_side_tokens.append(operator)
                     left_side_tokens += right_side_tokens
                     right_side_tokens = []
@@ -773,6 +770,11 @@ def compile_terminator(expr_tokens: List[Token], discard_return_value: bool = Fa
                         token.file
                     )
                 add_negation_code = True
+            elif token.type == LexType.TABLE:
+                if terminator_type != LexType.UNKNOWN:
+                    expression_error(f"Unexpected token '{token.value}'.", token.line, token.file)
+                compiled_code += f'\nTABL'
+                terminator_type = token.type
             elif token.type == LexType.VARIABLE:
                 if terminator_type != LexType.UNKNOWN:
                     expression_error(f"Unexpected token '{token.value}'.", token.line, token.file)
@@ -791,7 +793,7 @@ def compile_terminator(expr_tokens: List[Token], discard_return_value: bool = Fa
                         token.line,
                         token.file
                     )
-                if terminator_type not in [LexType.VARIABLE, LexType.WORD]:
+                elif terminator_type not in [LexType.VARIABLE, LexType.WORD, LexType.STRING, LexType.FLOAT, LexType.INTEGER, LexType.TABLE]:
                     expression_error(
                         "Attempting to access something that cannot be a table.",
                         token.line,
@@ -946,6 +948,8 @@ def compile_lines(tokenized_lines: List[List[Token]]) -> str:
             else:
                 # Commands that are "function-like" such as print
                 compiled_code += "\n" + compile_expression(line, True)
+        elif command.type == LexType.VARIABLE:
+            compiled_code += "\n" + parse_command_in(command, [command] + args, False)
         else:
             parse_error(f"Unexpected command '{command.value}'.", command.line, command.file)
     return compiled_code
@@ -1010,17 +1014,7 @@ def parse_command_in(command_token: Token, args: List[Token], global_var: bool) 
     if not right_side:
         parse_error("Empty right side for 'in' statement.", command_token.line, command_token.file)
     else:
-        if right_side[0].type == LexType.TABLE:
-            if len(right_side) > 1:
-                parse_error(
-                    f"Unexpected token: {right_side[1]}",
-                    right_side[1].line,
-                    right_side[1].file
-                )
-            else:
-                value_compiled_code += "\nTABL"
-        else:                
-            value_compiled_code += "\n" + compile_expression(right_side)
+        value_compiled_code += "\n" + compile_expression(right_side)
 
     # Compile lefthand side
     if not left_side:

@@ -639,18 +639,41 @@ def execute_code_listing(code_listing: List[Command]):
         elif "DUPL" == command.command:
             push(execution_stack[-1])
         elif "PGET" == command.command:
-            index = pop(command)
+            index_value = pop(command).get_as_string()
             table = pop(command)
-            if table.type != Types.TAB:
-                nambly_error("Cannot index a non-table.")
-            index_value: str = index.get_as_string()
-            if index_value in table.value:
-                push(table.value[index_value])
+            if table.type == Types.TAB:
+                if index_value in table.value:
+                    push(table.value[index_value])
+                else:
+                    result_value = Value()
+                    result_value.value = None
+                    result_value.type = Types.NIL
+                    push(result_value)
+            elif table.type == Types.NIL:
+                nambly_error(f"Trying to index a nil value.")
             else:
-                result_value = Value()
-                result_value.value = None
-                result_value.type = Types.NIL
-                push(result_value)
+                string_value = table.get_as_string()
+                if get_token_type(index_value) != Types.INT:
+                    nambly_error(f"Cannot index {string_value} with non-integer value {index_value}.")
+                else:
+                    result_value = Value()
+                    result_value.type = Types.TXT
+                    idx: int = int(index_value)
+                    if idx > 0:
+                        idx -= 1
+                    if idx >= len(string_value):
+                        result_value.value = ""
+                        push(result_value)
+                    else:
+                        if idx < 0:
+                            idx = len(string_value) + idx
+                        if idx < 0:
+                            result_value.value = ""
+                            push(result_value)
+                        else:
+                            result_value.value = string_value[idx]
+                            push(result_value)
+
         elif "NIL?" == command.command:  # check if value is NIL?
             value = pop(command)
             result_value = Value()
