@@ -25,6 +25,7 @@ import sys
 from typing import Dict, List, Set, Tuple, Any, Optional
 from enum import Enum, auto
 from narivm import nari_run
+from sys import exit
 
 
 OPERATOR_PRESEDENCE = ("*", "^", "/", "%", "//", "+", "&", "-", "::", "!", "<", ">", "<=", ">=", "<>", "!=", "=", "||", "&&")

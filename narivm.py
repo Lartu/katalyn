@@ -6,6 +6,7 @@ import math
 import sys
 import subprocess
 import time
+from sys import exit
 
 variable_tables: List[Dict[str, Value]] = [{}]
 label_to_pc: Dict[str, int] = {}
