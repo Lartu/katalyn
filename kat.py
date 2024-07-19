@@ -963,6 +963,8 @@ def compile_lines(tokenized_lines: List[List[Token]]) -> str:
                 compiled_code += "\n" + parse_command_in(command, args, True)
             elif command.value == "while":
                 compiled_code += "\n" + parse_command_while(command, args)
+            elif command.value == "for":
+                compiled_code += "\n" + parse_command_for(command, args)
             elif command.value == "until":
                 compiled_code += "\n" + parse_command_until(command, args)
             elif command.value == "if":
@@ -1034,12 +1036,14 @@ def compile_function_call(command: Token, args_list: List[List[Token]]):
         return parse_command_exec(command, args_list)
     elif command.value == "keys":
         return parse_command_keys(command, args_list)
+    elif command.value == "set":
+        return parse_command_set(command, args_list)
     else:
         return parse_function_call(command, args_list)
     
 
 
-def parse_command_in(command_token: Token, args: List[Token], global_var: bool) -> str:
+def parse_command_in(command_token: Token, args: List[Token], global_var: bool, with_return: bool = False) -> str:
     access_compiled_code: str = ""
     set_compiled_code: str = ""
     value_compiled_code: str = ""
@@ -1059,6 +1063,9 @@ def parse_command_in(command_token: Token, args: List[Token], global_var: bool) 
         parse_error("Empty right side for 'in' statement.", command_token.line, command_token.file)
     else:
         value_compiled_code += "\n" + compile_expression(right_side)
+
+    if with_return:
+        value_compiled_code += "\nDUPL"
 
     # Compile lefthand side
     if not left_side:
@@ -1204,6 +1211,19 @@ def parse_command_unset(command_token: Token, args_list: List[List[Token]]) -> s
     return compiled_code
 
 
+def parse_command_set(command_token: Token, args_list: List[List[Token]]) -> str:
+    compiled_code: str = ""
+    if len(args_list) != 2:
+        parse_error(f"Wrong number of arguments for function '{command_token.value}' (expected 2).", command_token.line, command_token.file)
+    new_arguments: List[Token] = args_list[0]
+    separator: Token = Token(":", command_token.line, command_token.file)
+    separator.set_type(LexType.DECORATION)
+    new_arguments.append(separator)
+    new_arguments += args_list[1]
+    compiled_code += "\n" + parse_command_in(command_token, new_arguments, False, True)
+    return compiled_code
+
+
 def parse_command_unsafe(command_token: Token, args_list: List[List[Token]]) -> str:
     compiled_code: str = ""
     if len(args_list) != 1:
@@ -1289,6 +1309,38 @@ def parse_command_while(command_token: Token, args: List[Token]) -> str:
     it_var.type = LexType.VARIABLE
     it_var_id: str = global_compiler_state.declare_variable(it_var, True)
     compiled_code += f'\nVSET "{it_var_id}"'
+    compiled_code += f"\nJPIF {end_tag}"
+    # Push end code to state for it to be used on next ok;
+    block_end_code += f"\nJUMP {start_tag}"
+    block_end_code += f"\n@{end_tag}"
+    global_compiler_state.add_open_loop(start_tag, end_tag)
+    global_compiler_state.add_block_end_code(block_end_code, command_token)
+    return compiled_code
+
+
+def parse_command_for(command_token: Token, args: List[Token]) -> str:
+    if not args:
+        parse_error(f"Command '{command_token.value}' expects an expression to evaluate.", command_token.line, command_token.file)
+    block_number: int = global_compiler_state.block_count
+    global_compiler_state.block_count += 1
+    start_tag: str = f"LOOP_{block_number}_START"
+    end_tag: str = f"LOOP_{block_number}_END"
+    iterator_var_name: str = f"$_itr{block_number}"
+    it_var: Token = Token(iterator_var_name, command_token.line, command_token.file)
+    it_var.type = LexType.VARIABLE
+    it_var_id: str = global_compiler_state.declare_variable(it_var, True)
+    compiled_code: str = ""
+    block_end_code: str = ""
+    compiled_code += "\n" + compile_expression(args)
+    compiled_code += "\nGITR"
+    compiled_code += f"\nVSET \"{it_var_id}\""
+    compiled_code += f"\n@{start_tag}"
+    compiled_code += f"\nNEXT \"{it_var_id}\""
+    compiled_code += "\nDUPL"
+    res_var: Token = Token(RESULT_VAR, command_token.line, command_token.file)
+    res_var.type = LexType.VARIABLE
+    res_var_id: str = global_compiler_state.declare_variable(res_var, True)
+    compiled_code += f'\nVSET "{res_var_id}"'
     compiled_code += f"\nJPIF {end_tag}"
     # Push end code to state for it to be used on next ok;
     block_end_code += f"\nJUMP {start_tag}"
@@ -1656,20 +1708,30 @@ if __name__ == "__main__":
     flags_var_id = global_compiler_state.declare_variable(flags_var, True)
     full_nambly: str = "PNIL"
     filename: str = ""
+    dont_expect_filename: bool = False
     include_standard_lib: bool = True
     read_standard_input: bool = False
+    next_argument_is_code: bool = False
+    code: str = ""
     for arg in sys.argv[1:]:
         if filename:
             # Pass arguments to Nambly
             full_nambly += f"\nPUSH \"{arg}\""
         else:
-            if arg == "-h":
+            if next_argument_is_code:
+                code = arg
+                next_argument_is_code = False
+            elif arg == "-h":
                 print_help()
                 exit(0)
             elif arg == "-n":
                 include_standard_lib = False
             elif arg == "-s":
                 read_standard_input = True
+                dont_expect_filename = True
+            elif arg == "-a":
+                next_argument_is_code = True
+                dont_expect_filename = True
             elif arg == "-v":
                 print_version()
                 exit(0)
@@ -1677,13 +1739,12 @@ if __name__ == "__main__":
                 filename = arg
     full_nambly += f"\nARRR"
     full_nambly += f"\nVSET \"{flags_var_id}\""
-    if not filename and not read_standard_input:
+    if not filename and not dont_expect_filename:
         print_help()
         exit(1)
     if include_standard_lib:
         full_nambly += "\n" + file_to_nambly(f"{STDLIB_LOCATION}/stdlib.kat")
     if read_standard_input:
-        code: str = ""
         while True:
             try:
                 code += input()
@@ -1692,6 +1753,8 @@ if __name__ == "__main__":
             except Exception:
                 exit(1)
         full_nambly += "\n" + code_to_nambly(code, os.path.join(os.getcwd(), "stdin"))
+    elif code:
+        full_nambly += "\n" + code_to_nambly(code, os.path.join(os.getcwd(), "argument_code"))
     else:
         full_nambly += "\n" + file_to_nambly(filename)
     nambly = stylize_namby(full_nambly)

@@ -21,45 +21,8 @@ class Types(Enum):
     TXT = 3
     TAB = 4
     NIL = 5
+    ITR = 6
 
-code = """
-PUSH 0
-VSET "loops"
-@loop
-PUSH 1
-PUSH 2
-ADDV
-VSET "a"
-PUSH "Hello there!"
-PUSH "I love quotes! \\"\\"\\"\\\\!!!"
-JOIN
-VSET "b"
-VGET "loops"
-PUSH 4
-JPEQ @end
-VGET "loops"
-PUSH 1
-ADDV
-VSET "loops"
-@jmpline
-JUMP @loop
-@end
-"""
-
-code = """
-TABL
-VSET "ttt"
-VGET "ttt"
-PUSH "x"
-PUSH -128.9
-PSET
-VGET "ttt"
-PUSH "x"
-PGET
-DISP
-PUSH "\\n"
-DISP
-"""
 
 # Para setear tabla: primero tabla, despues campo, despues valor, después escritura (arriba)
 # Para leer tabla: primero tabla, después campo, después lectura (arriba)
@@ -674,7 +637,6 @@ def execute_code_listing(code_listing: List[Command]):
                         else:
                             result_value.value = string_value[idx]
                             push(result_value)
-
         elif "NIL?" == command.command:  # check if value is NIL?
             value = pop(command)
             result_value = Value()
@@ -689,10 +651,11 @@ def execute_code_listing(code_listing: List[Command]):
         elif "ACCP" == command.command:
             result_value = Value()
             try:
+                result_value.type = Types.TXT
                 result_value.value = input()
             except (EOFError, KeyboardInterrupt):
-                result_value.value = ""
-            result_value.type = Types.TXT
+                result_value.type = Types.NIL
+                result_value.value = None
             push(result_value)
         elif "POPV" == command.command:
             if execution_stack:
@@ -878,6 +841,30 @@ def execute_code_listing(code_listing: List[Command]):
                 key_value.value = str(key)
                 result_value.value[str(ind)] = key_value
                 ind += 1
+            push(result_value)
+        elif "GITR" == command.command:  # Get iterator
+            table = pop(command)
+            result_value = Value()
+            result_value.type = Types.ITR
+            if table.type == Types.TAB:
+                result_value.value = list(table.value.keys())
+            elif table.type in (Types.TXT, Types.INT, Types.FLO):
+                iterable_value = table.get_as_string()
+                result_value.value = [str(i + 1) for i in range(0, len(iterable_value))]
+            else:
+                nambly_error(f"Cannot iterate over non-iterable values.")
+            push(result_value)
+        elif "NEXT" == command.command:
+            iterator: Optional[Value] = get_variable(command.arguments[0].value)
+            if iterator.type != Types.ITR:
+                nambly_error("Cannot NEXT a non-iterator.")
+            result_value = Value()
+            if iterator.value:
+                result_value.value = iterator.value.pop(0)
+                result_value.type = Types.TXT
+            else:
+                result_value.value = None
+                result_value.type = Types.NIL
             push(result_value)
         else:
             nambly_error(f"Unknown Nambly command: {command}")

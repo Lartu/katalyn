@@ -1,5 +1,6 @@
-while accept();
-    print($_r);
+$lines: split(read(open_rw("compilartu.sh")), "\n");
+for $lines;
+    print($lines[$_r]);
 ok;
 
 (*def fibonacci;
