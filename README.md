@@ -23,6 +23,10 @@ TODO
 
 TODO
 
+## IDE Support
+
+TODO
+
 ## Contributing to Katalyn
 
 TODO. Code of Conduct.
