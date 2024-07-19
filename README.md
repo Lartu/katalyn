@@ -19,7 +19,7 @@ print("Hello there, ", $name, "!");
 
 TODO
 
-## Learning Katalyn
+## Learning Katalyn (the docs)
 
 TODO
 
