@@ -695,7 +695,8 @@ def execute_code_listing(code_listing: List[Command]):
             result_value.type = Types.TXT
             push(result_value)
         elif "POPV" == command.command:
-            pop(command)
+            if execution_stack:
+                pop(command)
         elif "EXIT" == command.command:
             exit(int(pop(command).get_as_number()))
         elif "UNST" == command.command:  #UNSeT
