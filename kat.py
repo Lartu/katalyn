@@ -12,15 +12,13 @@
 # TODO: Lógica de cortocircuito para 'and' and 'or' (Es saltar al final del right side si and es false u or es true en el left side)
 # TODO: Calling functions before declaring them
 # TODO: for key in table
-# TODO: Hacer $a[x][y] no está andando bien me parece
-# TODO: if !($result); esto no anda, lo toma como una función
 # TODO: Operador de composición fun1() => fun2() eq a fun2(fun1())
 # TODO: import. Si compilo uno y después el otro, etc, sin eliminar el global thingy, las referencias se van a mantener
 # TODO: desde una función debería poder acceder a una variable del scope global que se declara más adelante siempre que se declare antes del primer llamado a la función
 
 from __future__ import annotations
 import sys
-from typing import Dict, List, Set, Tuple, Any, Optional
+from typing import Dict, List, Tuple, Optional
 from enum import Enum, auto
 from narivm import nari_run
 from sys import exit
@@ -607,7 +605,7 @@ def compile_expression(expr_tokens: List[Token], discard_return_value: bool = Fa
                     token.line,
                     token.file
                 )
-        if par_depth + access_depth == 0 and token.type == LexType.OPERATOR and left_side_tokens:
+        if par_depth + access_depth == 0 and token.type == LexType.OPERATOR:
             if operator is None:
                 operator = token
             else:
@@ -637,7 +635,7 @@ def compile_expression(expr_tokens: List[Token], discard_return_value: bool = Fa
             last_line,
             last_file
         )
-    if True:
+    if False:
         # print(depth_0_token_count)
         print("-------------")
         print("OPERATOR:", operator)
@@ -664,10 +662,14 @@ def compile_expression(expr_tokens: List[Token], discard_return_value: bool = Fa
         elif operator is None:  # Antes acá decía "or not left side tokens, que me parece que debe estar mal"
             # Caso de los function calls
             compiled_code += "\n" + compile_terminator(left_side_tokens, discard_return_value)
+        elif operator.value == "-" and not left_side_tokens:
+            compiled_code += "\n" + compile_terminator([operator] + right_side_tokens)
+            operator = None
         else:
             compiled_code += "\n" + compile_expression(left_side_tokens)
             compiled_code += "\n" + compile_expression(right_side_tokens)
     if operator:
+        infix: bool = False
         if operator.value == "*":
             compiled_code += "\nMULT"
         elif operator.value == "^":
@@ -702,9 +704,18 @@ def compile_expression(expr_tokens: List[Token], discard_return_value: bool = Fa
             compiled_code += "\nLGOR"
         elif operator.value == "::":
             compiled_code += "\nISIN"
+        elif operator.value == "!":
+            compiled_code += "\nLNOT"
+            infix = True
         else:
             expression_error(
                 f"The operator {operator.value} cannot be used as an infix operator.",
+                operator.line,
+                operator.file
+            )
+        if infix and left_side_tokens:
+            expression_error(
+                f"The operator {operator.value} can only be used as an infix operator.",
                 operator.line,
                 operator.file
             )
@@ -719,7 +730,7 @@ def compile_terminator(expr_tokens: List[Token], discard_return_value: bool = Fa
     """
     compiled_code: str = ""
     add_minus_code: bool = False
-    add_negation_code: bool = False
+    
     access_depth: int = 0
     access_tokens: List[Token] = []
     terminator_type: LexType = LexType.UNKNOWN
@@ -765,14 +776,6 @@ def compile_terminator(expr_tokens: List[Token], discard_return_value: bool = Fa
                     expr_tokens.pop(0)
                 else:
                     add_minus_code = True
-            elif token.type == LexType.OPERATOR and token.value == "!":
-                if next_token is None:
-                    expression_error(
-                        "Missing value after '!'",
-                        token.line,
-                        token.file
-                    )
-                add_negation_code = True
             elif token.type == LexType.TABLE:
                 if terminator_type != LexType.UNKNOWN:
                     expression_error(f"Unexpected token '{token.value}'.", token.line, token.file)
@@ -897,8 +900,6 @@ def compile_terminator(expr_tokens: List[Token], discard_return_value: bool = Fa
     if add_minus_code:
         compiled_code += "\nPUSH -1"
         compiled_code += "\nMULT"
-    if add_negation_code:
-        compiled_code += "\nLNOT"
     return compiled_code
 
 
@@ -952,6 +953,8 @@ def compile_lines(tokenized_lines: List[List[Token]]) -> str:
                 compiled_code += "\n" + parse_command_return(command, args)
             elif command.value == "sleep":
                 compiled_code += "\n" + parse_command_sleep(command, args)
+            elif command.value == "import":
+                compiled_code += "\n" + parse_command_import(command, args)
             else:
                 # Commands that are "function-like" such as print
                 compiled_code += "\n" + compile_expression(line, True)
@@ -1057,6 +1060,7 @@ def parse_command_in(command_token: Token, args: List[Token], global_var: bool) 
                 access_compiled_code += f'\nVGET "{var_id}"'
                 access_tokens: List[Token] = []
                 access_depth: int = 0
+                access_count: int = 0
                 for token in left_side[1:]:
                     if token.type == LexType.ACCESS_OPEN:
                         access_depth += 1
@@ -1071,7 +1075,10 @@ def parse_command_in(command_token: Token, args: List[Token], global_var: bool) 
                                 access_tokens[0].file
                             )
                         else:
+                            if access_count > 0:
+                                access_compiled_code += f'\nPGET'
                             access_compiled_code += "\n" + compile_expression(access_tokens[1:-1])
+                            access_count += 1
                             access_tokens = []
                 if access_depth > 0:
                     parse_error(
@@ -1575,6 +1582,18 @@ def parse_command_keys(command_token: Token, args_list: List[List[Token]], disca
     return compiled_code
 
 
+def parse_command_import(command_token: Token, args: List[Token]) -> str:
+    compiled_code: str = ""
+    if len(args) != 1:
+        parse_error(f"Wrong number of arguments for command '{command_token.value}' (expected 1).", command_token.line, command_token.file)
+    if args:
+        if args[0].type != LexType.STRING:
+            parse_error(f"Expected a static string argument for command '{command_token.value}'.", command_token.line, command_token.file)
+        else:
+            compiled_code += "\n" + file_to_nambly(args[0].value)
+    return compiled_code
+
+
 global_compiler_state = CompilerState()
 
 
@@ -1585,6 +1604,29 @@ def print_help():
 def print_version():
     print("This is Katalyn version 0.0.1.")
     print("Copyright 2024, Lartu (www.lartu.net).")
+
+
+def file_to_nambly(filename: str, called_from_file: str = "", called_from_line: int = 0) -> str:
+    """Loads, tokenizes, lexes, parses and compiles a whole Katalyn file into Nambly code.
+    """
+    nambly = ""
+    try:
+        with open(filename) as f:
+            code = f.read()
+    except:
+        if not called_from_file:
+            print(f"File {filename} not found.")
+        else:
+            parse_error(f"File {filename} not found.", called_from_line, called_from_file)
+        exit(1)
+    tokenized_lines: List[List[Token]] = tokenize_source(code, filename)
+    if tokenized_lines:
+        # print_tokens(tokenized_lines, filename, "Tokenization")
+        lex_tokens(tokenized_lines)
+        #print_tokens(tokenized_lines, filename, "Lexing")
+        nambly = compile_lines(tokenized_lines)
+        global_compiler_state.check_for_errors()
+    return nambly
 
 
 if __name__ == "__main__":
@@ -1612,25 +1654,8 @@ if __name__ == "__main__":
     if not filename:
         print_help()
         exit(1)
-    files: List[str] = (f"{STDLIB_LOCATION}/stdlib.kat", filename)
-    # TEST
-    full_nambly = ""
-    files = (filename, )
-    #
-    for filename in files:
-        try:
-            with open(filename) as f:
-                code = f.read()
-        except:
-            print(f"File {filename} not found.")
-            exit(1)
-        tokenized_lines: List[List[Token]] = tokenize_source(code, filename)
-        if tokenized_lines:
-            # print_tokens(tokenized_lines, filename, "Tokenization")
-            lex_tokens(tokenized_lines)
-            #print_tokens(tokenized_lines, filename, "Lexing")
-            full_nambly += compile_lines(tokenized_lines)
-            global_compiler_state.check_for_errors()
+    full_nambly += "\n" + file_to_nambly(f"{STDLIB_LOCATION}/stdlib.kat")
+    full_nambly += "\n" + file_to_nambly(filename)
     nambly = stylize_namby(full_nambly)
     # print(nambly)
     nari_run(nambly)

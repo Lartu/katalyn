@@ -2,10 +2,12 @@ in $true: 1;
 in $false: 0;
 
 def arr;
+(** Returns an array table containing all the arguments passed to the function ($_). **)
     return $_;
 ok;
 
 def in_array;
+(** Returns if $_[1] is found in the array table $_[2]. **)
     in $needle: $_[1];
     in $haystack: $_[2];
     in $i: 1;
@@ -19,16 +21,22 @@ def in_array;
 ok;
 
 def ceil;
+(** Rounds $_[1] to the nearest higher integer. **)
     return floor($_[1]) + 1;
 ok;
 
 def append;
+(** Appends the value $_[2] to the array table $_[1] (in-place) and returns said table. **)
     in $table: $_[1];
     in $table[len($_[1]) + 1]: $_[2];
     return $table;
 ok;
 
 def split;
+(** Splits the string $_[1] by the separator in $_[2].
+If the number $_[3] is set, the string is split at most $_[3] times.
+If $_[4] is set and it's true, empty values resulted from the split are not added to the resulting table.
+Returns an array table containing the result of the splitting. **)
     if len($_) < 1;
         print("split(...) expects at one parameter.");
         exit(1);
@@ -87,6 +95,9 @@ def split;
 ok;
 
 def init_table;
+(** Returns an table with the alternating values passed to the function as key-value pairs.
+For example calling init_table("a", "b", "c", "d") will return the value containing the keys
+"a" and "c" so that table{a} is "b" and table{c} is "d". **)
     in $table: table;
     in $i: 1;
     in $key: "";
@@ -104,6 +115,7 @@ def init_table;
 ok;
 
 def join;
+(** Takes in a list of values and returns them joined as a string. **)
     in $result: "";
     in $i: 1;
     while is($_[$i]);
@@ -115,6 +127,7 @@ def join;
 ok;
 
 def arrjoin;
+(** Joins the array table $_[1] using $_[2] as a delimiter. If $_[2] is not set, it defaults to "". **)
     if len($_) = 0;
         return "";
     ok;
@@ -133,6 +146,7 @@ def arrjoin;
 ok;
 
 def index;
+(** Searches for the value $_[2] in the array table $_[1]. If it's found, returns its index. Otherwise returns 0. **)
     in $haystack: $_[1];
     in $needle: $_[2];
     if len($haystack) < len($needle);
@@ -149,6 +163,7 @@ def index;
 ok;
 
 def starts_with;
+(** Returns true if the string $_[1] starts with the string $_[2]. **)
     in $string: $_[1];
     in $prefix: $_[2];
     if len($prefix) > len($string);
@@ -158,6 +173,7 @@ def starts_with;
 ok;
 
 def ends_with;
+(** Returns true if the string $_[1] ends with the string $_[2]. **)
     in $string: $_[1];
     in $prefix: $_[2];
     if len($prefix) > len($string);
@@ -167,11 +183,26 @@ def ends_with;
 ok;
 
 def is_whitespace;
+(** Returns true if the string $_[1] is one or more whitespace characters. An empty string is considered whitespace. **)
     in $string: $_[1];
-    return len($string) && $string :: "\n\t ";
+    if !len($string);
+        return $true;
+    elif len($string) = 1;
+        return $string :: "\n\t ";
+    else;
+        in $i: 1;
+        while $i <= len($string);
+            if !($string[$i] :: "\n\t ");
+                return $false;
+            ok;
+            in $i: $i + 1;
+        ok;
+        return $true;
+    ok;
 ok;
 
 def ltrim;
+(** Left-trims the string $_[1]. If $_[2] is set, it trims the value in $_[2]. Otherwise it trims whitespace. **)
     in $string: $_[1];
     in $trim_ws: $true;
     if is($_[2]);
@@ -206,6 +237,7 @@ def ltrim;
 ok;
 
 def rtrim;
+(** Right-trims the string $_[1]. If $_[2] is set, it trims the value in $_[2]. Otherwise it trims whitespace. **)
     in $string: $_[1];
     in $trim_ws: $true;
     if is($_[2]);
@@ -241,6 +273,7 @@ def rtrim;
 ok;
 
 def trim;
+(** Left and right-trims the string $_[1]. If $_[2] is set, it trims the value in $_[2]. Otherwise it trims whitespace. **)
     in $string: $_[1];
     if is($_[2]);
         return rtrim(ltrim($string, $_[2]), $_[2]);

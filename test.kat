@@ -1,10 +1,4 @@
-$a: 0;
-if !($a);
-    print("Ok");
-ok;
-
-(*$t: table;
-print($t);
+print(is_whitespace(" "));
 
 (*def fibonacci;
     $n: $_[1];
