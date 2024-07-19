@@ -4,3 +4,7 @@
     <img src="https://img.shields.io/badge/release-v0.0.1-red.svg">
     <img src="https://img.shields.io/badge/license-_apache_2.0-green">
 </p>
+
+The **Katalyn** programming language is a powerful scripting language designed to pair the simplicity of Lua with the power of Perl.
+In integrates intuitive syntax with a batteries-included standard library of useful functions. Whether you are writing console scripts,
+calling APIs or parsing text, Katalyn helps you get things done without getting in the way!
