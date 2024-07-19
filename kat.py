@@ -11,6 +11,7 @@
 # 
 # For 0.0.2:
 # TODO: Lógica de cortocircuito para 'and' and 'or' (Es saltar al final del right side si and es false u or es true en el left side)
+# TODO: poder write y append a un archivo
 
 from __future__ import annotations
 import sys
