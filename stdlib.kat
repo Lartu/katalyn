@@ -280,3 +280,13 @@ def trim;
     ok;
     return rtrim(ltrim($string));
 ok;
+
+def prototype;
+(** Creates a shallow copy of object $_[1] and returns it. **)
+    $base_object: $_[1];
+    $copy_object: table;
+    for $base_object;
+        $copy_object[$_r]: $base_object[$_r];
+    ok;
+    return $copy_object;
+ok;

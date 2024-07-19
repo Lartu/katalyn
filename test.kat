@@ -1,4 +1,33 @@
-$lines: split(read(open_rw("compilartu.sh")), "\n");
+def Point;
+    $point_prototype: table;
+    if is($_[1]);
+        $point_prototype{x}: $_[1];
+    else;
+        $point_prototype{x}: 0;
+    ok;
+    if is($_[2]);
+        $point_prototype{y}: $_[2];
+    else;
+        $point_prototype{y}: 0;
+    ok;
+    return $point_prototype;
+ok;
+
+def point_distance;
+    $point_a: $_[1];
+    $point_b: $_[2];
+    return (($point_b{x} - $point_a{x})^2 + ($point_b{y} - $point_a{y})^2)^0.5;
+ok;
+
+$point_a: Point(0, 10);
+$point_b: Point(20, 15);
+$point_c: prototype($point_a);
+print(point_distance($point_a, $point_b));
+print(set($point_c{x}, $point_c{x} + 0.5));
+print($point_a);
+print($point_c);
+
+(*$lines: split(read(open_rw("compilartu.sh")), "\n");
 for $lines;
     print($lines[$_r]);
 ok;

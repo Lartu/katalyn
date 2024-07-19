@@ -1040,7 +1040,7 @@ def compile_function_call(command: Token, args_list: List[List[Token]]):
     
 
 
-def parse_command_in(command_token: Token, args: List[Token], global_var: bool, with_return: bool = False) -> str:
+def parse_command_in(command_token: Token, args: List[Token], global_var: bool) -> str:
     access_compiled_code: str = ""
     set_compiled_code: str = ""
     value_compiled_code: str = ""
@@ -1060,9 +1060,6 @@ def parse_command_in(command_token: Token, args: List[Token], global_var: bool, 
         parse_error("Empty right side for 'in' statement.", command_token.line, command_token.file)
     else:
         value_compiled_code += "\n" + compile_expression(right_side)
-
-    if with_return:
-        value_compiled_code += "\nDUPL"
 
     # Compile lefthand side
     if not left_side:
@@ -1212,12 +1209,13 @@ def parse_command_set(command_token: Token, args_list: List[List[Token]]) -> str
     compiled_code: str = ""
     if len(args_list) != 2:
         parse_error(f"Wrong number of arguments for function '{command_token.value}' (expected 2).", command_token.line, command_token.file)
-    new_arguments: List[Token] = args_list[0]
+    new_arguments: List[Token] = list(args_list[0])
     separator: Token = Token(":", command_token.line, command_token.file)
     separator.set_type(LexType.DECORATION)
     new_arguments.append(separator)
     new_arguments += args_list[1]
-    compiled_code += "\n" + parse_command_in(command_token, new_arguments, False, True)
+    compiled_code += "\n" + parse_command_in(command_token, new_arguments, False)
+    compiled_code += "\n" + compile_expression(args_list[0])
     return compiled_code
 
 
@@ -1658,7 +1656,9 @@ global_compiler_state = CompilerState()
 
 def print_help():
     print("Usage: katalyn [switches] <source file>")
+    print("  -a <source>             read source from argument")
     print("  -h                      print this information")
+    print("  -i                      print internal representation instead of executing")
     print("  -n                      do not include standard library")
     print("  -s                      read source from standard input")
     print("  -v                      print version")
@@ -1709,6 +1709,7 @@ if __name__ == "__main__":
     include_standard_lib: bool = True
     read_standard_input: bool = False
     next_argument_is_code: bool = False
+    print_ir: bool = False
     code: str = ""
     for arg in sys.argv[1:]:
         if filename:
@@ -1718,16 +1719,18 @@ if __name__ == "__main__":
             if next_argument_is_code:
                 code = arg
                 next_argument_is_code = False
+            elif arg == "-a":
+                next_argument_is_code = True
+                dont_expect_filename = True
             elif arg == "-h":
                 print_help()
                 exit(0)
+            elif arg == "-i":
+                print_ir = True
             elif arg == "-n":
                 include_standard_lib = False
             elif arg == "-s":
                 read_standard_input = True
-                dont_expect_filename = True
-            elif arg == "-a":
-                next_argument_is_code = True
                 dont_expect_filename = True
             elif arg == "-v":
                 print_version()
@@ -1755,5 +1758,7 @@ if __name__ == "__main__":
     else:
         full_nambly += "\n" + file_to_nambly(filename)
     nambly = stylize_namby(full_nambly)
-    # print(nambly)
-    nari_run(nambly)
+    if print_ir:
+        print(nambly)
+    else:
+        nari_run(nambly)
