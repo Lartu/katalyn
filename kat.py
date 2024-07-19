@@ -21,8 +21,9 @@ from typing import Dict, List, Tuple, Optional, Set
 from enum import Enum, auto
 from narivm import nari_run
 from sys import exit
+import os
 
-
+VERSION = "0.0.1"
 OPERATOR_PRESEDENCE = ("*", "^", "/", "%", "//", "+", "&", "-", "::", "!", "<", ">", "<=", ">=", "<>", "!=", "=", "||", "&&")
 LOOP_TAGS = ("while", "until")
 NON_DEF_BLOCK_TAGS = ("if", "unless", "while", "until")
@@ -1583,6 +1584,13 @@ def parse_command_keys(command_token: Token, args_list: List[List[Token]]) -> st
     return compiled_code
 
 
+def get_relative_path(base_path, target_path):
+    base_dir = os.path.dirname(os.path.abspath(base_path))
+    relative_path = os.path.join(base_dir, target_path)
+    absolute_path = os.path.abspath(relative_path)
+    return absolute_path
+
+
 def parse_command_import(command_token: Token, args: List[Token]) -> str:
     compiled_code: str = ""
     if len(args) != 1:
@@ -1591,7 +1599,8 @@ def parse_command_import(command_token: Token, args: List[Token]) -> str:
         if args[0].type != LexType.STRING:
             parse_error(f"Expected a static string argument for command '{command_token.value}'.", command_token.line, command_token.file)
         else:
-            compiled_code += "\n" + file_to_nambly(args[0].value)
+            path = get_relative_path(command_token.file, args[0].value.strip())
+            compiled_code += "\n" + file_to_nambly(path)
     return compiled_code
 
 
@@ -1599,11 +1608,15 @@ global_compiler_state = CompilerState()
 
 
 def print_help():
-    print("Usage: katalyn <source file>")
+    print("Usage: katalyn [switches] <source file>")
+    print("  -h                      print this information")
+    print("  -n                      do not include standard library")
+    print("  -s                      read source from standard input")
+    print("  -v                      print version")
 
 
 def print_version():
-    print("This is Katalyn version 0.0.1.")
+    print(f"This is Katalyn version {VERSION}.")
     print("Copyright 2024, Lartu (www.lartu.net).")
 
 
@@ -1620,6 +1633,12 @@ def file_to_nambly(filename: str, called_from_file: str = "", called_from_line: 
         else:
             parse_error(f"File {filename} not found.", called_from_line, called_from_file)
         exit(1)
+    return code_to_nambly(code, filename)
+
+
+def code_to_nambly(code: str, filename: str) -> str:
+    """Tokenizes, lexes, parses and compiles Katalyn code into Nambly code.
+    """
     tokenized_lines: List[List[Token]] = tokenize_source(code, filename)
     if tokenized_lines:
         # print_tokens(tokenized_lines, filename, "Tokenization")
@@ -1630,13 +1649,15 @@ def file_to_nambly(filename: str, called_from_file: str = "", called_from_line: 
     return nambly
 
 
+
 if __name__ == "__main__":
     flags_var: Token = Token(FLAGS_VAR, 0, "")
     flags_var.type = LexType.VARIABLE
     flags_var_id = global_compiler_state.declare_variable(flags_var, True)
     full_nambly: str = "PNIL"
-    code: str = ""
     filename: str = ""
+    include_standard_lib: bool = True
+    read_standard_input: bool = False
     for arg in sys.argv[1:]:
         if filename:
             # Pass arguments to Nambly
@@ -1645,6 +1666,10 @@ if __name__ == "__main__":
             if arg == "-h":
                 print_help()
                 exit(0)
+            elif arg == "-n":
+                include_standard_lib = False
+            elif arg == "-s":
+                read_standard_input = True
             elif arg == "-v":
                 print_version()
                 exit(0)
@@ -1652,11 +1677,23 @@ if __name__ == "__main__":
                 filename = arg
     full_nambly += f"\nARRR"
     full_nambly += f"\nVSET \"{flags_var_id}\""
-    if not filename:
+    if not filename and not read_standard_input:
         print_help()
         exit(1)
-    full_nambly += "\n" + file_to_nambly(f"{STDLIB_LOCATION}/stdlib.kat")
-    full_nambly += "\n" + file_to_nambly(filename)
+    if include_standard_lib:
+        full_nambly += "\n" + file_to_nambly(f"{STDLIB_LOCATION}/stdlib.kat")
+    if read_standard_input:
+        code: str = ""
+        while True:
+            try:
+                code += input()
+            except EOFError:
+                break
+            except Exception:
+                exit(1)
+        full_nambly += "\n" + code_to_nambly(code, os.path.join(os.getcwd(), "stdin"))
+    else:
+        full_nambly += "\n" + file_to_nambly(filename)
     nambly = stylize_namby(full_nambly)
     # print(nambly)
     nari_run(nambly)

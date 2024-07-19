@@ -1,11 +1,6 @@
-def next_global;
-    print("The global var is now: ", $theglobalvar);
-    print(":)");
+while accept();
+    print($_r);
 ok;
-
-$theglobalvar: 1;
-next_global() & next_global();
-unset($theglobalvar);
 
 (*def fibonacci;
     $n: $_[1];
