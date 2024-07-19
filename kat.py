@@ -9,8 +9,6 @@
 # 
 # Started by Lartu on July 3, 2024 (01:13 AM).
 # 
-# TODO: Else
-# TODO: Else if
 # TODO: Lógica de cortocircuito para 'and' and 'or' (Es saltar al final del right side si and es false u or es true en el left side)
 # TODO: Calling functions before declaring them
 # TODO: for key in table
@@ -121,13 +119,6 @@ class CompilerState:
             return self.get_var_identifier(var, True, scope_search_type)
         self.__declared_variables[-1][var_name] = var_name
         return var_name
-        """if global_var:
-            scope_id = var_name
-        else:
-            if len(self.__declared_variables) > 1:
-                scope_id = f"${len(self.__declared_variables)}${var_name}"
-            else:
-                scope_id = var_name"""
     
     def unset_variable(self, var: Token, global_var: bool = False):
         i = len(self.__declared_variables) - 1
@@ -139,19 +130,19 @@ class CompilerState:
                 del self.__declared_variables[i][var_name]
             i -= 1
 
-    def add_block_end_code(self, code: str, reference_token: Token):
+    def add_block_end_code(self, code: str, reference_token: Token, group_id: int = -1):
         """Sets the next block end code to be used when an 'ok;' is found.
         The reference token is there so that if that 'ok;' is missing, we
         can reference which block is missing it.
         """
-        self.__block_end_code_stack.append((code, reference_token))
+        self.__block_end_code_stack.append((code, reference_token, group_id))
     
-    def get_block_end_code(self, caller_command: Token) -> str:
+    def get_block_end_data(self, caller_command: Token) -> Tuple[str, Token, int]:
         """Gets the next block end code to be used when an 'ok;' is found.
         """
         if not self.__block_end_code_stack:
             parse_error("Unexpected 'ok' command.", caller_command.line, caller_command.file)
-        return self.__block_end_code_stack.pop()[0]
+        return self.__block_end_code_stack.pop()
     
     def add_function(self, caller_command: Token, start_label: str, end_label: str):
         """Adds a function and links it to its label
@@ -187,6 +178,17 @@ class CompilerState:
             if tuple_code_token[1] not in NON_DEF_BLOCK_TAGS:
                 return True
         return False
+
+    def get_in_if_chain(self) -> bool:
+        """Returns if the current code is inside an if chain. (But not else!)
+        """
+        token = self.__block_end_code_stack[-1][1]
+        return token.type == LexType.WORD and token.value in ("if", "elif")
+
+    def get_group_id(self) -> int:
+        """Returns the current group id for the current block.
+        """
+        return self.__block_end_code_stack[-1][2]
 
 
 class LexType(Enum):
@@ -635,7 +637,7 @@ def compile_expression(expr_tokens: List[Token], discard_return_value: bool = Fa
             last_line,
             last_file
         )
-    if False:
+    if True:
         # print(depth_0_token_count)
         print("-------------")
         print("OPERATOR:", operator)
@@ -736,7 +738,7 @@ def compile_terminator(expr_tokens: List[Token], discard_return_value: bool = Fa
                     if expr_tokens:
                         if expr_tokens[0].type not in (LexType.ACCESS_OPEN, LexType.PAR_OPEN):
                             expression_error(
-                                f"Unexpected expression element: {expr_tokens[0].value}",
+                                f"Unexpected expression element: {expr_tokens[0].value} (did you forget a ';'?)",
                                 token.line,
                                 token.file
                             )
@@ -878,7 +880,7 @@ def compile_terminator(expr_tokens: List[Token], discard_return_value: bool = Fa
                 if expr_tokens:
                     if expr_tokens[0].type not in (LexType.ACCESS_OPEN, LexType.PAR_OPEN):
                         expression_error(
-                            f"Unexpected expression element: {expr_tokens[0].value}",
+                            f"Unexpected expression element: {expr_tokens[0].value} (did you forget a ';'?)",
                             token.line,
                             token.file
                         )
@@ -932,6 +934,10 @@ def compile_lines(tokenized_lines: List[List[Token]]) -> str:
                 compiled_code += "\n" + parse_command_until(command, args)
             elif command.value == "if":
                 compiled_code += "\n" + parse_command_if(command, args)
+            elif command.value == "elif":
+                compiled_code += "\n" + parse_command_elif(command, args)
+            elif command.value == "else":
+                compiled_code += "\n" + parse_command_else(command, args)
             elif command.value == "unless":
                 compiled_code += "\n" + parse_command_unless(command, args)
             elif command.value == "ok":
@@ -1242,6 +1248,8 @@ def parse_command_read_line(command_token: Token, args_list: List[List[Token]], 
 
 
 def parse_command_while(command_token: Token, args: List[Token]) -> str:
+    if not args:
+        parse_error(f"Command '{command_token.value}' expects an expression to evaluate.", command_token.line, command_token.file)
     block_number: int = global_compiler_state.block_count
     global_compiler_state.block_count += 1
     start_tag: str = f"LOOP_{block_number}_START"
@@ -1265,6 +1273,8 @@ def parse_command_while(command_token: Token, args: List[Token]) -> str:
 
 
 def parse_command_until(command_token: Token, args: List[Token]) -> str:
+    if not args:
+        parse_error(f"Command '{command_token.value}' expects an expression to evaluate.", command_token.line, command_token.file)
     block_number: int = global_compiler_state.block_count
     global_compiler_state.block_count += 1
     start_tag: str = f"LOOP_{block_number}_START"
@@ -1289,13 +1299,16 @@ def parse_command_until(command_token: Token, args: List[Token]) -> str:
 
 
 def parse_command_if(command_token: Token, args: List[Token]) -> str:
+    if not args:
+        parse_error(f"Command '{command_token.value}' expects an expression to evaluate.", command_token.line, command_token.file)
     block_number: int = global_compiler_state.block_count
     global_compiler_state.block_count += 1
-    start_tag: str = f"COND_{block_number}_START"
+    # start_tag: str = f"COND_{block_number}_START"
     end_tag: str = f"COND_{block_number}_END"
+    if_final_tag: str = f"EXIT_IF_{block_number}"
     compiled_code: str = ""
     block_end_code: str = ""
-    compiled_code += f"\n@{start_tag}"
+    # compiled_code += f"\n@{start_tag}"
     compiled_code += "\n" + compile_expression(args)
     compiled_code += "\nDUPL"
     it_var: Token = Token(RESULT_VAR, command_token.line, command_token.file)
@@ -1304,8 +1317,51 @@ def parse_command_if(command_token: Token, args: List[Token]) -> str:
     compiled_code += f'\nVSET "{it_var_id}"'
     compiled_code += f"\nJPIF {end_tag}"
     # Push end code to state for it to be used on next ok;
+    block_end_code += f"\nJUMP {if_final_tag}"
     block_end_code += f"\n@{end_tag}"
-    global_compiler_state.add_block_end_code(block_end_code, command_token)
+    global_compiler_state.add_block_end_code(block_end_code, command_token, block_number)
+    return compiled_code
+
+
+def parse_command_elif(command_token: Token, args: List[Token]) -> str:
+    if not args:
+        parse_error(f"Command '{command_token.value}' expects an expression to evaluate.", command_token.line, command_token.file)
+    if not global_compiler_state.get_in_if_chain():
+        parse_error(f"Command '{command_token.value}' can only be used after an if block.", command_token.line, command_token.file)
+    block_number: int = global_compiler_state.block_count
+    global_compiler_state.block_count += 1
+    group_id: int = global_compiler_state.get_group_id()
+    end_tag: str = f"COND_{block_number}_END"
+    if_final_tag: str = f"EXIT_IF_{group_id}"
+    compiled_code: str = ""
+    compiled_code += global_compiler_state.get_block_end_data(command_token)[0]
+    block_end_code: str = ""
+    # compiled_code += f"\n@{start_tag}"
+    compiled_code += "\n" + compile_expression(args)
+    compiled_code += "\nDUPL"
+    it_var: Token = Token(RESULT_VAR, command_token.line, command_token.file)
+    it_var.type = LexType.VARIABLE
+    it_var_id: str = global_compiler_state.declare_variable(it_var, True)
+    compiled_code += f'\nVSET "{it_var_id}"'
+    compiled_code += f"\nJPIF {end_tag}"
+    # Push end code to state for it to be used on next ok;
+    block_end_code += f"\nJUMP {if_final_tag}"
+    block_end_code += f"\n@{end_tag}"
+    global_compiler_state.add_block_end_code(block_end_code, command_token, group_id)
+    return compiled_code
+
+
+def parse_command_else(command_token: Token, args: List[Token]) -> str:
+    if args:
+        parse_error(f"Command '{command_token.value}' doesn't expect any arguments.", command_token.line, command_token.file)
+    if not global_compiler_state.get_in_if_chain():
+        parse_error(f"Command '{command_token.value}' can only be used after an if block.", command_token.line, command_token.file)
+    group_id: int = global_compiler_state.get_group_id()
+    compiled_code: str = ""
+    compiled_code += global_compiler_state.get_block_end_data(command_token)[0]
+    block_end_code: str = ""
+    # Push end code to state for it to be used on next ok;
+    global_compiler_state.add_block_end_code(block_end_code, command_token, group_id)
     return compiled_code
 
 
@@ -1337,7 +1393,10 @@ def parse_command_ok(command_token: Token, args: List[Token]) -> str:
     compiled_code: str = ""
     global_compiler_state.close_open_loop()
     compiled_code += global_compiler_state.del_scope()
-    compiled_code += global_compiler_state.get_block_end_code(command_token)
+    block_end_data = global_compiler_state.get_block_end_data(command_token)
+    compiled_code += block_end_data[0]
+    if block_end_data[1].type == LexType.WORD and block_end_data[1].value in ("if", "elif", "else"):
+        compiled_code += f"\n@EXIT_IF_{block_end_data[2]}"
     return compiled_code
 
 
@@ -1519,6 +1578,15 @@ def parse_command_keys(command_token: Token, args_list: List[List[Token]], disca
 global_compiler_state = CompilerState()
 
 
+def print_help():
+    print("Usage: katalyn <source file>")
+
+
+def print_version():
+    print("This is Katalyn version 0.0.1.")
+    print("Copyright 2024, Lartu (www.lartu.net).")
+
+
 if __name__ == "__main__":
     flags_var: Token = Token(FLAGS_VAR, 0, "")
     flags_var.type = LexType.VARIABLE
@@ -1532,15 +1600,23 @@ if __name__ == "__main__":
             full_nambly += f"\nPUSH \"{arg}\""
         else:
             if arg == "-h":
-                print("Help!")
+                print_help()
+                exit(0)
+            elif arg == "-v":
+                print_version()
+                exit(0)
             else:
                 filename = arg
     full_nambly += f"\nARRR"
     full_nambly += f"\nVSET \"{flags_var_id}\""
     if not filename:
-        print("Usage: katalyn <source file>")
+        print_help()
         exit(1)
     files: List[str] = (f"{STDLIB_LOCATION}/stdlib.kat", filename)
+    # TEST
+    full_nambly = ""
+    files = (filename, )
+    #
     for filename in files:
         try:
             with open(filename) as f:

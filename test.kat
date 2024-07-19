@@ -1,4 +1,41 @@
-in $edades: init_table(
+$a: 0;
+if !($a);
+    print("Ok");
+ok;
+
+(*$t: table;
+print($t);
+
+(*def fibonacci;
+    $n: $_[1];
+    if $n <= 2;
+        return 1;
+    ok; unless $_r;
+        $a: 1;
+        $b: 1;
+        while $n > 2;
+            $swap: $a + $b;
+            $a: $b;
+            $b: $swap;
+            $n: $n - 1;
+        ok;
+        return $b;
+    ok;
+ok;
+
+print("Let's find out the 10th digit of the nth fibonacci number!");
+$n: 100;
+$num: fibonacci($n);
+if len($num) < 10;
+    print("The #", $n, " fibonacci number is ", $num, " and it has fewer than 10 digits.");
+    exit(0);
+ok;
+print("The #", $n, " fibonacci number is ", $num, " and its 10th digit is: ", $num[10]);
+
+
+print(123[2]); (* imprime 2 *)
+
+(*in $edades: init_table(
     "lartu", 28,
     "damian", 28,
     "wendy", 29
@@ -12,6 +49,16 @@ while is(keys($edades)[$_i1]);
     in $_v: $edades[$_k];
     print($_k, " -> ", $_v);
     in $_i1: $_i1 + 1;
+ok;
+
+
+# PRUEBA DE ELSE!
+
+if 8 < 9;
+    print("True!");
+ok;
+unless $_r;
+    print("False!");
 ok;
 
 (*in $t: arr("lartu", "moncho", "damian", "dylan");
