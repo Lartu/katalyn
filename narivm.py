@@ -863,6 +863,7 @@ def execute_code_listing(code_listing: List[Command]):
                 result_value.value = iterator.value.pop(0)
                 result_value.type = Types.TXT
             else:
+                delete_variable(command.arguments[0].value)
                 result_value.value = None
                 result_value.type = Types.NIL
             push(result_value)
@@ -908,6 +909,8 @@ def nari_run(code: str) -> None:
             print_return_stack()
     except KeyboardInterrupt:
         pass
+    #except Exception:
+    #    nambly_error("Execution failed.")
 
 
 if __name__ == "__main__":

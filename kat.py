@@ -9,11 +9,8 @@
 # 
 # Started by Lartu on July 3, 2024 (01:13 AM).
 # 
-# For 0.1.0:
+# For 0.0.2:
 # TODO: Lógica de cortocircuito para 'and' and 'or' (Es saltar al final del right side si and es false u or es true en el left side)
-# TODO: for key in table
-# Nice to have:
-# TODO: Operador de composición fun1() => fun2() eq a fun2(fun1())
 
 from __future__ import annotations
 import sys
