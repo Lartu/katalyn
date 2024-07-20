@@ -20,6 +20,11 @@ help you write scripts quickly and enjoy the process.
 
 ## ⚔️ Building and Installing Katalyn
 
+This readme is still under development. However, if you want to install and run Katalyn, check the contents of
+the [`compilartu.sh`](/compilartu.sh) file. You require `Python 3` (I use Python 3.11 but you can change that
+to the version you prefer) and `nuitka` (install via `pip install nuitka`).
+
+Check `kat -h` to learn how to use the interpreter.
 
 ## 🛡️ Learning Katalyn (the docs)
 
