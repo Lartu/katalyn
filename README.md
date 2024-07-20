@@ -53,7 +53,7 @@ Contributors are expected to behave by the Katalyn [Code of Conduct](.). Basical
 
 ## 🏰 Getting Help
 
-TODO
+If you have any questions regarding Katalyn, you are welcome to [submit an issue](https://github.com/Lartu/katalyn/issues) to this repository, check the [Katalyn Website](.) or contact us via any other medium. There are no dumb questions, just ask away!
 
 ## 👑 License
 
