@@ -6,7 +6,7 @@
 </p>
 
 The **Katalyn** programming language is a powerful scripting language designed to pair the simplicity of Lua with the power of Perl.
-It integrates an intuitive syntax with a comprehensive, batteries-included standard library of useful functions _(under development)_. Whether you are
+It integrates an intuitive syntax with a comprehensive, batteries-included standard library of useful functions _[(under development)](#contributing-to-katalyn)_. Whether you are
 writing console scripts, calling APIs or parsing text, Katalyn helps you get things done without getting in the way!
 
 ```f#
@@ -31,6 +31,10 @@ TODO
 TODO
 
 ## Contributing to Katalyn
+
+Contributions both to the language and the standard library are welcome. There are a lot of things to be done on the interpreter side.
+Performance optimizations, bugfixes, code cleanup, ports to more efficient languages, all are welcome. Alternatively, if you've
+learned yourself some Katalyn (for the greater good), you can also contribute code to the standard library.
 
 TODO. Code of Conduct.
 
