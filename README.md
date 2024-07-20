@@ -25,9 +25,13 @@ for $lines;
 ok;
 ```
 
+The Katalyn interpreter (both the front-end and the virtual machine) are written in Python (at least for the time being).
+Speed, particularly in number-crunching, is not the main focus of this project. Instead, our priorities are to provide
+a comprehensive, batteries-included experience and to ensure Katalyn is intuitive and easy to learn. Our goal is to
+help you write scripts quickly and enjoy the process.
+
 ## ⚔️ Building and Installing Katalyn
 
-TODO
 
 ## 🛡️ Learning Katalyn (the docs)
 
