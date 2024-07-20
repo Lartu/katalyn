@@ -45,9 +45,7 @@ TODO
 We've developed Katalyn code highlight extensions for the most popular IDEs out there. There's one for [Visual Studio Code](https://marketplace.visualstudio.com/items?itemName=Lartu.katalyn-syntax-highlight) available in the Visual Studio Marketplace.
 Alternatively, you'll find highlight extensions for Nano and Vim in the [Highlight](/highlight) directory of this repository.
 
-<img src="images/vsc.png" height=300px width=auto>
-
-<img src="images/nano.png" height=300px width=auto>
+<img src="images/vsc.png" height=300px width=auto> <img src="images/nano.png" height=300px width=auto>
 
 ## 🔥 Contributing to Katalyn
 
