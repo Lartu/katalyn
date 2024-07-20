@@ -25,23 +25,23 @@ for $lines;
 ok;
 ```
 
-## Installing Katalyn
+## ⚔️ Installing Katalyn
 
 TODO
 
-## Learning Katalyn (the docs)
+## 🛡️ Learning Katalyn (the docs)
 
 While the standard library includes many functions for different uses, the language is actually very minimal and easy to use.
 
 TODO
 
 
-## IDE Support
+## 🧙🏻‍♂️ IDE Support
 
 We've developed Katalyn code highlight extensions for the most popular IDEs out there. There's one for [Visual Studio Code](https://marketplace.visualstudio.com/items?itemName=Lartu.katalyn-syntax-highlight) available in the Visual Studio Marketplace.
 Alternatively, you'll find highlight extensions for Nano and Vim in the [Highlight](/highlight) directory of this repository.
 
-## Contributing to Katalyn
+## 🔥 Contributing to Katalyn
 
 Contributions both to the language and the standard library are welcome. There are a lot of things to be done on the interpreter side.
 Performance optimizations, bugfixes, code cleanup, ports to more efficient languages, all are welcome. Alternatively, if you've
@@ -51,11 +51,11 @@ Be creative! We are new here, every bit helps! Even telling your programmer frie
 
 Contributors are expected to behave by the Katalyn Code of Honor. Basically, please be nice to everyone.
 
-## Getting Help
+## 🏰 Getting Help
 
 TODO
 
-## License
+## 👑 License
 
 Katalyn is distributed under the [Apache 2.0 License](LICENSE). Katalyn (both the language and the [character](https://eterspire.com)) and related media were created by Lartu. The Katalyn logo is released under a Creative Commons Attribution 4.0 International (CC BY 4.0) license.
 
