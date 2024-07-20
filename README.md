@@ -44,7 +44,7 @@ We've developed Katalyn code highlight extensions for the most popular IDEs out 
 Alternatively, you'll find highlight extensions for Nano and Vim in the [Highlight](/highlight) directory of this repository.
 
 <p align=center>
-<img src="images/vsc.png" height=300px width=auto> <img src="images/nano.png" height=300px width=auto>
+<img src="images/vsc.png" height=250px width=auto> <img src="images/nano.png" height=250px width=auto>
 </p>
 
 ## 🔥 Contributing to Katalyn
