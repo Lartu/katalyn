@@ -25,7 +25,7 @@ for $lines;
 ok;
 ```
 
-## ⚔️ Installing Katalyn
+## ⚔️ Building and Installing Katalyn
 
 TODO
 
