@@ -49,7 +49,7 @@ learned yourself some Katalyn (for the greater good), you can also contribute co
 documentation. Other ways of contributing are writing IDE extensions or any other utilities that improve the Katalyn ecosystem.
 Be creative! We are new here, every bit helps! Even telling your programmer friends about Katalyn is very useful!
 
-Contributors are expected to behave by the Katalyn Code of Honor. Basically, please be nice to everyone.
+Contributors are expected to behave by the Katalyn [Code of Conduct](.). Basically, please be nice to everyone.
 
 ## 🏰 Getting Help
 
