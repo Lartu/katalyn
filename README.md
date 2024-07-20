@@ -9,21 +9,9 @@ The **Katalyn** programming language is a powerful scripting language designed t
 It integrates an intuitive syntax with a comprehensive, batteries-included standard library of useful functions _[(under development)](#contributing-to-katalyn)_. Whether you are
 writing console scripts, calling APIs or parsing text, Katalyn helps you get things done without getting in the way!
 
-```f#
-(* Let's greet you! *)
-in $name: accept("What's your name?");
-print("Hello there, ", $name, "!");
-
-(* Print all non-empty lines of a file *)
-in $file_contents: read(open_rw("log.txt"));
-in $lines: split($file_contents, "\n");
-for $lines;
-    in $line: $lines[$_r];
-    if trim($line);
-        print($line);
-    ok;
-ok;
-```
+<p align=center>
+    <img src="images/code.png" height=300px width=auto>
+</p>
 
 The Katalyn interpreter (both the front-end and the virtual machine) are written in Python (at least for the time being).
 Speed, particularly in number-crunching, is not the main focus of this project. Instead, our priorities are to provide
