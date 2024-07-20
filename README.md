@@ -28,13 +28,15 @@ TODO
 
 ## IDE Support
 
-TODO
+We've developed Katalyn code highlight extensions for the most popular IDEs out there. There's one for [Visual Studio Code](https://marketplace.visualstudio.com/items?itemName=Lartu.katalyn-syntax-highlight) available in the Visual Studio Marketplace.
+Alternatively, you'll find highlight extensions for Nano and Vim in the [Highlight](/highlight) directory of this repository.
 
 ## Contributing to Katalyn
 
 Contributions both to the language and the standard library are welcome. There are a lot of things to be done on the interpreter side.
 Performance optimizations, bugfixes, code cleanup, ports to more efficient languages, all are welcome. Alternatively, if you've
-learned yourself some Katalyn (for the greater good), you can also contribute code to the standard library.
+learned yourself some Katalyn (for the greater good), you can also contribute code to the standard library. Other ways of contributing
+are writing IDE extensions or any other utilities that improve the Katalyn ecosystem. We are new here, every bit helps!
 
 TODO. Code of Conduct.
 
