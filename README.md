@@ -21,7 +21,10 @@ TODO
 
 ## Learning Katalyn (the docs)
 
+While the standard library includes many functions for different uses, the language is actually very minimal and easy to use.
+
 TODO
+
 
 ## IDE Support
 
