@@ -13,6 +13,16 @@ writing console scripts, calling APIs or parsing text, Katalyn helps you get thi
 (* Let's greet you! *)
 in $name: accept("What's your name?");
 print("Hello there, ", $name, "!");
+
+(* Print all non-empty lines of a file *)
+in $file_contents: read(open_rw("log.txt"));
+in $lines: split($file_contents, "\n");
+for $lines;
+    in $line: $lines[$_r];
+    if trim($line);
+        print($line);
+    ok;
+ok;
 ```
 
 ## Installing Katalyn
