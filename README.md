@@ -46,5 +46,5 @@ TODO
 
 ## License
 
-Katalyn is distributed under the Apache 2.0 License. Katalyn (both the language and the character) and related media were created by Lartu. The Katalyn logo is released under a Creative Commons Attribution 4.0 International (CC BY 4.0) license.
+Katalyn is distributed under the Apache 2.0 License. Katalyn (both the language and the (character)[https://eterspire.com]) and related media were created by Lartu. The Katalyn logo is released under a Creative Commons Attribution 4.0 International (CC BY 4.0) license.
 
