@@ -35,10 +35,11 @@ Alternatively, you'll find highlight extensions for Nano and Vim in the [Highlig
 
 Contributions both to the language and the standard library are welcome. There are a lot of things to be done on the interpreter side.
 Performance optimizations, bugfixes, code cleanup, ports to more efficient languages, all are welcome. Alternatively, if you've
-learned yourself some Katalyn (for the greater good), you can also contribute code to the standard library. Other ways of contributing
-are writing IDE extensions or any other utilities that improve the Katalyn ecosystem. We are new here, every bit helps!
+learned yourself some Katalyn (for the greater good), you can also contribute code to the standard library or write examples and
+documentation. Other ways of contributing are writing IDE extensions or any other utilities that improve the Katalyn ecosystem.
+Be creative! We are new here, every bit helps! Even telling your programmer friends about Katalyn is very useful!
 
-TODO. Code of Conduct.
+Contributors are expected to behave by the Katalyn Code of Honor. Basically, please be nice to everyone.
 
 ## Getting Help
 
@@ -46,5 +47,5 @@ TODO
 
 ## License
 
-Katalyn is distributed under the Apache 2.0 License. Katalyn (both the language and the (character)[https://eterspire.com]) and related media were created by Lartu. The Katalyn logo is released under a Creative Commons Attribution 4.0 International (CC BY 4.0) license.
+Katalyn is distributed under the Apache 2.0 License. Katalyn (both the language and the [character](https://eterspire.com)) and related media were created by Lartu. The Katalyn logo is released under a Creative Commons Attribution 4.0 International (CC BY 4.0) license.
 
