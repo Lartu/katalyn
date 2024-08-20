@@ -6,6 +6,11 @@ def arr;
     return $_;
 ok;
 
+def array;
+(** Returns an array table containing all the arguments passed to the function ($_). **)
+    return $_;
+ok;
+
 def in_array;
 (** Returns if $_[1] is found in the array table $_[2]. **)
     in $needle: $_[1];
@@ -18,6 +23,21 @@ def in_array;
         in $i: $i + 1;
     ok;
     return 0;
+ok;
+
+def print_arr;
+(** Prints an array, sorted. **)
+    in $array: $_[1];
+    in $i: 1;
+    printc("(");
+    until $i > len($array);
+        printc($array[$i]);
+        $i: $i + 1;
+        unless $i > len($array);
+            printc(", ");
+        ok;
+    ok;
+    print(")");
 ok;
 
 def ceil;
@@ -34,7 +54,7 @@ ok;
 
 def split;
 (** Splits the string $_[1] by the separator in $_[2].
-If the number $_[3] is set, the string is split at most $_[3] times.
+If the number $_[3] is set, the string is split at most $_[3] times. -1 means no max bound.
 If $_[4] is set and it's true, empty values resulted from the split are not added to the resulting table.
 Returns an array table containing the result of the splitting. **)
     if len($_) < 1;
@@ -115,7 +135,7 @@ For example calling init_table("a", "b", "c", "d") will return the value contain
 ok;
 
 def join;
-(** Takes in a list of values and returns them joined as a string. **)
+(** Returns its parameters joined as a string. **)
     in $result: "";
     in $i: 1;
     while is($_[$i]);
@@ -145,6 +165,23 @@ def arrjoin;
     return substr($result, len($separator) + 1);
 ok;
 
+def join_with;
+(** Returns its parameters joined as a string using the first parameter as the joiner. **)
+    in $result: "";
+    in $joiner: $_[1];
+    in $i: 2;
+    while is($_[$i]);
+        in $token: $_[$i];
+        in $j: "";
+        if $i > 2;
+            $j: $joiner;
+        ok;
+        in $result: $result & $j & $token;
+        in $i: $i + 1;
+    ok;
+    return $result;
+ok;
+
 def index;
 (** Searches for the value $_[2] in the array table $_[1]. If it's found, returns its index. Otherwise returns 0. **)
     in $haystack: $_[1];
@@ -160,6 +197,33 @@ def index;
         in $i: $i + 1;
     ok;
     return 0;
+ok;
+
+def replace;
+(** Replaces all instances of the string $_[2] in the string $_[1] by $_[3]. **)
+    in $haystack: $_[1];
+    in $needle: $_[2];
+    in $replacement: $_[3];
+    if len($haystack) < len($needle);
+        return $haystack;
+    ok;
+    $parsed_text: "";
+    $buffer: "";
+    for $haystack;
+        $char: $haystack[$_r];
+        $buffer: $buffer & $char;
+        if len($buffer) = len($needle);
+            if $buffer = $needle;
+                $parsed_text: $parsed_text & $replacement;
+                $buffer: "";
+            else;
+                $parsed_text: $parsed_text & $buffer[1];
+                $buffer: substr($buffer, 2);
+            ok;
+        ok;
+    ok;
+    $parsed_text: $parsed_text & $buffer;
+    return $parsed_text;
 ok;
 
 def starts_with;
@@ -289,4 +353,30 @@ def prototype;
         $copy_object[$_r]: $base_object[$_r];
     ok;
     return $copy_object;
+ok;
+
+def printcs;
+(** Prints comma separated values **)
+    print(arrjoin($_, ", "));
+ok;
+
+def shift_arr;
+(** Shifts the array $_[1] a number of $_[2] times to the left. For example, if [a, b, c] is shifted one
+time, it becomes [b, c, a]. If it's shifted twice, it becomes [c, a, b]. **)
+    $array: $_[1];
+    $max: len($array);
+    $count: $_[2] % $max;
+    if $count <= 0;
+        return;
+    ok;
+    until $count = 0;
+        $index: 1;
+        $swap: $array[1];
+        while $index < $max;
+            $array[$index]: $array[$index + 1];
+            $index: $index + 1;
+        ok;
+        $array[$max]: $swap;
+        $count: $count - 1;
+    ok;
 ok;

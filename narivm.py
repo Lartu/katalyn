@@ -130,7 +130,8 @@ def split_lines(code: str) -> List[Command]:
     for line in lines:
         line = line.strip()
         if len(line):
-            code_listing.append(split_command_arguments(line))
+            if line[0] != ";":
+                code_listing.append(split_command_arguments(line))
     return code_listing
 
 
@@ -316,7 +317,7 @@ def push(v: Value):
 
 
 def display(v: Value):
-    print(v.get_as_string(), end="")
+    print(v.get_as_string(), end="", flush=True)
 
 
 def execute_code_listing(code_listing: List[Command]):
@@ -665,10 +666,10 @@ def execute_code_listing(code_listing: List[Command]):
         elif "UNST" == command.command:  #UNSeT
             delete_variable(command.arguments[0].value)
         elif "PUST" == command.command: #Position UnSeT
-            index = pop(command)
+            index = pop(command).get_as_string()
             table = pop(command)
-            if index.value in table.value:
-                del table.value[index.value]
+            if index in table.value:
+                del table.value[index]
         elif "RFIL" == command.command: #Read FILe
             filename = pop(command)
             with open(filename.get_as_string(), "r") as file:
@@ -681,15 +682,31 @@ def execute_code_listing(code_listing: List[Command]):
             str_filename = filename.get_as_string()
             if str_filename in open_files:
                 open_files[str_filename].close()
-            file = open(str_filename, "r+")
-            open_files[str_filename] = file
+            try:
+                file = open(str_filename, "r+")
+                open_files[str_filename] = file
+            except:
+                pop(command)
+                # Replace filename with nil value
+                result_value = Value()
+                result_value.value = None
+                result_value.type = Types.NIL
+                push(result_value)
         elif "FORA" == command.command: #File Open Read Append
             filename = pop(command)
             str_filename = filename.get_as_string()
             if str_filename in open_files:
                 open_files[str_filename].close()
-            file = open(str_filename, "a+")
-            open_files[str_filename] = file
+            try:
+                file = open(str_filename, "a+")
+                open_files[str_filename] = file
+            except:
+                pop(command)
+                # Replace filename with nil value
+                result_value = Value()
+                result_value.value = None
+                result_value.type = Types.NIL
+                push(result_value)
         elif "FCLS" == command.command: #File CLoSe
             filename = pop(command)
             str_filename = filename.get_as_string()
@@ -705,6 +722,14 @@ def execute_code_listing(code_listing: List[Command]):
             result_value.value = line
             result_value.type = Types.TXT
             push(result_value)
+        elif "FWRT" == command.command: #File WRiTe
+            filename = pop(command)
+            str_filename = filename.get_as_string()
+            if str_filename not in open_files:
+                nambly_error(f"File '{str_filename}' is not open.")
+            contents = pop(command)
+            str_contents = contents.get_as_string()
+            line: str = open_files[str_filename].write(str_contents)
         elif "LNOT" == command.command:  # Logic NOT
             com_1: Value = pop(command)
             result_value = Value()
@@ -856,6 +881,8 @@ def execute_code_listing(code_listing: List[Command]):
             push(result_value)
         elif "NEXT" == command.command:
             iterator: Optional[Value] = get_variable(command.arguments[0].value)
+            if not iterator:
+                nambly_error(f"The iterator {command.arguments[0].value} doesn't exist.")
             if iterator.type != Types.ITR:
                 nambly_error("Cannot NEXT a non-iterator.")
             result_value = Value()
@@ -863,7 +890,8 @@ def execute_code_listing(code_listing: List[Command]):
                 result_value.value = iterator.value.pop(0)
                 result_value.type = Types.TXT
             else:
-                delete_variable(command.arguments[0].value)
+                # print(f"Deleting {command.arguments[0].value}")
+                # delete_variable(command.arguments[0].value)
                 result_value.value = None
                 result_value.type = Types.NIL
             push(result_value)
@@ -908,9 +936,8 @@ def nari_run(code: str) -> None:
             print_stack()
             print_return_stack()
     except KeyboardInterrupt:
-        pass
-    #except Exception:
-    #    nambly_error("Execution failed.")
+        print("Execution interrupted by user.")
+        exit(1)
 
 
 if __name__ == "__main__":

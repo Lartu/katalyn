@@ -11,7 +11,10 @@
 # 
 # For 0.0.2:
 # TODO: Lógica de cortocircuito para 'and' and 'or' (Es saltar al final del right side si and es false u or es true en el left side)
-# TODO: poder write y append a un archivo
+# TODO: poder seek en un archivo
+# TODO: and, or e in en lugar de &&, || y :: (opcionales)
+# TODO: Not in operator: !:
+# TODO: break tiene break X pero continue no tiene continue X!
 
 from __future__ import annotations
 import sys
@@ -23,7 +26,7 @@ import os
 
 VERSION = "0.0.1"
 OPERATOR_PRESEDENCE = ("*", "^", "/", "%", "//", "+", "&", "-", "::", "!", "<", ">", "<=", ">=", "<>", "!=", "=", "||", "&&")
-LOOP_TAGS = ("while", "until")
+LOOP_TAGS = ("while", "until", "for")
 NON_DEF_BLOCK_TAGS = ("if", "unless", "while", "until")
 ARGS_VAR = "$_"
 RESULT_VAR = "$_r"
@@ -1018,6 +1021,8 @@ def compile_function_call(command: Token, args_list: List[List[Token]]):
         return parse_command_open_rw(command, args_list)
     elif command.value == "open_ra":
         return parse_command_open_ra(command, args_list)
+    elif command.value == "write":
+        return parse_command_write(command, args_list)
     elif command.value == "close":
         return parse_command_close(command, args_list)
     elif command.value == "read":
@@ -1250,6 +1255,17 @@ def parse_command_open_rw(command_token: Token, args_list: List[List[Token]]) ->
     return compiled_code
 
 
+def parse_command_write(command_token: Token, args_list: List[List[Token]]) -> str:
+    compiled_code: str = ""
+    if len(args_list) != 2:
+        parse_error(f"Wrong number of arguments for function '{command_token.value}' (expected 2).", command_token.line, command_token.file)
+    compiled_code += "\n" + compile_expression(args_list[1])
+    compiled_code += f"\nDUPL"
+    compiled_code += "\n" + compile_expression(args_list[0])
+    compiled_code += f"\nFWRT"
+    return compiled_code
+
+
 def parse_command_open_ra(command_token: Token, args_list: List[List[Token]]) -> str:
     compiled_code: str = ""
     # TODO solo debería devolver el nombre del último archivo abierto - un solo return value!
@@ -1341,6 +1357,7 @@ def parse_command_for(command_token: Token, args: List[Token]) -> str:
     # Push end code to state for it to be used on next ok;
     block_end_code += f"\nJUMP {start_tag}"
     block_end_code += f"\n@{end_tag}"
+    block_end_code += f"\nUNST \"{it_var_id}\""
     global_compiler_state.add_open_loop(start_tag, end_tag)
     global_compiler_state.add_block_end_code(block_end_code, command_token)
     return compiled_code
@@ -1690,6 +1707,7 @@ def code_to_nambly(code: str, filename: str) -> str:
     """Tokenizes, lexes, parses and compiles Katalyn code into Nambly code.
     """
     tokenized_lines: List[List[Token]] = tokenize_source(code, filename)
+    nambly = ""
     if tokenized_lines:
         # print_tokens(tokenized_lines, filename, "Tokenization")
         lex_tokens(tokenized_lines)
