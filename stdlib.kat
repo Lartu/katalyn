@@ -261,8 +261,8 @@ def is_whitespace;
             ok;
             in $i: $i + 1;
         ok;
-        return $true;
     ok;
+    return $true;
 ok;
 
 def ltrim;

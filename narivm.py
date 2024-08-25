@@ -483,7 +483,7 @@ def execute_code_listing(code_listing: List[Command]):
             result_value.type = Types.INT
             result_value.value = 0
             if com_1.type == Types.NIL or com_2.type == Types.NIL:
-                result_value.value = 0
+                result_value.value = 1
             elif com_1.type == Types.TAB and com_2.type == Types.TAB:
                 if com_1.value == com_2.value: # By reference
                     result_value.value = 1
@@ -792,15 +792,6 @@ def execute_code_listing(code_listing: List[Command]):
                 result_value.value = 1
             push(result_value)
         elif "LGOR" == command.command:
-            com_2: Value = pop(command)
-            com_1: Value = pop(command)
-            result_value = Value()
-            result_value.type = Types.INT
-            result_value.value = 0
-            if is_true(com_1) or is_true(com_2):
-                result_value.value = 1
-            push(result_value)
-        elif "ISNE" == command.command:
             com_2: Value = pop(command)
             com_1: Value = pop(command)
             result_value = Value()
