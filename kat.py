@@ -964,6 +964,8 @@ def compile_lines(tokenized_lines: List[List[Token]]) -> str:
                 compiled_code += "\n" + parse_command_in(command, args, True)
             elif command.value == "while":
                 compiled_code += "\n" + parse_command_while(command, args)
+            elif command.value == "whileis":
+                compiled_code += "\n" + parse_command_whileis(command, args)
             elif command.value == "for":
                 compiled_code += "\n" + parse_command_for(command, args)
             elif command.value == "until":
@@ -1317,6 +1319,34 @@ def parse_command_while(command_token: Token, args: List[Token]) -> str:
     compiled_code += f"\n@{start_tag}"
     compiled_code += "\n" + compile_expression(args)
     compiled_code += "\nDUPL"
+    it_var: Token = Token(RESULT_VAR, command_token.line, command_token.file)
+    it_var.type = LexType.VARIABLE
+    it_var_id: str = global_compiler_state.declare_variable(it_var, True)
+    compiled_code += f'\nVSET "{it_var_id}"'
+    compiled_code += f"\nJPIF {end_tag}"
+    # Push end code to state for it to be used on next ok;
+    block_end_code += f"\nJUMP {start_tag}"
+    block_end_code += f"\n@{end_tag}"
+    global_compiler_state.add_open_loop(start_tag, end_tag)
+    global_compiler_state.add_block_end_code(block_end_code, command_token)
+    return compiled_code
+
+
+def parse_command_whileis(command_token: Token, args: List[Token]) -> str:
+    if not args:
+        parse_error(f"Command '{command_token.value}' expects an expression to evaluate.", command_token.line, command_token.file)
+    block_number: int = global_compiler_state.block_count
+    global_compiler_state.block_count += 1
+    start_tag: str = f"LOOP_{block_number}_START"
+    end_tag: str = f"LOOP_{block_number}_END"
+    compiled_code: str = ""
+    block_end_code: str = ""
+    compiled_code += f"\n@{start_tag}"
+    compiled_code += "\n" + compile_expression(args)
+    compiled_code += "\nDUPL"
+    compiled_code += "\nNIL?"
+    compiled_code += "\nLNOT"
+    compiled_code += "\nSWAP"
     it_var: Token = Token(RESULT_VAR, command_token.line, command_token.file)
     it_var.type = LexType.VARIABLE
     it_var_id: str = global_compiler_state.declare_variable(it_var, True)

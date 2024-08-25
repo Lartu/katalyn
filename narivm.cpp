@@ -19,6 +19,9 @@
 #include <thread>
 #include <chrono>
 #include <queue>
+#include <fstream>
+#include <sys/stat.h>
+#include <boost/process.hpp>
 
 using namespace std;
 
@@ -79,7 +82,7 @@ private:
     string str_rep;
     double num_rep;
     map<string, Value> *table_rep; // TODO: this is probably a huge memory leak lol
-    queue<string> iterator_elements;
+    queue<string> *iterator_elements;
 
     void reset_values()
     {
@@ -121,6 +124,7 @@ public:
     void set_iterator_value()
     {
         reset_values();
+        this->iterator_elements = new queue<string>();
         this->type = ITER;
     }
 
@@ -134,7 +138,7 @@ public:
         return table_rep;
     }
 
-    queue<string>& get_iterator_queue()
+    queue<string> *get_iterator_queue()
     {
         return iterator_elements;
     }
@@ -163,7 +167,22 @@ public:
             }
             else if (type == TABLE)
             {
-                raise_nvm_error("TODO: Print tables not yet implemented.");
+                queue<string> table_values;
+                for (auto it = get_table()->begin(); it != get_table()->end(); ++it)
+                {
+                    table_values.push("'" + it->first + "': '" + it->second.get_as_string() + "'");
+                }
+                string return_value = "[";
+                while(!table_values.empty())
+                {
+                    return_value += table_values.front();
+                    if(table_values.size() > 1)
+                    {
+                        return_value += ", ";
+                    }
+                    table_values.pop();
+                }
+                str_rep = return_value;
             }
             else if (type == NUMB)
             {
@@ -242,7 +261,7 @@ vector<map<string, Value> /**/> variable_tables;
 map<string, size_t> label_to_pc;
 map<size_t, string> pc_to_label;
 stack<Value> execution_stack;
-// open_files (falta)
+map<string, fstream *> open_files;
 stack<size_t> return_stack;
 
 Value get_nil_value()
@@ -593,6 +612,43 @@ bool is_true(Value &value)
     return false;
 }
 
+void run_command(const string &command, string &stdout_str, string &stderr_str, int &return_code)
+{
+    namespace bp = boost::process;
+    cout << "Running command " << command << endl;
+    // Capture output and errors
+    bp::ipstream stdout_stream;
+    bp::ipstream stderr_stream;
+    bp::child process(command, bp::std_out > stdout_stream, bp::std_err > stderr_stream, bp::shell);
+    std::string line;
+    // Read stdout
+    while (getline(stdout_stream, line))
+    {
+        stdout_str += line + "\n";
+    }
+    // Read stderr
+    while (getline(stderr_stream, line))
+    {
+        stderr_str += line + "\n";
+    }
+    // Wait for the process to finish and get the return code
+    process.wait();
+    return_code = process.exit_code();
+}
+
+bool file_exists(const string& filename) {
+    struct stat buffer;
+    return (stat(filename.c_str(), &buffer) == 0);
+}
+
+void create_empty_file(const string& filename) {
+    // Create an empty file
+    ofstream file(filename.c_str());
+    if (!file) {
+        raise_nvm_error("Failed to create file " + filename + ".");
+    }
+}
+
 void execute_code_listing(vector<Command> &code_listing)
 {
     pc = 0;
@@ -769,6 +825,10 @@ void execute_code_listing(vector<Command> &code_listing)
             long long idx_from = pop(command).get_as_number();
             string val_str = pop(command).get_as_string();
             Value result;
+            if (idx_from > 0)
+            {
+                idx_from -= 1;
+            }
             result.set_string_value(substring(val_str, idx_from, idx_count));
             push(result);
         }
@@ -846,7 +906,7 @@ void execute_code_listing(vector<Command> &code_listing)
             string index_string = index.get_as_string();
             if (table.get_type() == TABLE)
             {
-                if ((*table.get_table()).count(index_string)) // TODO no sé si usar count es eficiente at all porque no para al encontrarlo
+                if ((*table.get_table()).count(index_string)) // TODO usar count no es eficiente at all porque no para al encontrarlo
                 {
                     push((*table.get_table())[index_string]);
                 }
@@ -972,29 +1032,132 @@ void execute_code_listing(vector<Command> &code_listing)
                 }
             }
         }
-        else if (command.get_command() == "RFIL") // Read File
-        {
-            raise_nvm_error("Unimplemented: " + command.get_debug_string()); // TODO FIX!
-        }
         else if (command.get_command() == "FORW") // File Open for Read and Write
         {
-            raise_nvm_error("Unimplemented: " + command.get_debug_string()); // TODO FIX!
+            Value filename = pop(command);
+            string str_filename = filename.get_as_string();
+            // Close the file if it was already open
+            if (open_files.count(str_filename) > 0)
+            {
+                open_files[str_filename]->close();
+            }
+            // Open the file
+            fstream *new_file;
+            if(file_exists(str_filename))
+            {
+                new_file = new fstream(str_filename, ios::in | ios::out);
+            }else{
+                new_file = new fstream(str_filename, ios::in | ios::out | ios::trunc);
+            }
+            if(!(*new_file))
+            {
+                raise_nvm_error("Failed to open file " + str_filename + " for read/write.");
+            }
+            open_files[str_filename] = new_file;
+            // The name of the file is returned, wether it's been opened correctly or not,
+            // as the file might not already exist.
         }
         else if (command.get_command() == "FORA") // File Open for Read and Append
         {
-            raise_nvm_error("Unimplemented: " + command.get_debug_string()); // TODO FIX!
+            Value filename = pop(command);
+            string str_filename = filename.get_as_string();
+            // Close the file if it was already open
+            if (open_files.count(str_filename) > 0)
+            {
+                open_files[str_filename]->close();
+            }
+            // Open the file
+            fstream *new_file = new fstream(str_filename, ios::in | ios::out | ios::app);
+            if(!(*new_file))
+            {
+                raise_nvm_error("Failed to open file " + str_filename + " for read/append.");
+            }
+            open_files[str_filename] = new_file;
+            // The name of the file is returned, wether it's been opened correctly or not,
+            // as the file might not already exist.
+        }
+        else if (command.get_command() == "RFIL") // Read File
+        {
+            Value filename = pop(command);
+            string str_filename = filename.get_as_string();
+            if (open_files.count(str_filename) == 0 || !open_files[str_filename]->is_open())
+            {
+                push(get_nil_value());
+            }
+            else
+            {
+                string file_contents = "";
+                string line;
+                fstream *file = open_files[str_filename];
+                if (!file->is_open())
+                {
+                    raise_nvm_error("The file " + str_filename + " has been closed.");
+                }
+                file->seekg(0);
+                while (getline(*file, line))
+                {
+                    if (!file_contents.empty())
+                    {
+                        file_contents += "\n";
+                    }
+                    file_contents += line;
+                }
+                Value result;
+                result.set_string_value(file_contents);
+                push(result);
+            }
         }
         else if (command.get_command() == "FCLS") // File Close
         {
-            raise_nvm_error("Unimplemented: " + command.get_debug_string()); // TODO FIX!
+            Value filename = pop(command);
+            string str_filename = filename.get_as_string();
+            if (open_files.count(str_filename) > 0)
+            {
+                open_files[str_filename]->close();
+                open_files.erase(str_filename);
+            }
         }
         else if (command.get_command() == "RLNE") // File Read Line
         {
-            raise_nvm_error("Unimplemented: " + command.get_debug_string()); // TODO FIX!
+            Value filename = pop(command);
+            string str_filename = filename.get_as_string();
+            if (open_files.count(str_filename) == 0 || !open_files[str_filename]->is_open())
+            {
+                push(get_nil_value());
+            }
+            else
+            {
+                string line;
+                fstream *file = open_files[str_filename];
+                if (!file->is_open())
+                {
+                    raise_nvm_error("The file " + str_filename + " has been closed.");
+                }
+                if (getline(*file, line))
+                {
+                    Value result;
+                    result.set_string_value(line);
+                    push(result);
+                }
+                else
+                {
+                    push(get_nil_value());
+                }
+            }
         }
         else if (command.get_command() == "FWRT") // File Write
         {
-            raise_nvm_error("Unimplemented: " + command.get_debug_string()); // TODO FIX!
+            Value filename = pop(command);
+            string str_filename = filename.get_as_string();
+            if (open_files.count(str_filename) == 0)
+            {
+                raise_nvm_error("The file " + str_filename + " is not open for writing.");
+            }
+            else
+            {
+                Value contents = pop(command);
+                (*open_files[str_filename]) << contents.get_as_string() << flush;
+            }
         }
         else if (command.get_command() == "LNOT")
         {
@@ -1111,7 +1274,20 @@ void execute_code_listing(vector<Command> &code_listing)
         }
         else if (command.get_command() == "EXEC")
         {
-            raise_nvm_error("Unimplemented: " + command.get_debug_string()); // TODO FIX!
+            Value exec_command = pop(command);
+            string stdout_str;
+            string stderr_str;
+            int return_code;
+            run_command(exec_command.get_as_string(), stdout_str, stderr_str, return_code);
+            Value exit_code_value;
+            exit_code_value.set_number_value(return_code);
+            Value stderr_value;
+            stderr_value.set_string_value(stderr_str);
+            Value stdout_value;
+            stdout_value.set_string_value(stdout_str);
+            push(exit_code_value);
+            push(stderr_value);
+            push(stdout_value);
         }
         else if (command.get_command() == "WAIT")
         {
@@ -1142,7 +1318,6 @@ void execute_code_listing(vector<Command> &code_listing)
         }
         else if (command.get_command() == "GITR")
         {
-            raise_nvm_error("Unimplemented: " + command.get_debug_string()); // TODO FIX!
             Value table = pop(command);
             Value result;
             result.set_iterator_value();
@@ -1151,23 +1326,49 @@ void execute_code_listing(vector<Command> &code_listing)
                 for (auto it = table.get_table()->begin(); it != table.get_table()->end(); ++it)
                 {
                     // Idea: I can use it->second here to add the values as well to the table maybe
-                    result.get_iterator_queue().emplace(it->first);
+                    result.get_iterator_queue()->push(it->first);
                 }
             }
-            else if(table.get_type() == TEXT || table.get_type() == NUMB)
+            else if (table.get_type() == TEXT || table.get_type() == NUMB)
             {
-                for(size_t i = 0; i < table.get_as_string().size(); ++i)
+                for (size_t i = 0; i < table.get_as_string().size(); ++i)
                 {
-                    result.get_iterator_queue().emplace(table.get_as_string()[i]);
+                    string character = string(table.get_as_string()[i], 1);
+                    result.get_iterator_queue()->push(character);
                 }
-            }else{
+            }
+            else
+            {
                 raise_nvm_error("Cannot iterate over non-iterable value.");
             }
             push(result);
         }
         else if (command.get_command() == "NEXT")
         {
-            raise_nvm_error("Unimplemented: " + command.get_debug_string()); // TODO FIX!
+            string iterator_name = command.get_arguments()[0].get_raw_string_value();
+            Value iterator_variable = get_variable(iterator_name);
+            if (iterator_variable.get_type() == NIL)
+            {
+                raise_nvm_error("Iterator " + iterator_name + " doesn't exist.");
+            }
+            else if (iterator_variable.get_type() != ITER)
+            {
+                raise_nvm_error("Cannot NEXT a non-interator.");
+            }
+            else
+            {
+                Value result;
+                if (!iterator_variable.get_iterator_queue()->empty())
+                {
+                    result.set_string_value(iterator_variable.get_iterator_queue()->front());
+                    iterator_variable.get_iterator_queue()->pop();
+                }
+                else
+                {
+                    result.set_nil_value();
+                }
+                push(result);
+            }
         }
         else
         {
