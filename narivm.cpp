@@ -18,6 +18,7 @@
 #include <limits>
 #include <thread>
 #include <chrono>
+#include <queue>
 
 using namespace std;
 
@@ -78,7 +79,7 @@ private:
     string str_rep;
     double num_rep;
     map<string, Value> *table_rep; // TODO: this is probably a huge memory leak lol
-    // other types
+    queue<string> iterator_elements;
 
     void reset_values()
     {
@@ -117,6 +118,12 @@ public:
         this->type = NIL;
     }
 
+    void set_iterator_value()
+    {
+        reset_values();
+        this->type = ITER;
+    }
+
     char get_type()
     {
         return type;
@@ -125,6 +132,11 @@ public:
     map<string, Value> *get_table()
     {
         return table_rep;
+    }
+
+    queue<string>& get_iterator_queue()
+    {
+        return iterator_elements;
     }
 
     const string &get_raw_string_value() const
@@ -474,6 +486,30 @@ void set_variable(const string &var_name, Value value)
     variable_tables[variable_tables.size() - 1][var_name] = value;
 }
 
+void delete_variable(const string &name)
+{
+    if (variable_tables.empty())
+    {
+        return; // If there are no scopes, nothing to delete
+    }
+
+    // Try to delete from the current (last) scope
+    auto &current_scope = variable_tables.back(); // Access the last scope
+    if (current_scope.find(name) != current_scope.end())
+    {
+        current_scope.erase(name); // Delete the variable from the current scope
+        return;
+    }
+
+    // Try to delete from the global (first) scope
+    auto &global_scope = variable_tables.front(); // Access the first scope
+    if (global_scope.find(name) != global_scope.end())
+    {
+        global_scope.erase(name); // Delete the variable from the global scope
+        return;
+    }
+}
+
 void set_global_variable(const string &var_name, Value value)
 {
     if (variable_tables.empty())
@@ -498,6 +534,63 @@ Value get_variable(const string &var_name)
         }
     }
     return get_nil_value();
+}
+
+string substring(const string &s, long long from, long long count)
+{
+    long long len = s.size();
+
+    // Handle negative indices
+    if (from < 0)
+    {
+        from += len; // Negative index counts from the end
+    }
+
+    // Ensure `from` is within bounds
+    if (from < 0)
+    {
+        from = 0;
+    }
+    else if (from >= len)
+    {
+        return ""; // If `from` is out of bounds, return an empty string
+    }
+
+    // Calculate the effective count
+    if (count < 0)
+    {
+        count = 0; // Negative count is treated as zero (like Python does)
+    }
+
+    // Adjust `count` so that it doesn't go out of bounds
+    count = min(count, len - from);
+
+    // Return the substring
+    return s.substr(from, count);
+}
+
+string input()
+{
+    string user_input;
+    getline(cin, user_input);
+    return user_input;
+}
+
+bool is_true(Value &value)
+{
+    if (value.get_type() == TABLE)
+    {
+        return value.get_table()->size() > 0;
+    }
+    else if (value.get_type() == TEXT)
+    {
+        return value.get_as_string().size() > 0;
+    }
+    else if (value.get_type() == NUMB)
+    {
+        return !num_eq(value.get_as_number(), 0);
+    }
+    return false;
 }
 
 void execute_code_listing(vector<Command> &code_listing)
@@ -672,7 +765,12 @@ void execute_code_listing(vector<Command> &code_listing)
         }
         else if (command.get_command() == "SSTR")
         {
-            raise_nvm_error("Unimplemented: " + command.get_debug_string()); // TODO FIX!
+            long long idx_count = pop(command).get_as_number();
+            long long idx_from = pop(command).get_as_number();
+            string val_str = pop(command).get_as_string();
+            Value result;
+            result.set_string_value(substring(val_str, idx_from, idx_count));
+            push(result);
         }
         else if (command.get_command() == "JUMP")
         {
@@ -730,7 +828,9 @@ void execute_code_listing(vector<Command> &code_listing)
         }
         else if (command.get_command() == "TABL")
         {
-            raise_nvm_error("Unimplemented: " + command.get_debug_string()); // TODO FIX!
+            Value value;
+            value.set_table_value();
+            push(value);
         }
         else if (command.get_command() == "PSET")
         {
@@ -837,7 +937,9 @@ void execute_code_listing(vector<Command> &code_listing)
         }
         else if (command.get_command() == "ACCP")
         {
-            raise_nvm_error("Unimplemented: " + command.get_debug_string()); // TODO FIX!
+            Value result;
+            result.set_string_value(input());
+            push(result);
         }
         else if (command.get_command() == "POPV")
         {
@@ -852,33 +954,45 @@ void execute_code_listing(vector<Command> &code_listing)
         }
         else if (command.get_command() == "UNST")
         {
-            raise_nvm_error("Unimplemented: " + command.get_debug_string()); // TODO FIX!
+            delete_variable(command.get_arguments()[0].get_raw_string_value());
         }
         else if (command.get_command() == "PUST")
         {
-            raise_nvm_error("Unimplemented: " + command.get_debug_string()); // TODO FIX!
+            string index = pop(command).get_as_string();
+            Value table = pop(command);
+            if (table.get_type() != TABLE)
+            {
+                raise_nvm_error("Trying to PUST from a non-table.");
+            }
+            else
+            {
+                if (table.get_table()->count(index) > 0)
+                {
+                    table.get_table()->erase(index);
+                }
+            }
         }
-        else if (command.get_command() == "RFIL")
+        else if (command.get_command() == "RFIL") // Read File
         {
             raise_nvm_error("Unimplemented: " + command.get_debug_string()); // TODO FIX!
         }
-        else if (command.get_command() == "FORW")
+        else if (command.get_command() == "FORW") // File Open for Read and Write
         {
             raise_nvm_error("Unimplemented: " + command.get_debug_string()); // TODO FIX!
         }
-        else if (command.get_command() == "FORA")
+        else if (command.get_command() == "FORA") // File Open for Read and Append
         {
             raise_nvm_error("Unimplemented: " + command.get_debug_string()); // TODO FIX!
         }
-        else if (command.get_command() == "FCLS")
+        else if (command.get_command() == "FCLS") // File Close
         {
             raise_nvm_error("Unimplemented: " + command.get_debug_string()); // TODO FIX!
         }
-        else if (command.get_command() == "RLNE")
+        else if (command.get_command() == "RLNE") // File Read Line
         {
             raise_nvm_error("Unimplemented: " + command.get_debug_string()); // TODO FIX!
         }
-        else if (command.get_command() == "FWRT")
+        else if (command.get_command() == "FWRT") // File Write
         {
             raise_nvm_error("Unimplemented: " + command.get_debug_string()); // TODO FIX!
         }
@@ -902,14 +1016,23 @@ void execute_code_listing(vector<Command> &code_listing)
             {
                 raise_nvm_error("Values of type " + get_type_name(value.get_type()) + " are not logical.");
             }
+            push(result);
         }
         else if (command.get_command() == "LAND")
         {
-            raise_nvm_error("Unimplemented: " + command.get_debug_string()); // TODO FIX!
+            Value com_2 = pop(command);
+            Value com_1 = pop(command);
+            Value result;
+            result.set_number_value(is_true(com_1) && is_true(com_2) ? 1 : 0);
+            push(result);
         }
         else if (command.get_command() == "LGOR")
         {
-            raise_nvm_error("Unimplemented: " + command.get_debug_string()); // TODO FIX!
+            Value com_2 = pop(command);
+            Value com_1 = pop(command);
+            Value result;
+            result.set_number_value(is_true(com_1) || is_true(com_2) ? 1 : 0);
+            push(result);
         }
         else if (command.get_command() == "TRIM")
         {
@@ -954,7 +1077,7 @@ void execute_code_listing(vector<Command> &code_listing)
             else
             {
                 size_t pos = container.get_as_string().find(value.get_as_string());
-                if (pos != std::string::npos)
+                if (pos != string::npos)
                 {
                     result.set_number_value(1);
                 }
@@ -996,11 +1119,51 @@ void execute_code_listing(vector<Command> &code_listing)
         }
         else if (command.get_command() == "KEYS")
         {
-            raise_nvm_error("Unimplemented: " + command.get_debug_string()); // TODO FIX!
+            Value value = pop(command);
+            if (value.get_type() != TABLE)
+            {
+                raise_nvm_error("Cannot get keys from a non-table value.");
+            }
+            else
+            {
+                Value result;
+                result.set_table_value();
+                size_t index = 1;
+                for (auto it = value.get_table()->begin(); it != value.get_table()->end(); ++it)
+                {
+                    // Idea: I can use it->second here to add the values as well to the table maybe
+                    Value key;
+                    key.set_string_value(it->first);
+                    (*value.get_table())[double_to_string(index)] = key;
+                    ++index;
+                }
+                push(result);
+            }
         }
         else if (command.get_command() == "GITR")
         {
             raise_nvm_error("Unimplemented: " + command.get_debug_string()); // TODO FIX!
+            Value table = pop(command);
+            Value result;
+            result.set_iterator_value();
+            if (table.get_type() == TABLE)
+            {
+                for (auto it = table.get_table()->begin(); it != table.get_table()->end(); ++it)
+                {
+                    // Idea: I can use it->second here to add the values as well to the table maybe
+                    result.get_iterator_queue().emplace(it->first);
+                }
+            }
+            else if(table.get_type() == TEXT || table.get_type() == NUMB)
+            {
+                for(size_t i = 0; i < table.get_as_string().size(); ++i)
+                {
+                    result.get_iterator_queue().emplace(table.get_as_string()[i]);
+                }
+            }else{
+                raise_nvm_error("Cannot iterate over non-iterable value.");
+            }
+            push(result);
         }
         else if (command.get_command() == "NEXT")
         {
@@ -1018,7 +1181,7 @@ int main()
 {
     string code = "";
     string input;
-    while (std::getline(std::cin, input))
+    while (getline(cin, input))
     {
         code = code + "\n" + input;
     }

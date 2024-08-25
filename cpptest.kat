@@ -1,86 +1,10 @@
-def ucasec;
-    $letters:   "abcdefghijklmnopqrstuvwxyz";
-    $letters_u: "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-    $index: 1;
-    while $index <= len($letters);
-        if $letters[$index] = $_[1];
-            return $letters_u[$index];
-        ok;
-        $index: $index + 1;
-    ok;
-    return $_[1];
-ok;
-
-def lcasec;
-    $letters:   "abcdefghijklmnopqrstuvwxyz";
-    $letters_u: "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-    $index: 1;
-    while $index <= len($letters);
-        if $letters_u[$index] = $_[1];
-            return $letters[$index];
-        ok;
-        $index: $index + 1;
-    ok;
-    return $_[1];
-ok;
-
-def ucase;
-    $index: 1;
-    $buffer: "";
-    while $index <= len($_[1]);
-        $buffer: $buffer & ucasec($_[1][$index]);
-        $index: $index + 1;
-    ok;
-    return $buffer;
-ok;
-
-def lcase;
-    $index: 1;
-    $buffer: "";
-    while $index <= len($_[1]);
-        $buffer: $buffer & lcasec($_[1][$index]);
-        $index: $index + 1;
-    ok;
-    return $buffer;
-ok;
-
-def ucasefirst;
-    $index: 2;
-    $buffer: "";
-    if len($_[1]) >= 1;
-        $buffer: ucasec($_[1][1]);
-    ok;
-    while $index <= len($_[1]);
-        $buffer: $buffer & lcasec($_[1][$index]);
-        $index: $index + 1;
-    ok;
-    return $buffer;
-ok;
-
-def title;
-    $index: 1;
-    $buffer: "";
-    $last_char_space: $true;
-    while $index <= len($_[1]);
-        $char: $_[1][$index];
-        print($char);
-        if is_whitespace($char);
-            $last_char_space: $true;
-            $buffer: $buffer & $char;
-        (*elif !$last_char_space;
-            $buffer: $buffer & lcasec($_[1][$index]);
-        else;
-            $buffer: $buffer & ucasec($_[1][$index]);
-            $last_char_space: $false;*)
-        ok;
-        $index: $index + 1;
-    ok;
-    return $buffer;
-ok;
-
 $string: "hOla sOy LArtu!";
-print($string);
-print(ucase($string));
-print(lcase($string));
-print(ucasefirst($string));
-print(title($string));
+$changes: table;
+$changes{normal}: $string;
+$changes{ucase}: ucase($string);
+$changes{lcase}: lcase($string);
+$changes{ucasefirst}: ucasefirst($string);
+$changes{title}: title($string);
+$changes{substr}: substr($string, -80, 3);
+
+print($changes{ucase});

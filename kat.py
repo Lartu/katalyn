@@ -1157,7 +1157,7 @@ def parse_command_print(command_token: Token, args_list: List[List[Token]]) -> s
 def parse_command_accept(command_token: Token, args_list: List[List[Token]]) -> str:
     compiled_code: str = ""
     if args_list:
-        compiled_code += "\n" + parse_command_printc(command_token, args_list, True)
+        compiled_code += "\n" + parse_command_printc(command_token, args_list)
     compiled_code += "\nACCP"
     return compiled_code
 
