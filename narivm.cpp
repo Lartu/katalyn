@@ -677,6 +677,18 @@ bool sort_iterator_elements(const string& a, const string& b) {
     }
 }
 
+void replace_all(string& str, const string& from, const string& to) {
+    if (from.empty()) {
+        return; // Avoid infinite loop if 'from' is an empty string
+    }
+
+    size_t start_pos = 0;
+    while ((start_pos = str.find(from, start_pos)) != string::npos) {
+        str.replace(start_pos, from.length(), to);
+        start_pos += to.length(); // Move past the replaced substring
+    }
+}
+
 void execute_code_listing(vector<Command> &code_listing)
 {
     pc = 0;
@@ -859,6 +871,16 @@ void execute_code_listing(vector<Command> &code_listing)
             }
             result.set_string_value(substring(val_str, idx_from, idx_count));
             push(result);
+        }
+        else if (command.get_command() == "REPL")
+        {
+            string replacement = pop(command).get_as_string();
+            string needle = pop(command).get_as_string();
+            string haystack = pop(command).get_as_string();
+            Value result;
+            replace_all(haystack, needle, replacement);
+            result.set_string_value(haystack)
+
         }
         else if (command.get_command() == "JUMP")
         {

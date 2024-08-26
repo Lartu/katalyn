@@ -199,7 +199,7 @@ def index;
     return 0;
 ok;
 
-def replace;
+def replace_slow;
 (** Replaces all instances of the string $_[2] in the string $_[1] by $_[3]. **)
     in $haystack: $_[1];
     in $needle: $_[2];

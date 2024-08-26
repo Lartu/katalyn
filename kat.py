@@ -1036,6 +1036,8 @@ def compile_function_call(command: Token, args_list: List[List[Token]]):
         return parse_command_len(command, args_list)
     elif command.value == "substr":
         return parse_command_substr(command, args_list)
+    elif command.value == "replace":
+        return parse_command_replace(command, args_list)
     elif command.value == "floor":
         return parse_command_floor(command, args_list)
     elif command.value == "exec":
@@ -1573,6 +1575,17 @@ def parse_command_substr(command_token: Token, args_list: List[List[Token]]) -> 
         compiled_code += f"\nSWAP"
         compiled_code += f"\nSLEN"
     compiled_code += f"\nSSTR"
+    return compiled_code
+
+
+def parse_command_replace(command_token: Token, args_list: List[List[Token]]) -> str:
+    compiled_code: str = ""
+    if len(args_list) != 3:
+        parse_error(f"Wrong number of arguments for function '{command_token.value}' (expected 3).", command_token.line, command_token.file)
+    compiled_code += "\n" + compile_expression(args_list[0])
+    compiled_code += "\n" + compile_expression(args_list[1])
+    compiled_code += "\n" + compile_expression(args_list[2])
+    compiled_code += f"\nREPL"
     return compiled_code
 
 

@@ -1,0 +1,16 @@
+$file: open_rw("quijote.txt");
+exec("date"); printc($_stdout);
+printc("Loading... ");
+$contents: substr(read($file), 1, 100000);
+print("Loaded ", len($contents), " bytes.");
+print("0%");
+$contents: replace_slow($contents, "hecho", "a ver mario si me optimizas esta porqueria");
+print("25%");
+$contents: replace_slow($contents, "sus", "a ver mario si me optimizas esta porqueria");
+print("50%");
+$contents: replace_slow($contents, "la", "a ver mario si me optimizas esta porqueria");
+print("75%");
+$contents: replace_slow($contents, "el", "a ver mario si me optimizas esta porqueria");
+print("100%");
+print("Final length: ", len($contents), " bytes.");
+exec("date"); printc($_stdout);
