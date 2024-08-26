@@ -25,7 +25,7 @@ import time
 import random
 import os
 
-VERSION = "0.0.1"
+VERSION = "0.1.0"
 OPERATOR_PRESEDENCE = ("*", "^", "/", "%", "//", "+", "&", "-", "::", "!", "<", ">", "<=", ">=", "<>", "!=", "=", "||", "&&")
 LOOP_TAGS = ("while", "until", "for")
 NON_DEF_BLOCK_TAGS = ("if", "unless", "while", "until")
