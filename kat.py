@@ -20,8 +20,9 @@ from __future__ import annotations
 import sys
 from typing import Dict, List, Tuple, Optional, Set
 from enum import Enum, auto
-from narivm import nari_run
 from sys import exit
+import time
+import random
 import os
 
 VERSION = "0.0.1"
@@ -1810,4 +1811,18 @@ if __name__ == "__main__":
     if print_ir:
         print(nambly)
     else:
-        nari_run(nambly)
+        filename: str = "/tmp/kat_exec_"
+        for i in range(0, 4):
+            for i in range(0, 4):
+                filename += f"{random.randint(0, 9)}"
+            filename += f"-"
+        filename += f"{time.time_ns()}"
+        with open(filename, "w+") as f:
+            f.write(nambly)
+        command = "narivm"
+        args = [filename]
+        try:
+            os.execvp(command, [command] + args)
+        except FileNotFoundError:
+            print("The NariVM couldn't be loaded. Make sure it's in your path.")
+

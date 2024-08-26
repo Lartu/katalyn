@@ -182,7 +182,7 @@ public:
                     }
                     table_values.pop();
                 }
-                str_rep = return_value;
+                str_rep = return_value + "]";
             }
             else if (type == NUMB)
             {
@@ -1378,14 +1378,34 @@ void execute_code_listing(vector<Command> &code_listing)
     }
 }
 
-int main()
+void read_source(string filename, string& output)
 {
-    string code = "";
-    string input;
-    while (getline(cin, input))
-    {
-        code = code + "\n" + input;
+    fstream file(filename, std::ios::in);
+    if (!file.is_open()) {
+        cerr << "File not found: " << filename << endl;
+        exit(1);
     }
+    output = "";
+    string line;
+    while (getline(file, line))
+    {
+        if (!output.empty())
+        {
+            output += "\n";
+        }
+        output += line;
+    }
+}
+
+int main(int argc, char* argv[]) {
+    vector<string> args(argv, argv + argc);
+    if(args.size() != 2)
+    {
+        cerr << "Usage: narivm <nambly_file>" << endl;
+        exit(1);
+    }
+    string code;
+    read_source(argv[1], code);
     // cout << code << endl;
     vector<Command> code_listing = split_lines(code);
     code_listing = generate_label_map(code_listing);

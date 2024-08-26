@@ -1,4 +1,0 @@
-(1) Hola!! Se leyó bien!
-
-(3) Qué bueno!
-(4) La linea (2) es vacía.

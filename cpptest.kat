@@ -1,4 +1,5 @@
 $string: "hOla sOy LArtu!";
+$string: accept("Enter a string: ");
 $changes: table;
 $changes{normal}: $string;
 $changes{ucase}: ucase($string);

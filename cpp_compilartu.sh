@@ -8,4 +8,5 @@ g++ -std=c++11 -I/opt/homebrew/opt/boost/include \
     -lboost_system -lboost_filesystem \
     narivm.cpp -o narivm
 
-kat -i cpptest.kat | ./narivm
+kat -i cpptest.kat > /tmp/asd
+./narivm /tmp/asd
