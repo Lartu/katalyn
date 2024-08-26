@@ -615,12 +615,11 @@ bool is_true(Value &value)
 void run_command(const string &command, string &stdout_str, string &stderr_str, int &return_code)
 {
     namespace bp = boost::process;
-    cout << "Running command " << command << endl;
     // Capture output and errors
     bp::ipstream stdout_stream;
     bp::ipstream stderr_stream;
     bp::child process(command, bp::std_out > stdout_stream, bp::std_err > stderr_stream, bp::shell);
-    std::string line;
+    string line;
     // Read stdout
     while (getline(stdout_stream, line))
     {
@@ -646,6 +645,35 @@ void create_empty_file(const string& filename) {
     ofstream file(filename.c_str());
     if (!file) {
         raise_nvm_error("Failed to create file " + filename + ".");
+    }
+}
+
+// Helper function to check if a string is a valid number (integer or floating-point)
+bool is_numeric(const string& s) {
+    istringstream iss(s);
+    double d;
+    char c;
+    // Try to parse a double, and ensure that there is no remaining character after the number
+    return iss >> d && !(iss >> c);
+}
+
+// Custom comparator function
+bool sort_iterator_elements(const string& a, const string& b) {
+    bool a_is_numeric = is_numeric(a);
+    bool b_is_numeric = is_numeric(b);
+
+    if (a_is_numeric && b_is_numeric) {
+        // If both are numeric, compare their double values
+        return stod(a) < stod(b);
+    } else if (a_is_numeric) {
+        // If only a is numeric, it should come first
+        return true;
+    } else if (b_is_numeric) {
+        // If only b is numeric, it should come first
+        return false;
+    } else {
+        // If neither is numeric, compare lexicographically
+        return a < b;
     }
 }
 
@@ -1318,22 +1346,29 @@ void execute_code_listing(vector<Command> &code_listing)
         }
         else if (command.get_command() == "GITR")
         {
-            Value table = pop(command);
+            Value container = pop(command);
             Value result;
             result.set_iterator_value();
-            if (table.get_type() == TABLE)
+            if (container.get_type() == TABLE)
             {
-                for (auto it = table.get_table()->begin(); it != table.get_table()->end(); ++it)
+                vector<string> dict_keys;
+                for (auto it = container.get_table()->begin(); it != container.get_table()->end(); ++it)
                 {
-                    // Idea: I can use it->second here to add the values as well to the table maybe
-                    result.get_iterator_queue()->push(it->first);
+                    dict_keys.push_back(it->first);
+                }
+                // Sort keys by numeric value first and then by lexicographical order
+                sort(dict_keys.begin(), dict_keys.end(), sort_iterator_elements);
+                // Add keys to queue
+                for (auto it = dict_keys.begin(); it != dict_keys.end(); ++it)
+                {
+                    result.get_iterator_queue()->push(*it);
                 }
             }
-            else if (table.get_type() == TEXT || table.get_type() == NUMB)
+            else if (container.get_type() == TEXT || container.get_type() == NUMB)
             {
-                for (size_t i = 0; i < table.get_as_string().size(); ++i)
+                for (size_t i = 0; i < container.get_as_string().size(); ++i)
                 {
-                    string character = string(table.get_as_string()[i], 1);
+                    string character = double_to_string(i + 1);
                     result.get_iterator_queue()->push(character);
                 }
             }
@@ -1380,7 +1415,7 @@ void execute_code_listing(vector<Command> &code_listing)
 
 void read_source(string filename, string& output)
 {
-    fstream file(filename, std::ios::in);
+    fstream file(filename, ios::in);
     if (!file.is_open()) {
         cerr << "File not found: " << filename << endl;
         exit(1);
