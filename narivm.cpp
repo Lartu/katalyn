@@ -879,8 +879,8 @@ void execute_code_listing(vector<Command> &code_listing)
             string haystack = pop(command).get_as_string();
             Value result;
             replace_all(haystack, needle, replacement);
-            result.set_string_value(haystack)
-
+            result.set_string_value(haystack);
+            push(result);
         }
         else if (command.get_command() == "JUMP")
         {
