@@ -8,6 +8,7 @@
 
 #include <iostream>
 #include <map>
+#include <unordered_map>
 #include <stack>
 #include <string>
 #include <vector>
@@ -56,6 +57,143 @@ string get_type_name(char type)
     return "???";
 }
 
+enum Opcode : uint8_t
+{
+    PUSH,
+    PNIL,
+    ADDV,
+    SUBT,
+    MULT,
+    FDIV,
+    IDIV,
+    POWR,
+    MODL,
+    ISGT,
+    ISLT,
+    ISGE,
+    ISLE,
+    ISEQ, // Is Equal
+    ISNE, // Is Not Equal
+    VSET,
+    GSET,
+    VGET,
+    JOIN,
+    SSTR,
+    REPL,
+    JUMP,
+    CALL,
+    RTRN,
+    JPIF, // Jump If False
+    TABL,
+    PSET,
+    PGET,
+    ARRR,
+    DUPL,
+    DISP,
+    ACCP,
+    POPV,
+    EXIT,
+    UNST,
+    PUST,
+    FORW, // File Open for Read and Write
+    FORA, // File Open for Read and Append
+    RFIL, // Read File
+    FCLS, // File Close
+    RLNE, // File Read Line
+    FWRT, // File Write
+    LNOT,
+    LAND,
+    LGOR,
+    TRIM,
+    SLEN, // String or Table Length
+    SWAP,
+    ISIN,
+    FLOR,
+    ADSC,
+    DLSC,
+    EXEC,
+    WAIT,
+    KEYS,
+    GITR,
+    NEXT,
+    PLIM,
+    EXPL, // Explode
+    MXPL, // Multi eXPLode
+    FORE, // File Open for REad
+    ISOP, // IS file OPen?
+    ISNIL,
+};
+
+Opcode opcode_from_string(string_view str)
+{
+    static unordered_map<string_view, Opcode> str_to_opcode = {
+        {"PUSH", Opcode::PUSH},
+        {"PNIL", Opcode::PNIL},
+        {"ADDV", Opcode::ADDV},
+        {"SUBT", Opcode::SUBT},
+        {"MULT", Opcode::MULT},
+        {"FDIV", Opcode::FDIV},
+        {"IDIV", Opcode::IDIV},
+        {"POWR", Opcode::POWR},
+        {"MODL", Opcode::MODL},
+        {"ISGT", Opcode::ISGT},
+        {"ISLT", Opcode::ISLT},
+        {"ISGE", Opcode::ISGE},
+        {"ISLE", Opcode::ISLE},
+        {"ISEQ", Opcode::ISEQ},
+        {"ISNE", Opcode::ISNE},
+        {"VSET", Opcode::VSET},
+        {"GSET", Opcode::GSET},
+        {"VGET", Opcode::VGET},
+        {"JOIN", Opcode::JOIN},
+        {"SSTR", Opcode::SSTR},
+        {"REPL", Opcode::REPL},
+        {"JUMP", Opcode::JUMP},
+        {"CALL", Opcode::CALL},
+        {"RTRN", Opcode::RTRN},
+        {"JPIF", Opcode::JPIF},
+        {"TABL", Opcode::TABL},
+        {"PSET", Opcode::PSET},
+        {"PGET", Opcode::PGET},
+        {"ARRR", Opcode::ARRR},
+        {"DUPL", Opcode::DUPL},
+        {"DISP", Opcode::DISP},
+        {"ACCP", Opcode::ACCP},
+        {"POPV", Opcode::POPV},
+        {"EXIT", Opcode::EXIT},
+        {"UNST", Opcode::UNST},
+        {"PUST", Opcode::PUST},
+        {"FORW", Opcode::FORW},
+        {"FORA", Opcode::FORA},
+        {"RFIL", Opcode::RFIL},
+        {"FCLS", Opcode::FCLS},
+        {"RLNE", Opcode::RLNE},
+        {"FWRT", Opcode::FWRT},
+        {"LNOT", Opcode::LNOT},
+        {"LAND", Opcode::LAND},
+        {"LGOR", Opcode::LGOR},
+        {"TRIM", Opcode::TRIM},
+        {"SLEN", Opcode::SLEN},
+        {"SWAP", Opcode::SWAP},
+        {"ISIN", Opcode::ISIN},
+        {"FLOR", Opcode::FLOR},
+        {"ADSC", Opcode::ADSC},
+        {"DLSC", Opcode::DLSC},
+        {"EXEC", Opcode::EXEC},
+        {"WAIT", Opcode::WAIT},
+        {"KEYS", Opcode::KEYS},
+        {"GITR", Opcode::GITR},
+        {"NEXT", Opcode::NEXT},
+	{"PLIM", Opcode::PLIM},
+	{"EXPL", Opcode::EXPL},
+	{"MXPL", Opcode::MXPL},
+	{"FORE", Opcode::FORE},
+	{"ISOP", Opcode::ISOP},
+        {"NIL?", Opcode::ISNIL},
+    };
+    return str_to_opcode[str];
+}
+
 string wrap_text(const string &text, size_t maxLineLength)
 {
     string result = "";
@@ -88,6 +226,141 @@ string wrap_text(const string &text, size_t maxLineLength)
     }
 
     return result;
+}
+
+string_view opcode_as_string(Opcode opcode)
+{
+    switch (opcode)
+    {
+    case Opcode::PUSH:
+        return "PUSH";
+    case Opcode::PNIL:
+        return "PNIL";
+    case Opcode::ADDV:
+        return "ADDV";
+    case Opcode::SUBT:
+        return "SUBT";
+    case Opcode::MULT:
+        return "MULT";
+    case Opcode::FDIV:
+        return "FDIV";
+    case Opcode::IDIV:
+        return "IDIV";
+    case Opcode::POWR:
+        return "POWR";
+    case Opcode::MODL:
+        return "MODL";
+    case Opcode::ISGT:
+        return "ISGT";
+    case Opcode::ISLT:
+        return "ISLT";
+    case Opcode::ISGE:
+        return "ISGE";
+    case Opcode::ISLE:
+        return "ISLE";
+    case Opcode::ISEQ:
+        return "ISEQ"; // Is Equal
+    case Opcode::ISNE:
+        return "ISNE"; // Is Not Equal
+    case Opcode::VSET:
+        return "VSET";
+    case Opcode::GSET:
+        return "GSET";
+    case Opcode::VGET:
+        return "VGET";
+    case Opcode::JOIN:
+        return "JOIN";
+    case Opcode::SSTR:
+        return "SSTR";
+    case Opcode::REPL:
+        return "REPL";
+    case Opcode::JUMP:
+        return "JUMP";
+    case Opcode::CALL:
+        return "CALL";
+    case Opcode::RTRN:
+        return "RTRN";
+    case Opcode::JPIF:
+        return "JPIF"; // Jump If False
+    case Opcode::TABL:
+        return "TABL";
+    case Opcode::PSET:
+        return "PSET";
+    case Opcode::PGET:
+        return "PGET";
+    case Opcode::ARRR:
+        return "ARRR";
+    case Opcode::DUPL:
+        return "DUPL";
+    case Opcode::DISP:
+        return "DISP";
+    case Opcode::ACCP:
+        return "ACCP";
+    case Opcode::POPV:
+        return "POPV";
+    case Opcode::EXIT:
+        return "EXIT";
+    case Opcode::UNST:
+        return "UNST";
+    case Opcode::PUST:
+        return "PUST";
+    case Opcode::FORW:
+        return "FORW"; // File Open for Read and Write
+    case Opcode::FORA:
+        return "FORA"; // File Open for Read and Append
+    case Opcode::RFIL:
+        return "RFIL"; // Read File
+    case Opcode::FCLS:
+        return "FCLS"; // File Close
+    case Opcode::RLNE:
+        return "RLNE"; // File Read Line
+    case Opcode::FWRT:
+        return "FWRT"; // File Write
+    case Opcode::LNOT:
+        return "LNOT";
+    case Opcode::LAND:
+        return "LAND";
+    case Opcode::LGOR:
+        return "LGOR";
+    case Opcode::TRIM:
+        return "TRIM";
+    case Opcode::SLEN:
+        return "SLEN"; // String or Table Length
+    case Opcode::SWAP:
+        return "SWAP";
+    case Opcode::ISIN:
+        return "ISIN";
+    case Opcode::FLOR:
+        return "FLOR";
+    case Opcode::ADSC:
+        return "ADSC";
+    case Opcode::DLSC:
+        return "DLSC";
+    case Opcode::EXEC:
+        return "EXEC";
+    case Opcode::WAIT:
+        return "WAIT";
+    case Opcode::KEYS:
+        return "KEYS";
+    case Opcode::GITR:
+        return "GITR";
+    case Opcode::NEXT:
+        return "NEXT";
+    case Opcode::PLIM:
+        return "PLIM";
+    case Opcode::EXPL:
+        return "EXPL";
+    case Opcode::MXPL:
+        return "MXPL";
+    case Opcode::FORE:
+        return "FORE";
+    case Opcode::ISOP:
+        return "ISOP";
+    case Opcode::ISNIL:
+        return "NIL?";
+    default:
+        raise_nvm_error("Unknown Nambly opcode");
+    }
 }
 
 string double_to_string(double value)
@@ -276,14 +549,15 @@ public:
 class Command
 {
 private:
-    const string command;
+    Opcode opcode;
     vector<Value> arguments;
     const size_t line_number;
     const string filename;
 
 public:
-    Command(const string command, const size_t line_number, const string filename) : command(command), line_number(line_number), filename(filename) {};
-    const string &get_command() const { return command; }
+    Command(const string command, const size_t line_number, const string filename) : opcode(opcode_from_string(command)), line_number(line_number), filename(filename) {};
+    Opcode get_opcode() const { return opcode; }
+    string_view get_command() const { return opcode_as_string(opcode); }
     const vector<Value> &get_arguments() const { return arguments; }
     void add_argument(const Value &value)
     {
@@ -291,7 +565,7 @@ public:
     }
     const string get_debug_string() const
     {
-        string debug_string = get_command();
+        string debug_string = string(get_command());
         if (!arguments.empty())
         {
             debug_string += " ";
@@ -361,32 +635,6 @@ Value get_listlimit_value()
 bool num_eq(double a, double b)
 {
     return fabs(a - b) < numeric_limits<double>::epsilon();
-}
-
-vector<Command> generate_label_map(const vector<Command> &code_listing)
-{
-    // Checks a code listing for labels and fills the label map with their PCs.
-    // Then returns the code without those labels.
-    size_t index = 0;
-    size_t pc = 0;
-    vector<Command> new_listing;
-    while (index < code_listing.size())
-    {
-        if (code_listing[index].get_command()[0] == '@')
-        {
-            int jmp_pc_value = pc;
-            string label_name = code_listing[index].get_command().substr(1);
-            label_to_pc[label_name] = jmp_pc_value;
-            pc_to_label[pc] = label_name;
-        }
-        else
-        {
-            new_listing.push_back(code_listing[index]);
-            ++pc;
-        }
-        ++index;
-    }
-    return new_listing;
 }
 
 void print_command_listing(vector<Command> &code_listing)
@@ -542,8 +790,11 @@ Command split_command_arguments(const string &line, const size_t full_line_numbe
     return new_command;
 }
 
-vector<Command> split_lines(const string &code)
+vector<Command> generate_label_map_and_code_listing(const string &code)
 {
+    // Checks a code listing for labels and fills the label map with their PCs.
+    // Then returns the code without those labels.
+    size_t pc = 0;
     vector<Command> code_listing;
     stringstream ss(code);
     string line;
@@ -552,26 +803,33 @@ vector<Command> split_lines(const string &code)
     while (getline(ss, line, '\n'))
     {
         line = trim(line);
-        if (!line.empty())
+        if (line.empty())
         {
-            if (line[0] != ';')
-            {
-                code_listing.push_back(split_command_arguments(line, full_source_line_number, full_source_filename));
-            }
-            else
-            {
-                if (line.size() > 5)
-                {
-                    if (line.substr(0, 5) == ";line")
-                    {
-                        full_source_line_number = stol(trim(line.substr(5)));
-                    }
-                    else if (line.substr(0, 5) == ";file")
-                    {
-                        full_source_filename = trim(line.substr(5));
-                    }
-                }
-            }
+            continue;
+        }
+        if (line[0] == '@')
+        {
+            int jmp_pc_value = pc;
+            string label_name = line.substr(1);
+            label_to_pc[label_name] = jmp_pc_value;
+            pc_to_label[pc] = label_name;
+            continue;
+        }
+        string sub = line.substr(0, 5);
+        if (sub == ";line")
+        {
+            full_source_line_number = stol(trim(line.substr(5)));
+            continue;
+        }
+        if (sub == ";file")
+        {
+            full_source_filename = trim(line.substr(5));
+            continue;
+        }
+        if (line[0] != ';')
+        {
+            code_listing.push_back(split_command_arguments(line, full_source_line_number, full_source_filename));
+            ++pc;
         }
     }
     return code_listing;
@@ -904,107 +1162,123 @@ void execute_code_listing(vector<Command> &code_listing)
     {
         Command &command = code_listing[pc];
         last_command = &command;
-        if (command.get_command() == "PUSH")
+        switch (command.get_opcode())
+        {
+        case Opcode::PUSH:
         {
             push(command.get_arguments()[0]);
+            break;
         }
-        else if (command.get_command() == "PNIL")
+        case Opcode::PNIL:
         {
             push(get_nil_value());
+            break;
         }
-        else if (command.get_command() == "PLIM")
+        case Opcode::PLIM:
         {
             push(get_listlimit_value());
+            break;
         }
-        else if (command.get_command() == "ADDV")
+        case Opcode::ADDV:
         {
             Value v2 = pop(command);
             Value v1 = pop(command);
             Value result;
             result.set_number_value(v1.get_as_number() + v2.get_as_number());
             push(std::move(result));
+            break;
         }
-        else if (command.get_command() == "SUBT")
+        case Opcode::SUBT:
         {
             Value v2 = pop(command);
             Value v1 = pop(command);
             Value result;
             result.set_number_value(v1.get_as_number() - v2.get_as_number());
             push(std::move(result));
+            break;
         }
-        else if (command.get_command() == "MULT")
+        case Opcode::MULT:
         {
             Value v2 = pop(command);
             Value v1 = pop(command);
             Value result;
             result.set_number_value(v1.get_as_number() * v2.get_as_number());
             push(std::move(result));
+            break;
         }
-        else if (command.get_command() == "FDIV")
+        case Opcode::FDIV:
         {
             Value v2 = pop(command);
             Value v1 = pop(command);
             Value result;
             result.set_number_value(v1.get_as_number() / v2.get_as_number());
             push(std::move(result));
+            break;
         }
-        else if (command.get_command() == "IDIV")
+        case Opcode::IDIV:
         {
             Value v2 = pop(command);
             Value v1 = pop(command);
             Value result;
             result.set_number_value(floor(v1.get_as_number() / v2.get_as_number()));
             push(std::move(result));
+            break;
         }
-        else if (command.get_command() == "POWR")
+        case Opcode::POWR:
         {
             Value v2 = pop(command);
             Value v1 = pop(command);
             Value result;
             result.set_number_value(pow(v1.get_as_number(), v2.get_as_number()));
             push(std::move(result));
+            break;
         }
-        else if (command.get_command() == "MODL")
+        case Opcode::MODL:
         {
             Value v2 = pop(command);
             Value v1 = pop(command);
             Value result;
             result.set_number_value((int)floor(v1.get_as_number()) % (int)floor(v2.get_as_number()));
             push(std::move(result));
+            break;
         }
-        else if (command.get_command() == "ISGT")
+        case Opcode::ISGT:
         {
             Value v2 = pop(command);
             Value v1 = pop(command);
             Value result;
             result.set_number_value(v1.get_as_number() > v2.get_as_number() ? 1 : 0);
             push(std::move(result));
+            break;
         }
-        else if (command.get_command() == "ISLT")
+        case Opcode::ISLT:
         {
             Value v2 = pop(command);
             Value v1 = pop(command);
             Value result;
             result.set_number_value(v1.get_as_number() < v2.get_as_number() ? 1 : 0);
             push(std::move(result));
+            break;
         }
-        else if (command.get_command() == "ISGE")
+        case Opcode::ISGE:
         {
             Value v2 = pop(command);
             Value v1 = pop(command);
             Value result;
             result.set_number_value(v1.get_as_number() >= v2.get_as_number() ? 1 : 0);
             push(std::move(result));
+            break;
         }
-        else if (command.get_command() == "ISLE")
+        case Opcode::ISLE:
         {
             Value v2 = pop(command);
             Value v1 = pop(command);
             Value result;
             result.set_number_value(v1.get_as_number() <= v2.get_as_number() ? 1 : 0);
             push(std::move(result));
+            break;
         }
-        else if (command.get_command() == "ISEQ") // Is Equal
+        case Opcode::ISEQ: // Is Equal
         {
             Value v2 = pop(command);
             Value v1 = pop(command);
@@ -1026,8 +1300,9 @@ void execute_code_listing(vector<Command> &code_listing)
                 result.set_number_value(v1.get_as_number() == v2.get_as_number() ? 1 : 0);
             }
             push(std::move(result));
+            break;
         }
-        else if (command.get_command() == "ISNE") // Is Not Equal
+        case Opcode::ISNE: // Is Not Equal
         {
             Value v2 = pop(command);
             Value v1 = pop(command);
@@ -1049,21 +1324,25 @@ void execute_code_listing(vector<Command> &code_listing)
                 result.set_number_value(v1.get_as_number() == v2.get_as_number() ? 0 : 1);
             }
             push(std::move(result));
+            break;
         }
-        else if (command.get_command() == "VSET")
+        case Opcode::VSET:
         {
             Value value = pop(command);
             set_variable(command.get_arguments()[0].get_raw_string_value(), value);
+            break;
         }
-        else if (command.get_command() == "GSET")
+        case Opcode::GSET:
         {
             set_global_variable(command.get_arguments()[0].get_raw_string_value(), pop(command));
+            break;
         }
-        else if (command.get_command() == "VGET")
+        case Opcode::VGET:
         {
             push(get_variable(command.get_arguments()[0].get_raw_string_value()));
+            break;
         }
-        else if (command.get_command() == "JOIN")
+        case Opcode::JOIN:
         {
             Value v2 = pop(command);
             Value v1 = pop(command);
@@ -1071,8 +1350,9 @@ void execute_code_listing(vector<Command> &code_listing)
             string join_result = v1.get_as_string() + v2.get_as_string();
             result.set_string_value(join_result);
             push(std::move(result));
+            break;
         }
-        else if (command.get_command() == "SSTR")
+        case Opcode::SSTR:
         {
             long long idx_count = pop(command).get_as_number();
             long long idx_from = pop(command).get_as_number();
@@ -1084,8 +1364,9 @@ void execute_code_listing(vector<Command> &code_listing)
             }
             result.set_string_value(substring(val_str, idx_from, idx_count));
             push(std::move(result));
+            break;
         }
-        else if (command.get_command() == "REPL") // Replace all instances
+        case Opcode::REPL: // Replace all instances
         {
             string replacement = pop(command).get_as_string();
             string needle = pop(command).get_as_string();
@@ -1094,8 +1375,9 @@ void execute_code_listing(vector<Command> &code_listing)
             replace_all(haystack, needle, replacement);
             result.set_string_value(haystack);
             push(std::move(result));
+            break;
         }
-        else if (command.get_command() == "EXPL") // Explode
+        case Opcode::EXPL: // Explode
         {
             Value haystack = pop(command);
             Value delimiter = pop(command);
@@ -1114,8 +1396,9 @@ void execute_code_listing(vector<Command> &code_listing)
                 ++index;
             }
             push(std::move(result));
+	    break;
         }
-        else if (command.get_command() == "MXPL") // Multi eXPLode
+        case Opcode::MXPL: // Multi eXPLode
         {
             Value haystack = pop(command);
             Value delimiters = pop(command);
@@ -1143,17 +1426,20 @@ void execute_code_listing(vector<Command> &code_listing)
                 ++index;
             }
             push(std::move(result));
+	    break;
         }
-        else if (command.get_command() == "JUMP")
+        case Opcode::JUMP:
         {
             pc = label_to_pc[command.get_arguments()[0].get_raw_string_value()] - 1;
+            break;
         }
-        else if (command.get_command() == "CALL")
+        case Opcode::CALL:
         {
             return_stack.push(pc);
             pc = label_to_pc[command.get_arguments()[0].get_raw_string_value()] - 1;
+            break;
         }
-        else if (command.get_command() == "RTRN")
+        case Opcode::RTRN:
         {
             if (return_stack.empty())
             {
@@ -1164,8 +1450,9 @@ void execute_code_listing(vector<Command> &code_listing)
                 pc = return_stack.top();
                 return_stack.pop();
             }
+            break;
         }
-        else if (command.get_command() == "JPIF") // Jump If False
+        case Opcode::JPIF: // Jump If False
         {
             Value value = pop(command);
             if (value.get_type() == NUMB)
@@ -1197,21 +1484,24 @@ void execute_code_listing(vector<Command> &code_listing)
             {
                 raise_nvm_error("Values of type " + get_type_name(value.get_type()) + " are not logical.");
             }
+            break;
         }
-        else if (command.get_command() == "TABL")
+        case Opcode::TABL:
         {
             Value value;
             value.set_table_value();
             push(value);
+            break;
         }
-        else if (command.get_command() == "PSET")
+        case Opcode::PSET:
         {
             Value value = pop(command);
             Value index = pop(command);
             Value table = pop(command);
             (*table.get_table())[index.get_as_string()] = value;
+            break;
         }
-        else if (command.get_command() == "PGET")
+        case Opcode::PGET:
         {
             Value index = pop(command);
             Value table = pop(command);
@@ -1263,8 +1553,9 @@ void execute_code_listing(vector<Command> &code_listing)
             {
                 raise_nvm_error("Cannot index a " + get_type_name(table.get_type()) + " value.");
             }
+            break;
         }
-        else if (command.get_command() == "ARRR")
+        case Opcode::ARRR:
         {
             Value result;
             result.set_table_value();
@@ -1295,44 +1586,52 @@ void execute_code_listing(vector<Command> &code_listing)
                 array_index += 1;
             }
             push(std::move(result));
+            break;
         }
-        else if (command.get_command() == "DUPL")
+        case Opcode::DUPL:
         {
             push(execution_stack.top());
+            break;
         }
-        else if (command.get_command() == "NIL?")
+        case Opcode::ISNIL:
         {
             Value v1 = pop(command);
             Value result;
             result.set_number_value(v1.get_type() == NIL ? 1 : 0);
             push(std::move(result));
+            break;
         }
-        else if (command.get_command() == "DISP")
+        case Opcode::DISP:
         {
             cout << pop(command).get_as_string() << flush;
+            break;
         }
-        else if (command.get_command() == "ACCP")
+        case Opcode::ACCP:
         {
             Value result;
             result.set_string_value(input());
             push(std::move(result));
+            break;
         }
-        else if (command.get_command() == "POPV")
+        case Opcode::POPV:
         {
             if (!execution_stack.empty())
             {
                 pop(command);
             }
+            break;
         }
-        else if (command.get_command() == "EXIT")
+        case Opcode::EXIT:
         {
             exit((int)floor(pop(command).get_as_number()));
+            break;
         }
-        else if (command.get_command() == "UNST")
+        case Opcode::UNST:
         {
             delete_variable(command.get_arguments()[0].get_raw_string_value());
+            break;
         }
-        else if (command.get_command() == "PUST")
+        case Opcode::PUST:
         {
             string index = pop(command).get_as_string();
             Value table = pop(command);
@@ -1347,8 +1646,9 @@ void execute_code_listing(vector<Command> &code_listing)
                     table.get_table()->erase(index);
                 }
             }
+            break;
         }
-        else if (command.get_command() == "FORW") // File Open for Read and Write
+        case Opcode::FORW: // File Open for Read and Write
         {
             Value filename = pop(command);
             string str_filename = filename.get_as_string();
@@ -1383,8 +1683,9 @@ void execute_code_listing(vector<Command> &code_listing)
             }
             // The name of the file is returned, wether it's been opened correctly or not,
             // as the file might not already exist.
+            break;
         }
-        else if (command.get_command() == "FORA") // File Open for Read and Append
+        case Opcode::FORA: // File Open for Read and Append
         {
             Value filename = pop(command);
             string str_filename = filename.get_as_string();
@@ -1415,8 +1716,9 @@ void execute_code_listing(vector<Command> &code_listing)
             }
             // The name of the file is returned, wether it's been opened correctly or not,
             // as the file might not already exist.
+            break;
         }
-        else if (command.get_command() == "FORE") // File Open for REad
+        case Opcode::FORE: // File Open for REad
         {
             Value filename = pop(command);
             string str_filename = filename.get_as_string();
@@ -1440,8 +1742,9 @@ void execute_code_listing(vector<Command> &code_listing)
             }
             // The name of the file is returned, wether it's been opened correctly or not,
             // as the file might not already exist.
+            break;
         }
-        else if (command.get_command() == "RFIL") // Read File
+        case Opcode::RFIL: // Read File
         {
             Value filename = pop(command);
             string str_filename = filename.get_as_string();
@@ -1472,8 +1775,9 @@ void execute_code_listing(vector<Command> &code_listing)
                 result.set_string_value(file_contents);
                 push(std::move(result));
             }
+            break;
         }
-        else if (command.get_command() == "FCLS") // File Close
+        case Opcode::FCLS: // File Close
         {
             Value filename = pop(command);
             string str_filename = filename.get_as_string();
@@ -1487,16 +1791,18 @@ void execute_code_listing(vector<Command> &code_listing)
                 if (read_only_files.count(str_filename) > 0)
                     read_only_files.erase(str_filename);
             }
+            break;
         }
-        else if (command.get_command() == "ISOP") // IS file OPen?
+        case Opcode::ISOP: // IS file OPen?
         {
             Value filename = pop(command);
             string str_filename = filename.get_as_string();
             Value result;
             result.set_number_value(open_files.count(str_filename) == 0 || !open_files[str_filename]->is_open() ? 0 : 1);
             push(result);
+	    break;
         }
-        else if (command.get_command() == "RLNE") // File Read Line
+        case Opcode::RLNE: // File Read Line
         {
             Value filename = pop(command);
             string str_filename = filename.get_as_string();
@@ -1523,8 +1829,9 @@ void execute_code_listing(vector<Command> &code_listing)
                     push(get_nil_value());
                 }
             }
+            break;
         }
-        else if (command.get_command() == "FWRT") // File Write
+        case Opcode::FWRT: // File Write
         {
             Value filename = pop(command);
             string str_filename = filename.get_as_string();
@@ -1551,8 +1858,9 @@ void execute_code_listing(vector<Command> &code_listing)
                 open_files[str_filename]->seekp(0, std::ios::end); // I always want to write from the end
                 (*open_files[str_filename]) << contents.get_as_string() << flush;
             }
+            break;
         }
-        else if (command.get_command() == "LNOT")
+        case Opcode::LNOT:
         {
             Value value = pop(command);
             Value result;
@@ -1573,30 +1881,34 @@ void execute_code_listing(vector<Command> &code_listing)
                 raise_nvm_error("Values of type " + get_type_name(value.get_type()) + " are not logical.");
             }
             push(std::move(result));
+            break;
         }
-        else if (command.get_command() == "LAND")
+        case Opcode::LAND:
         {
             Value com_2 = pop(command);
             Value com_1 = pop(command);
             Value result;
             result.set_number_value(is_true(com_1) && is_true(com_2) ? 1 : 0);
             push(std::move(result));
+            break;
         }
-        else if (command.get_command() == "LGOR")
+        case Opcode::LGOR:
         {
             Value com_2 = pop(command);
             Value com_1 = pop(command);
             Value result;
             result.set_number_value(is_true(com_1) || is_true(com_2) ? 1 : 0);
             push(std::move(result));
+            break;
         }
-        else if (command.get_command() == "TRIM")
+        case Opcode::TRIM:
         {
             Value result;
             result.set_string_value(trim(pop(command).get_as_string()));
             push(std::move(result));
+            break;
         }
-        else if (command.get_command() == "SLEN") // String or Table Length
+        case Opcode::SLEN: // String or Table Length
         {
             Value value = pop(command);
             Value result;
@@ -1613,15 +1925,17 @@ void execute_code_listing(vector<Command> &code_listing)
                 raise_nvm_error("Values of type " + get_type_name(value.get_type()) + " don't have a size.");
             }
             push(std::move(result));
+            break;
         }
-        else if (command.get_command() == "SWAP")
+        case Opcode::SWAP:
         {
             Value v2 = pop(command);
             Value v1 = pop(command);
             push(v2);
             push(v1);
+            break;
         }
-        else if (command.get_command() == "ISIN")
+        case Opcode::ISIN:
         {
             Value container = pop(command);
             Value value = pop(command);
@@ -1643,18 +1957,21 @@ void execute_code_listing(vector<Command> &code_listing)
                 }
             }
             push(std::move(result));
+            break;
         }
-        else if (command.get_command() == "FLOR")
+        case Opcode::FLOR:
         {
             Value result;
             result.set_number_value(floor(pop(command).get_as_number()));
             push(std::move(result));
+            break;
         }
-        else if (command.get_command() == "ADSC")
+        case Opcode::ADSC:
         {
             add_scope();
+            break;
         }
-        else if (command.get_command() == "DLSC")
+        case Opcode::DLSC:
         {
             if (variable_tables.empty())
             {
@@ -1664,8 +1981,9 @@ void execute_code_listing(vector<Command> &code_listing)
             {
                 variable_tables.pop_back();
             }
+            break;
         }
-        else if (command.get_command() == "EXEC")
+        case Opcode::EXEC:
         {
             Value exec_command = pop(command);
             string stdout_str;
@@ -1681,12 +1999,14 @@ void execute_code_listing(vector<Command> &code_listing)
             push(exit_code_value);
             push(stderr_value);
             push(stdout_value);
+            break;
         }
-        else if (command.get_command() == "WAIT")
+        case Opcode::WAIT:
         {
             this_thread::sleep_for(chrono::microseconds((int)floor(pop(command).get_as_number() * 1000000)));
+            break;
         }
-        else if (command.get_command() == "KEYS")
+        case Opcode::KEYS:
         {
             Value value = pop(command);
             if (value.get_type() != TABLE)
@@ -1708,8 +2028,9 @@ void execute_code_listing(vector<Command> &code_listing)
                 }
                 push(std::move(result));
             }
+            break;
         }
-        else if (command.get_command() == "GITR")
+        case Opcode::GITR:
         {
             Value container = pop(command);
             Value result;
@@ -1742,8 +2063,9 @@ void execute_code_listing(vector<Command> &code_listing)
                 raise_nvm_error("Cannot iterate over non-iterable value.");
             }
             push(std::move(result));
+            break;
         }
-        else if (command.get_command() == "NEXT")
+        case Opcode::NEXT:
         {
             string iterator_name = command.get_arguments()[0].get_raw_string_value();
             Value iterator_variable = get_variable(iterator_name);
@@ -1769,9 +2091,9 @@ void execute_code_listing(vector<Command> &code_listing)
                 }
                 push(std::move(result));
             }
+            break;
         }
-        else
-        {
+        default:
             raise_nvm_error("Unknown Nambly command: " + command.get_debug_string());
         }
         ++pc;
@@ -1809,8 +2131,7 @@ int main(int argc, char *argv[])
     string code;
     read_source(argv[1], code);
     // cout << code << endl;
-    vector<Command> code_listing = split_lines(code);
-    code_listing = generate_label_map(code_listing);
+    vector<Command> code_listing = generate_label_map_and_code_listing(code);
     // print_command_listing(code_listing);
     execute_code_listing(code_listing);
     return 0;
