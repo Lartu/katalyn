@@ -709,7 +709,7 @@ void execute_code_listing(vector<Command> &code_listing)
             Value v1 = pop(command);
             Value result;
             result.set_number_value(v1.get_as_number() + v2.get_as_number());
-            push(result);
+            push(std::move(result));
         }
         else if (command.get_command() == "SUBT")
         {
@@ -717,7 +717,7 @@ void execute_code_listing(vector<Command> &code_listing)
             Value v1 = pop(command);
             Value result;
             result.set_number_value(v1.get_as_number() - v2.get_as_number());
-            push(result);
+            push(std::move(result));
         }
         else if (command.get_command() == "MULT")
         {
@@ -725,7 +725,7 @@ void execute_code_listing(vector<Command> &code_listing)
             Value v1 = pop(command);
             Value result;
             result.set_number_value(v1.get_as_number() * v2.get_as_number());
-            push(result);
+            push(std::move(result));
         }
         else if (command.get_command() == "FDIV")
         {
@@ -733,7 +733,7 @@ void execute_code_listing(vector<Command> &code_listing)
             Value v1 = pop(command);
             Value result;
             result.set_number_value(v1.get_as_number() / v2.get_as_number());
-            push(result);
+            push(std::move(result));
         }
         else if (command.get_command() == "IDIV")
         {
@@ -741,7 +741,7 @@ void execute_code_listing(vector<Command> &code_listing)
             Value v1 = pop(command);
             Value result;
             result.set_number_value(floor(v1.get_as_number() / v2.get_as_number()));
-            push(result);
+            push(std::move(result));
         }
         else if (command.get_command() == "POWR")
         {
@@ -749,7 +749,7 @@ void execute_code_listing(vector<Command> &code_listing)
             Value v1 = pop(command);
             Value result;
             result.set_number_value(pow(v1.get_as_number(), v2.get_as_number()));
-            push(result);
+            push(std::move(result));
         }
         else if (command.get_command() == "MODL")
         {
@@ -757,7 +757,7 @@ void execute_code_listing(vector<Command> &code_listing)
             Value v1 = pop(command);
             Value result;
             result.set_number_value((int)floor(v1.get_as_number()) % (int)floor(v2.get_as_number()));
-            push(result);
+            push(std::move(result));
         }
         else if (command.get_command() == "ISGT")
         {
@@ -765,7 +765,7 @@ void execute_code_listing(vector<Command> &code_listing)
             Value v1 = pop(command);
             Value result;
             result.set_number_value(v1.get_as_number() > v2.get_as_number() ? 1 : 0);
-            push(result);
+            push(std::move(result));
         }
         else if (command.get_command() == "ISLT")
         {
@@ -773,7 +773,7 @@ void execute_code_listing(vector<Command> &code_listing)
             Value v1 = pop(command);
             Value result;
             result.set_number_value(v1.get_as_number() < v2.get_as_number() ? 1 : 0);
-            push(result);
+            push(std::move(result));
         }
         else if (command.get_command() == "ISGE")
         {
@@ -781,7 +781,7 @@ void execute_code_listing(vector<Command> &code_listing)
             Value v1 = pop(command);
             Value result;
             result.set_number_value(v1.get_as_number() >= v2.get_as_number() ? 1 : 0);
-            push(result);
+            push(std::move(result));
         }
         else if (command.get_command() == "ISLE")
         {
@@ -789,7 +789,7 @@ void execute_code_listing(vector<Command> &code_listing)
             Value v1 = pop(command);
             Value result;
             result.set_number_value(v1.get_as_number() <= v2.get_as_number() ? 1 : 0);
-            push(result);
+            push(std::move(result));
         }
         else if (command.get_command() == "ISEQ") // Is Equal
         {
@@ -812,7 +812,7 @@ void execute_code_listing(vector<Command> &code_listing)
             {
                 result.set_number_value(v1.get_as_number() == v2.get_as_number() ? 1 : 0);
             }
-            push(result);
+            push(std::move(result));
         }
         else if (command.get_command() == "ISNE") // Is Not Equal
         {
@@ -835,7 +835,7 @@ void execute_code_listing(vector<Command> &code_listing)
             {
                 result.set_number_value(v1.get_as_number() == v2.get_as_number() ? 0 : 1);
             }
-            push(result);
+            push(std::move(result));
         }
         else if (command.get_command() == "VSET")
         {
@@ -857,7 +857,7 @@ void execute_code_listing(vector<Command> &code_listing)
             Value result;
             string join_result = v1.get_as_string() + v2.get_as_string();
             result.set_string_value(join_result);
-            push(result);
+            push(std::move(result));
         }
         else if (command.get_command() == "SSTR")
         {
@@ -870,7 +870,7 @@ void execute_code_listing(vector<Command> &code_listing)
                 idx_from -= 1;
             }
             result.set_string_value(substring(val_str, idx_from, idx_count));
-            push(result);
+            push(std::move(result));
         }
         else if (command.get_command() == "REPL")
         {
@@ -880,7 +880,7 @@ void execute_code_listing(vector<Command> &code_listing)
             Value result;
             replace_all(haystack, needle, replacement);
             result.set_string_value(haystack);
-            push(result);
+            push(std::move(result));
         }
         else if (command.get_command() == "JUMP")
         {
@@ -986,7 +986,7 @@ void execute_code_listing(vector<Command> &code_listing)
                     if (idx >= table.get_as_string().size())
                     {
                         result.set_string_value("");
-                        push(result);
+                        push(std::move(result));
                     }
                     if (idx < 0)
                     {
@@ -995,10 +995,10 @@ void execute_code_listing(vector<Command> &code_listing)
                     if (idx < 0)
                     {
                         result.set_string_value("");
-                        push(result);
+                        push(std::move(result));
                     }
                     result.set_string_value(table.get_as_string().substr(idx, 1));
-                    push(result);
+                    push(std::move(result));
                 }
             }
         }
@@ -1028,7 +1028,7 @@ void execute_code_listing(vector<Command> &code_listing)
                 values.pop();
                 array_index += 1;
             }
-            push(result);
+            push(std::move(result));
         }
         else if (command.get_command() == "DUPL")
         {
@@ -1039,7 +1039,7 @@ void execute_code_listing(vector<Command> &code_listing)
             Value v1 = pop(command);
             Value result;
             result.set_number_value(v1.get_type() == NIL ? 1 : 0);
-            push(result);
+            push(std::move(result));
         }
         else if (command.get_command() == "DISP")
         {
@@ -1049,7 +1049,7 @@ void execute_code_listing(vector<Command> &code_listing)
         {
             Value result;
             result.set_string_value(input());
-            push(result);
+            push(std::move(result));
         }
         else if (command.get_command() == "POPV")
         {
@@ -1154,7 +1154,7 @@ void execute_code_listing(vector<Command> &code_listing)
                 }
                 Value result;
                 result.set_string_value(file_contents);
-                push(result);
+                push(std::move(result));
             }
         }
         else if (command.get_command() == "FCLS") // File Close
@@ -1187,7 +1187,7 @@ void execute_code_listing(vector<Command> &code_listing)
                 {
                     Value result;
                     result.set_string_value(line);
-                    push(result);
+                    push(std::move(result));
                 }
                 else
                 {
@@ -1229,7 +1229,7 @@ void execute_code_listing(vector<Command> &code_listing)
             {
                 raise_nvm_error("Values of type " + get_type_name(value.get_type()) + " are not logical.");
             }
-            push(result);
+            push(std::move(result));
         }
         else if (command.get_command() == "LAND")
         {
@@ -1237,7 +1237,7 @@ void execute_code_listing(vector<Command> &code_listing)
             Value com_1 = pop(command);
             Value result;
             result.set_number_value(is_true(com_1) && is_true(com_2) ? 1 : 0);
-            push(result);
+            push(std::move(result));
         }
         else if (command.get_command() == "LGOR")
         {
@@ -1245,13 +1245,13 @@ void execute_code_listing(vector<Command> &code_listing)
             Value com_1 = pop(command);
             Value result;
             result.set_number_value(is_true(com_1) || is_true(com_2) ? 1 : 0);
-            push(result);
+            push(std::move(result));
         }
         else if (command.get_command() == "TRIM")
         {
             Value result;
             result.set_string_value(trim(pop(command).get_as_string()));
-            push(result);
+            push(std::move(result));
         }
         else if (command.get_command() == "SLEN") // String or Table Length
         {
@@ -1269,7 +1269,7 @@ void execute_code_listing(vector<Command> &code_listing)
             {
                 raise_nvm_error("Values of type " + get_type_name(value.get_type()) + " don't have a size.");
             }
-            push(result);
+            push(std::move(result));
         }
         else if (command.get_command() == "SWAP")
         {
@@ -1299,13 +1299,13 @@ void execute_code_listing(vector<Command> &code_listing)
                     result.set_number_value(0);
                 }
             }
-            push(result);
+            push(std::move(result));
         }
         else if (command.get_command() == "FLOR")
         {
             Value result;
             result.set_number_value(floor(pop(command).get_as_number()));
-            push(result);
+            push(std::move(result));
         }
         else if (command.get_command() == "ADSC")
         {
@@ -1363,7 +1363,7 @@ void execute_code_listing(vector<Command> &code_listing)
                     (*value.get_table())[double_to_string(index)] = key;
                     ++index;
                 }
-                push(result);
+                push(std::move(result));
             }
         }
         else if (command.get_command() == "GITR")
@@ -1398,7 +1398,7 @@ void execute_code_listing(vector<Command> &code_listing)
             {
                 raise_nvm_error("Cannot iterate over non-iterable value.");
             }
-            push(result);
+            push(std::move(result));
         }
         else if (command.get_command() == "NEXT")
         {
@@ -1424,7 +1424,7 @@ void execute_code_listing(vector<Command> &code_listing)
                 {
                     result.set_nil_value();
                 }
-                push(result);
+                push(std::move(result));
             }
         }
         else
