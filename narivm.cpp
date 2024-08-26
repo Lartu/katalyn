@@ -502,7 +502,7 @@ void set_variable(const string &var_name, Value value)
     {
         add_scope();
     }
-    variable_tables[variable_tables.size() - 1][var_name] = value;
+    variable_tables[variable_tables.size() - 1][var_name] = std::move(value);
 }
 
 void delete_variable(const string &name)
@@ -538,7 +538,7 @@ void set_global_variable(const string &var_name, Value value)
     variable_tables[0][var_name] = value;
 }
 
-Value get_variable(const string &var_name)
+const Value &get_variable(const string &var_name)
 {
     if (!variable_tables.empty())
     {
@@ -552,7 +552,9 @@ Value get_variable(const string &var_name)
             return variable_tables[0][var_name];
         }
     }
-    return get_nil_value();
+    static Value nil_value;
+    nil_value.set_nil_value(); // Refresh the nil just in case
+    return nil_value;
 }
 
 string substring(const string &s, long long from, long long count)
