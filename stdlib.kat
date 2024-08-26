@@ -459,3 +459,9 @@ def title;
     ok;
     return $buffer;
 ok;
+
+def halt;
+    (** Prints an error message and exits. **)
+    print(arrjoin($_));
+    exit(1);
+ok;

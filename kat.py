@@ -1029,6 +1029,10 @@ def compile_function_call(command: Token, args_list: List[List[Token]]):
         return parse_command_open_rw(command, args_list)
     elif command.value == "open_ra":
         return parse_command_open_ra(command, args_list)
+    elif command.value == "open_r":
+        return parse_command_open_r(command, args_list)
+    elif command.value == "is_open":
+        return parse_command_is_open(command, args_list)
     elif command.value == "write":
         return parse_command_write(command, args_list)
     elif command.value == "close":
@@ -1278,12 +1282,30 @@ def parse_command_write(command_token: Token, args_list: List[List[Token]]) -> s
 
 def parse_command_open_ra(command_token: Token, args_list: List[List[Token]]) -> str:
     compiled_code: str = ""
-    # TODO solo debería devolver el nombre del último archivo abierto - un solo return value!
     if len(args_list) != 1:
         parse_error(f"Wrong number of arguments for function '{command_token.value}' (expected 1).", command_token.line, command_token.file)
     compiled_code += "\n" + compile_expression(args_list[0])
     compiled_code += f"\nDUPL"
     compiled_code += f"\nFORA"
+    return compiled_code
+
+
+def parse_command_open_r(command_token: Token, args_list: List[List[Token]]) -> str:
+    compiled_code: str = ""
+    if len(args_list) != 1:
+        parse_error(f"Wrong number of arguments for function '{command_token.value}' (expected 1).", command_token.line, command_token.file)
+    compiled_code += "\n" + compile_expression(args_list[0])
+    compiled_code += f"\nDUPL"
+    compiled_code += f"\nFORE"
+    return compiled_code
+
+
+def parse_command_is_open(command_token: Token, args_list: List[List[Token]]) -> str:
+    compiled_code: str = ""
+    if len(args_list) != 1:
+        parse_error(f"Wrong number of arguments for function '{command_token.value}' (expected 1).", command_token.line, command_token.file)
+    compiled_code += "\n" + compile_expression(args_list[0])
+    compiled_code += f"\nISOP"
     return compiled_code
 
 
@@ -1732,8 +1754,17 @@ def print_help():
 
 
 def print_version():
-    print(f"This is Katalyn version {VERSION}.")
+    print("")
+    print(r" The__  __.       __         .__                  ")
+    print(r" |    |/ _|____ _/  |______  |  | ___.__. ____    ")
+    print(r" |      < \__  \\   __\__  \ |  |<   |  |/    \   ")
+    print(r" |    |  \ / __ \|  |  / __ \|  |_\___  |   |  \  ")
+    print(r" |____|__ (____  /__| (____  /____/ ____|___|  /  ")
+    print(r"        \/    \/          \/ Programming Language ")
+    print("")
+    print(f"This is Katalyn version {VERSION}, running on the NariVM.")
     print("Copyright 2024, Lartu (www.lartu.net).")
+    print("")
 
 
 def file_to_nambly(filename: str, called_from_file: str = "", called_from_line: int = 0) -> str:

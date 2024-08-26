@@ -20,6 +20,7 @@
 #include <chrono>
 #include <queue>
 #include <fstream>
+#include <set>
 #include <sys/stat.h>
 #include <boost/process.hpp>
 
@@ -338,6 +339,8 @@ map<string, size_t> label_to_pc;
 map<size_t, string> pc_to_label;
 stack<Value> execution_stack;
 map<string, fstream *> open_files;
+set<string> untruncated_files; // Garbage
+set<string> read_only_files;   // Garbage
 stack<size_t> return_stack;
 
 Value get_nil_value()
@@ -1215,22 +1218,31 @@ void execute_code_listing(vector<Command> &code_listing)
             if (open_files.count(str_filename) > 0)
             {
                 open_files[str_filename]->close();
+                delete (open_files[str_filename]);
+                open_files.erase(str_filename);
+                if (untruncated_files.count(str_filename) > 0)
+                    untruncated_files.erase(str_filename);
+                if (read_only_files.count(str_filename) > 0)
+                    read_only_files.erase(str_filename);
             }
             // Open the file
             fstream *new_file;
+            bool requires_truncating = false;
             if (file_exists(str_filename))
             {
                 new_file = new fstream(str_filename, ios::in | ios::out);
+                requires_truncating = true;
             }
             else
             {
                 new_file = new fstream(str_filename, ios::in | ios::out | ios::trunc);
             }
-            if (!(*new_file))
+            if (*new_file)
             {
-                raise_nvm_error("Failed to open file " + str_filename + " for read/write.");
+                open_files[str_filename] = new_file;
+                if (requires_truncating)
+                    untruncated_files.insert(str_filename);
             }
-            open_files[str_filename] = new_file;
             // The name of the file is returned, wether it's been opened correctly or not,
             // as the file might not already exist.
         }
@@ -1242,14 +1254,52 @@ void execute_code_listing(vector<Command> &code_listing)
             if (open_files.count(str_filename) > 0)
             {
                 open_files[str_filename]->close();
+                delete (open_files[str_filename]);
+                open_files.erase(str_filename);
+                if (untruncated_files.count(str_filename) > 0)
+                    untruncated_files.erase(str_filename);
+                if (read_only_files.count(str_filename) > 0)
+                    read_only_files.erase(str_filename);
             }
             // Open the file
-            fstream *new_file = new fstream(str_filename, ios::in | ios::out | ios::app);
-            if (!(*new_file))
+            fstream *new_file;
+            if (file_exists(str_filename))
             {
-                raise_nvm_error("Failed to open file " + str_filename + " for read/append.");
+                new_file = new fstream(str_filename, ios::in | ios::out | ios::app);
             }
-            open_files[str_filename] = new_file;
+            else
+            {
+                new_file = new fstream(str_filename, ios::in | ios::out | ios::trunc);
+            }
+            if (*new_file)
+            {
+                open_files[str_filename] = new_file;
+            }
+            // The name of the file is returned, wether it's been opened correctly or not,
+            // as the file might not already exist.
+        }
+        else if (command.get_command() == "FORE") // File Open for REad
+        {
+            Value filename = pop(command);
+            string str_filename = filename.get_as_string();
+            // Close the file if it was already open
+            if (open_files.count(str_filename) > 0)
+            {
+                open_files[str_filename]->close();
+                delete (open_files[str_filename]);
+                open_files.erase(str_filename);
+                if (untruncated_files.count(str_filename) > 0)
+                    untruncated_files.erase(str_filename);
+                if (read_only_files.count(str_filename) > 0)
+                    read_only_files.erase(str_filename);
+            }
+            // Open the file
+            fstream *new_file = new fstream(str_filename, ios::in);
+            if (*new_file)
+            {
+                open_files[str_filename] = new_file;
+                read_only_files.insert(str_filename);
+            }
             // The name of the file is returned, wether it's been opened correctly or not,
             // as the file might not already exist.
         }
@@ -1270,7 +1320,8 @@ void execute_code_listing(vector<Command> &code_listing)
                 {
                     raise_nvm_error("The file " + str_filename + " has been closed.");
                 }
-                file->seekg(0);
+                open_files[str_filename]->clear(); // Clear EOF flag before reading
+                file->seekg(0);                    // I always want to read from the start
                 while (getline(*file, line))
                 {
                     if (!file_contents.empty())
@@ -1291,8 +1342,21 @@ void execute_code_listing(vector<Command> &code_listing)
             if (open_files.count(str_filename) > 0)
             {
                 open_files[str_filename]->close();
+                delete (open_files[str_filename]);
                 open_files.erase(str_filename);
+                if (untruncated_files.count(str_filename) > 0)
+                    untruncated_files.erase(str_filename);
+                if (read_only_files.count(str_filename) > 0)
+                    read_only_files.erase(str_filename);
             }
+        }
+        else if (command.get_command() == "ISOP") // IS file OPen?
+        {
+            Value filename = pop(command);
+            string str_filename = filename.get_as_string();
+            Value result;
+            result.set_number_value(open_files.count(str_filename) == 0 || !open_files[str_filename]->is_open() ? 0 : 1);
+            push(result);
         }
         else if (command.get_command() == "RLNE") // File Read Line
         {
@@ -1326,13 +1390,27 @@ void execute_code_listing(vector<Command> &code_listing)
         {
             Value filename = pop(command);
             string str_filename = filename.get_as_string();
-            if (open_files.count(str_filename) == 0)
+            if (open_files.count(str_filename) == 0 || read_only_files.count(str_filename) > 0)
             {
                 raise_nvm_error("The file " + str_filename + " is not open for writing.");
             }
             else
             {
+                if (untruncated_files.count(str_filename) > 0)
+                {
+                    // Truncate file first
+                    open_files[str_filename]->close();
+                    delete (open_files[str_filename]);
+                    open_files.erase(str_filename);
+                    if (untruncated_files.count(str_filename) > 0)
+                        untruncated_files.erase(str_filename);
+                    if (read_only_files.count(str_filename) > 0)
+                        read_only_files.erase(str_filename);
+                    open_files[str_filename] = new fstream(str_filename, ios::in | ios::out | ios::trunc);
+                }
                 Value contents = pop(command);
+                open_files[str_filename]->clear();                 // Clear EOF flag before writing
+                open_files[str_filename]->seekp(0, std::ios::end); // I always want to write from the end
                 (*open_files[str_filename]) << contents.get_as_string() << flush;
             }
         }
