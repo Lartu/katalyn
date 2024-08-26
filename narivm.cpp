@@ -477,7 +477,7 @@ vector<Command> split_lines(const string &code)
 
 void push(Value v)
 {
-    execution_stack.push(v);
+    execution_stack.push(std::move(v));
 }
 
 Value pop(Command &command)
