@@ -1,0 +1,14 @@
+$file: open_r("quijote.txt");
+$file_contents: read($file);
+
+# --- Split Test ---
+$lines: split($file_contents, "\n", -1, $false);
+for $lines;
+    print("==> ", $lines[$_r]);
+ok;
+
+# --- Explode Test ---
+$words: explode($file_contents, arr(" ", "\n"), -1, $false);
+for $words;
+    print("==> ", $words[$_r]);
+ok;

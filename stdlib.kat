@@ -52,68 +52,6 @@ def append;
     return $table;
 ok;
 
-def split;
-(** Splits the string $_[1] by the separator in $_[2].
-If the number $_[3] is set, the string is split at most $_[3] times. -1 means no max bound.
-If $_[4] is set and it's true, empty values resulted from the split are not added to the resulting table.
-Returns an array table containing the result of the splitting. **)
-    if len($_) < 1;
-        print("split(...) expects at one parameter.");
-        exit(1);
-    ok;
-    in $string: $_[1];
-    if len($_) < 2;
-        in $separator: "";
-    ok; unless $_r;
-        in $separator: $_[2];
-    ok;
-    in $max_split: -1;
-    if is($_[3]);
-        in $max_split: $_[3];
-    ok;
-    in $skip_empty: $false;
-    if is($_[4]);
-        in $skip_empty: $_[4];
-    ok;
-    in $token: "";
-    in $tokens: table;
-    if len($string) < len($separator);
-        return append($tokens, $string);
-    ok;
-    in $i: 1;
-    if $separator = "";
-        while $i <= len($string);
-            append($tokens, $string[$i]);
-            in $i: $i + 1;
-        ok;
-        return $tokens;
-    ok;
-    while substr($string, $i, len($separator));
-        in $result: 0;
-        if $_r = $separator;
-            in $result: $_r;
-            in $i: $i + len($separator);
-            if !$skip_empty || len($token);
-                append($tokens, $token);
-                in $token: "";
-                if len($tokens) = $max_split;
-                    append($tokens, substr($string, $i));
-                    break;
-                ok;
-            ok;
-            continue;
-        ok;
-        unless $_r;
-            in $token: $token & substr($string, $i, 1);
-        ok;
-        in $i: $i + 1;
-    ok;
-    if !$skip_empty || len($token);
-        append($tokens, $token);
-    ok;
-    return $tokens;
-ok;
-
 def init_table;
 (** Returns an table with the alternating values passed to the function as key-value pairs.
 For example calling init_table("a", "b", "c", "d") will return the value containing the keys

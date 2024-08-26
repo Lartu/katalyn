@@ -692,6 +692,95 @@ string substring(const string &s, long long from, long long count)
     return s.substr(from, count);
 }
 
+queue<string> split(const string &haystack, const string &delimiter, long long max_splits, bool add_empty)
+{
+    queue<string> result;
+    size_t start = 0;
+    size_t end = haystack.find(delimiter);
+    long long splits_done = 0;
+
+    while (end != string::npos && (max_splits == -1 || splits_done < max_splits))
+    {
+        string token = haystack.substr(start, end - start);
+
+        if (!token.empty() || add_empty)
+        {
+            result.push(token);
+        }
+
+        start = end + delimiter.length();
+        end = haystack.find(delimiter, start);
+        ++splits_done;
+    }
+
+    // Add the final segment (or the whole string if no delimiter was found)
+    string token = haystack.substr(start);
+    if (!token.empty() || add_empty)
+    {
+        result.push(token);
+    }
+
+    return result;
+}
+
+// Helper function to find the earliest delimiter in the haystack
+pair<size_t, string> find_next_delimiter(const string &haystack, const vector<string> &delimiters, size_t start_pos)
+{
+    size_t earliest_pos = string::npos;
+    string found_delimiter;
+
+    for (const auto &delimiter : delimiters)
+    {
+        size_t pos = haystack.find(delimiter, start_pos);
+        if (pos < earliest_pos)
+        {
+            earliest_pos = pos;
+            found_delimiter = delimiter;
+        }
+    }
+
+    return make_pair(earliest_pos, found_delimiter);
+}
+
+queue<string> multisplit(const string &haystack, const vector<string> &delimiters, long long max_splits, bool add_empty)
+{
+    queue<string> result;
+    size_t start = 0;
+    long long splits_done = 0;
+
+    // Main loop to split the string by any of the delimiters
+    while (splits_done != max_splits)
+    {
+        pair<size_t, string> delimiter_info = find_next_delimiter(haystack, delimiters, start);
+        size_t end = delimiter_info.first;
+        string found_delimiter = delimiter_info.second;
+
+        if (end == string::npos)
+        {
+            break; // No more delimiters found
+        }
+
+        string token = haystack.substr(start, end - start);
+
+        if (!token.empty() || add_empty)
+        {
+            result.push(token);
+        }
+
+        start = end + found_delimiter.length();
+        ++splits_done;
+    }
+
+    // Add the final segment (or the whole string if no delimiter was found)
+    string token = haystack.substr(start);
+    if (!token.empty() || add_empty)
+    {
+        result.push(token);
+    }
+
+    return result;
+}
+
 string input()
 {
     string user_input;
@@ -996,7 +1085,7 @@ void execute_code_listing(vector<Command> &code_listing)
             result.set_string_value(substring(val_str, idx_from, idx_count));
             push(std::move(result));
         }
-        else if (command.get_command() == "REPL")
+        else if (command.get_command() == "REPL") // Replace all instances
         {
             string replacement = pop(command).get_as_string();
             string needle = pop(command).get_as_string();
@@ -1004,6 +1093,55 @@ void execute_code_listing(vector<Command> &code_listing)
             Value result;
             replace_all(haystack, needle, replacement);
             result.set_string_value(haystack);
+            push(std::move(result));
+        }
+        else if (command.get_command() == "EXPL") // Explode
+        {
+            Value haystack = pop(command);
+            Value delimiter = pop(command);
+            Value max_splits = pop(command);
+            Value add_empties = pop(command);
+            queue<string> expl_results = split(haystack.get_as_string(), delimiter.get_as_string(), max_splits.get_as_number(), num_eq(add_empties.get_as_number(), 1));
+            Value result;
+            result.set_table_value();
+            size_t index = 1;
+            while (!expl_results.empty())
+            {
+                Value element;
+                element.set_string_value(expl_results.front());
+                expl_results.pop();
+                (*result.get_table())[double_to_string(index)] = element;
+                ++index;
+            }
+            push(std::move(result));
+        }
+        else if (command.get_command() == "MXPL") // Multi eXPLode
+        {
+            Value haystack = pop(command);
+            Value delimiters = pop(command);
+            Value max_splits = pop(command);
+            Value add_empties = pop(command);
+            if (delimiters.get_type() != TABLE)
+            {
+                raise_nvm_error("Delimiters for a multiexplode must be a table.");
+            }
+            vector<string> delimiters_vector;
+            for (auto it = delimiters.get_table()->begin(); it != delimiters.get_table()->end(); ++it)
+            {
+                delimiters_vector.push_back(it->second.get_as_string());
+            }
+            queue<string> expl_results = multisplit(haystack.get_as_string(), delimiters_vector, max_splits.get_as_number(), num_eq(add_empties.get_as_number(), 1));
+            Value result;
+            result.set_table_value();
+            size_t index = 1;
+            while (!expl_results.empty())
+            {
+                Value element;
+                element.set_string_value(expl_results.front());
+                expl_results.pop();
+                (*result.get_table())[double_to_string(index)] = element;
+                ++index;
+            }
             push(std::move(result));
         }
         else if (command.get_command() == "JUMP")

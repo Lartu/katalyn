@@ -1047,6 +1047,10 @@ def compile_function_call(command: Token, args_list: List[List[Token]]):
         return parse_command_substr(command, args_list)
     elif command.value == "replace":
         return parse_command_replace(command, args_list)
+    elif command.value == "split":
+        return parse_command_split(command, args_list)
+    elif command.value == "explode":
+        return parse_command_explode(command, args_list)
     elif command.value == "floor":
         return parse_command_floor(command, args_list)
     elif command.value == "exec":
@@ -1613,6 +1617,42 @@ def parse_command_replace(command_token: Token, args_list: List[List[Token]]) ->
     compiled_code += "\n" + compile_expression(args_list[1])
     compiled_code += "\n" + compile_expression(args_list[2])
     compiled_code += f"\nREPL"
+    return compiled_code
+
+
+def parse_command_split(command_token: Token, args_list: List[List[Token]]) -> str:
+    compiled_code: str = ""
+    if len(args_list) < 2 or len(args_list) > 4:
+        parse_error(f"Wrong number of arguments for function '{command_token.value}' (expected 2, 3 or 4).", command_token.line, command_token.file)
+    if len(args_list) == 4:
+        compiled_code += "\n" + compile_expression(args_list[3])  # If add empty elements or not
+    else:
+        compiled_code += "\nPUSH 1"
+    if len(args_list) >= 3:
+        compiled_code += "\n" + compile_expression(args_list[2])  # Max number of splits
+    else:
+        compiled_code += "\nPUSH -1"
+    compiled_code += "\n" + compile_expression(args_list[1])
+    compiled_code += "\n" + compile_expression(args_list[0])
+    compiled_code += f"\nEXPL"
+    return compiled_code
+
+
+def parse_command_explode(command_token: Token, args_list: List[List[Token]]) -> str:
+    compiled_code: str = ""
+    if len(args_list) < 2 or len(args_list) > 4:
+        parse_error(f"Wrong number of arguments for function '{command_token.value}' (expected 2, 3 or 4).", command_token.line, command_token.file)
+    if len(args_list) == 4:
+        compiled_code += "\n" + compile_expression(args_list[3])  # If add empty elements or not
+    else:
+        compiled_code += "\nPUSH 1"
+    if len(args_list) >= 3:
+        compiled_code += "\n" + compile_expression(args_list[2])  # Max number of splits
+    else:
+        compiled_code += "\nPUSH -1"
+    compiled_code += "\n" + compile_expression(args_list[1])
+    compiled_code += "\n" + compile_expression(args_list[0])
+    compiled_code += f"\nMXPL"
     return compiled_code
 
 
