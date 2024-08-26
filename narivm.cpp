@@ -477,7 +477,7 @@ vector<Command> split_lines(const string &code)
 
 void push(Value v)
 {
-    execution_stack.push(v);
+    execution_stack.push(std::move(v));
 }
 
 Value pop(Command &command)
@@ -486,7 +486,7 @@ Value pop(Command &command)
     {
         raise_nvm_error("Execution stack empty for command: " + command.get_debug_string());
     }
-    Value v = execution_stack.top();
+    auto v = std::move(execution_stack.top());
     execution_stack.pop();
     return v;
 }
