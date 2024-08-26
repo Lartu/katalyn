@@ -599,6 +599,10 @@ def lex_tokens(tokenized_lines: List[List[Token]]) -> List[List[Token]]:
     return tokenized_lines
 
 
+def get_debug_info(token: Token):
+    return f"\n;line {token.line}\n;file {token.file}"
+
+
 def compile_expression(expr_tokens: List[Token], discard_return_value: bool = False, unsafe: bool = False) -> str:
     """Takes an expression and turns it into Nambly code.
     Terminators are not compiled by this function.
@@ -703,41 +707,41 @@ def compile_expression(expr_tokens: List[Token], discard_return_value: bool = Fa
     if operator:
         infix: bool = False
         if operator.value == "*":
-            compiled_code += "\nMULT"
+            compiled_code += "\nMULT" 
         elif operator.value == "^":
-            compiled_code += "\nPOWR"
+            compiled_code += "\nPOWR" 
         elif operator.value == "/":
-            compiled_code += "\nFDIV"
+            compiled_code += "\nFDIV" 
         elif operator.value == "//":
-            compiled_code += "\nIDIV"
+            compiled_code += "\nIDIV" 
         elif operator.value == "-":
-            compiled_code += "\nSUBT"
+            compiled_code += "\nSUBT" 
         elif operator.value == "+":
-            compiled_code += "\nADDV"
+            compiled_code += "\nADDV" 
         elif operator.value == "&":
-            compiled_code += "\nJOIN"
+            compiled_code += "\nJOIN" 
         elif operator.value == "%":
-            compiled_code += "\nMODL"
+            compiled_code += "\nMODL" 
         elif operator.value == "=":
-            compiled_code += "\nISEQ"
+            compiled_code += "\nISEQ" 
         elif operator.value in ("<>", "!="):
-            compiled_code += "\nISNE"
+            compiled_code += "\nISNE" 
         elif operator.value == "<":
-            compiled_code += "\nISLT"
+            compiled_code += "\nISLT" 
         elif operator.value == ">":
-            compiled_code += "\nISGT"
+            compiled_code += "\nISGT" 
         elif operator.value == "<=":
-            compiled_code += "\nISLE"
+            compiled_code += "\nISLE" 
         elif operator.value == ">=":
-            compiled_code += "\nISGE"
+            compiled_code += "\nISGE" 
         elif operator.value == "&&":
-            compiled_code += "\nLAND"
+            compiled_code += "\nLAND" 
         elif operator.value == "||":
-            compiled_code += "\nLGOR"
+            compiled_code += "\nLGOR" 
         elif operator.value == "::":
-            compiled_code += "\nISIN"
+            compiled_code += "\nISIN" 
         elif operator.value == "!":
-            compiled_code += "\nLNOT"
+            compiled_code += "\nLNOT" 
             infix = True
         else:
             expression_error(
@@ -779,7 +783,7 @@ def compile_terminator(expr_tokens: List[Token], unsafe: bool = False) -> str:
                 access_depth -= 1
                 if access_depth == 0:
                     compiled_code += "\n" + compile_expression(access_tokens)
-                    compiled_code += "\nPGET"
+                    compiled_code += "\nPGET" 
                     if expr_tokens:
                         if expr_tokens[0].type not in (LexType.ACCESS_OPEN, LexType.PAR_OPEN):
                             expression_error(
@@ -805,7 +809,7 @@ def compile_terminator(expr_tokens: List[Token], unsafe: bool = False) -> str:
                 if next_token.type in [LexType.INTEGER, LexType.FLOAT]:
                     if terminator_type != LexType.UNKNOWN:
                         expression_error(f"Unexpected token '{token.value}'.", token.line, token.file)
-                    compiled_code += f"\nPUSH -{next_token.value}"
+                    compiled_code += f"\nPUSH -{next_token.value}" 
                     terminator_type = next_token.type
                     expr_tokens.pop(0)
                 else:
@@ -813,18 +817,18 @@ def compile_terminator(expr_tokens: List[Token], unsafe: bool = False) -> str:
             elif token.type == LexType.TABLE:
                 if terminator_type != LexType.UNKNOWN:
                     expression_error(f"Unexpected token '{token.value}'.", token.line, token.file)
-                compiled_code += f'\nTABL'
+                compiled_code += f'\nTABL' 
                 terminator_type = token.type
             elif token.type == LexType.VARIABLE:
                 if terminator_type != LexType.UNKNOWN:
                     expression_error(f"Unexpected token '{token.value}'.", token.line, token.file)
                 var_id: Optional[str] = global_compiler_state.get_var_identifier(token, True, unsafe=unsafe)
-                compiled_code += f'\nVGET "{var_id}"'
+                compiled_code += f'\nVGET "{var_id}"' 
                 terminator_type = token.type
             elif token.type == LexType.STRING:
                 if terminator_type != LexType.UNKNOWN:
                     expression_error(f"Unexpected token '{token.value}'.", token.line, token.file)
-                compiled_code += f'\nPUSH "{token.get_nambly_string()}"'
+                compiled_code += f'\nPUSH "{token.get_nambly_string()}"' 
                 terminator_type = token.type
             elif token.type == LexType.ACCESS_OPEN:
                 if terminator_type == LexType.UNKNOWN:
@@ -844,7 +848,7 @@ def compile_terminator(expr_tokens: List[Token], unsafe: bool = False) -> str:
             elif token.type in [LexType.INTEGER, LexType.FLOAT]:
                 if terminator_type != LexType.UNKNOWN:
                     expression_error(f"Unexpected token '{token.value}'.", token.line, token.file)
-                compiled_code += f"\nPUSH {token.value}"
+                compiled_code += f"\nPUSH {token.value}" 
                 terminator_type = token.type
             elif token.type == LexType.WORD:
                 if terminator_type != LexType.UNKNOWN:
@@ -954,6 +958,7 @@ def compile_lines(tokenized_lines: List[List[Token]]) -> str:
     for line in tokenized_lines:
         # Check first token in the line, this is our command
         command = line[0]
+        compiled_code += get_debug_info(command)
         args = []
         if len(line) > 1:
             args = line[1:]
@@ -1620,7 +1625,7 @@ def parse_command_def(command_token: Token, args: List[Token]) -> str:
 def parse_function_call(command_token: Token, args_list: List[List[Token]]) -> str:
     # All functions are variadic in Katalyn
     compiled_code: str = ""
-    compiled_code += f'\nPNIL'  # So the ARRR works.
+    compiled_code += f'\nPLIM'  # So the ARRR works.
     for args in args_list:
         compiled_code += "\n" + compile_expression(args)
     function_end_label: str = global_compiler_state.get_function_label(command_token)[0]
@@ -1766,7 +1771,7 @@ if __name__ == "__main__":
     flags_var: Token = Token(FLAGS_VAR, 0, "")
     flags_var.type = LexType.VARIABLE
     flags_var_id = global_compiler_state.declare_variable(flags_var, True)
-    full_nambly: str = "PNIL"
+    full_nambly: str = "PLIM"
     filename: str = ""
     dont_expect_filename: bool = False
     include_standard_lib: bool = True

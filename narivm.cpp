@@ -25,13 +25,15 @@
 
 using namespace std;
 
-#define NUMB 1  // Numeric Value
-#define TEXT 2  // String Value
-#define TABLE 3 // Table Value
-#define NIL 5   // Null Value
-#define ITER 6  // Iterator Value
+#define NUMB 1      // Numeric Value
+#define TEXT 2      // String Value
+#define TABLE 3     // Table Value
+#define NIL 5       // Null Value
+#define ITER 6      // Iterator Value
+#define LISTLIMIT 7 // List Limit Value
 
 size_t pc = 0; // Program Counter
+void raise_nvm_error(string error_message);
 
 string get_type_name(char type)
 {
@@ -47,16 +49,44 @@ string get_type_name(char type)
         return "NIL";
     case ITER:
         return "ITERATOR";
+    case LISTLIMIT:
+        return "LISTLIMIT";
     }
     return "???";
 }
 
-void raise_nvm_error(string error_message)
+string wrap_text(const string &text, size_t maxLineLength)
 {
-    cerr << "NariVM Execution Error" << endl;
-    cerr << error_message << endl;
-    cerr << "PC: " << pc + 1 << endl;
-    exit(1);
+    string result = "";
+    size_t current_line_len = 0;
+
+    for (size_t i = 0; i < text.size(); ++i)
+    {
+        if (text[i] == ' ')
+        {
+            if (current_line_len >= maxLineLength)
+            {
+                result += "\n";
+                current_line_len = 0;
+            }
+            else if (current_line_len > 0)
+            {
+                result += " ";
+                current_line_len += 1;
+            }
+        }
+        else
+        {
+            result += string() + text[i];
+            current_line_len += 1;
+            if (text[i] == '\n')
+            {
+                current_line_len = 0;
+            }
+        }
+    }
+
+    return result;
 }
 
 string double_to_string(double value)
@@ -121,6 +151,12 @@ public:
         this->type = NIL;
     }
 
+    void set_listlimit_value()
+    {
+        reset_values();
+        this->type = LISTLIMIT;
+    }
+
     void set_iterator_value()
     {
         reset_values();
@@ -161,6 +197,10 @@ public:
             {
                 raise_nvm_error("Can't convert NIL value to string.");
             }
+            else if (type == LISTLIMIT)
+            {
+                raise_nvm_error("Can't convert LISTLIMIT value to string.");
+            }
             else if (type == ITER)
             {
                 raise_nvm_error("Can't convert iterator value to string.");
@@ -173,10 +213,10 @@ public:
                     table_values.push("'" + it->first + "': '" + it->second.get_as_string() + "'");
                 }
                 string return_value = "[";
-                while(!table_values.empty())
+                while (!table_values.empty())
                 {
                     return_value += table_values.front();
-                    if(table_values.size() > 1)
+                    if (table_values.size() > 1)
                     {
                         return_value += ", ";
                     }
@@ -203,6 +243,10 @@ public:
             if (type == NIL)
             {
                 raise_nvm_error("Can't convert NIL value to number.");
+            }
+            else if (type == LISTLIMIT)
+            {
+                raise_nvm_error("Can't convert LISTLIMIT value to number.");
             }
             else if (type == ITER)
             {
@@ -233,9 +277,11 @@ class Command
 private:
     const string command;
     vector<Value> arguments;
+    const size_t line_number;
+    const string filename;
 
 public:
-    Command(const string command) : command(command) {};
+    Command(const string command, const size_t line_number, const string filename) : command(command), line_number(line_number), filename(filename) {};
     const string &get_command() const { return command; }
     const vector<Value> &get_arguments() const { return arguments; }
     void add_argument(const Value &value)
@@ -255,7 +301,37 @@ public:
         }
         return debug_string;
     }
+
+    const size_t get_line_number() const
+    {
+        return line_number;
+    }
+
+    const string get_file() const
+    {
+        return filename;
+    }
 };
+
+Command *last_command = nullptr;
+
+void raise_nvm_error(string error_message)
+{
+    cerr << endl
+         << "====== Oh no! Runtime Error! ======" << endl;
+    cerr << wrap_text(error_message, 70) << endl;
+    if (last_command != nullptr)
+    {
+        cerr << endl
+             << "--- Source File Information --- " << endl;
+        cerr << "- Source File: " << last_command->get_file() << endl;
+        cerr << "- Source Line: " << last_command->get_line_number() << endl;
+    }
+    cerr << endl
+         << "--- NariVM State Information --- " << endl;
+    cerr << "- PC: " << pc + 1 << endl;
+    exit(1);
+}
 
 vector<map<string, Value> /**/> variable_tables;
 map<string, size_t> label_to_pc;
@@ -269,6 +345,13 @@ Value get_nil_value()
     Value nil_value;
     nil_value.set_nil_value();
     return nil_value;
+}
+
+Value get_listlimit_value()
+{
+    Value ll_value;
+    ll_value.set_listlimit_value();
+    return ll_value;
 }
 
 #define EPSILON 0.000000
@@ -361,7 +444,7 @@ char get_token_type(const string &text)
     return NUMB;
 }
 
-Command split_command_arguments(const string &line)
+Command split_command_arguments(const string &line, const size_t full_line_number, const string &full_file_name)
 {
     vector<string> tokens;
     string current_token;
@@ -433,7 +516,7 @@ Command split_command_arguments(const string &line)
         raise_nvm_error("Nambly parsing error: open string for line '" + line + "'");
     }
 
-    Command new_command(tokens.empty() ? "" : tokens[0]);
+    Command new_command(tokens.empty() ? "" : tokens[0], full_line_number, full_file_name);
 
     for (size_t i = 1; i < tokens.size(); ++i)
     {
@@ -461,6 +544,8 @@ vector<Command> split_lines(const string &code)
     vector<Command> code_listing;
     stringstream ss(code);
     string line;
+    size_t full_source_line_number = 0;
+    string full_source_filename = "";
     while (getline(ss, line, '\n'))
     {
         line = trim(line);
@@ -468,7 +553,21 @@ vector<Command> split_lines(const string &code)
         {
             if (line[0] != ';')
             {
-                code_listing.push_back(split_command_arguments(line));
+                code_listing.push_back(split_command_arguments(line, full_source_line_number, full_source_filename));
+            }
+            else
+            {
+                if (line.size() > 5)
+                {
+                    if (line.substr(0, 5) == ";line")
+                    {
+                        full_source_line_number = stol(trim(line.substr(5)));
+                    }
+                    else if (line.substr(0, 5) == ";file")
+                    {
+                        full_source_filename = trim(line.substr(5));
+                    }
+                }
             }
         }
     }
@@ -637,21 +736,25 @@ void run_command(const string &command, string &stdout_str, string &stderr_str, 
     return_code = process.exit_code();
 }
 
-bool file_exists(const string& filename) {
+bool file_exists(const string &filename)
+{
     struct stat buffer;
     return (stat(filename.c_str(), &buffer) == 0);
 }
 
-void create_empty_file(const string& filename) {
+void create_empty_file(const string &filename)
+{
     // Create an empty file
     ofstream file(filename.c_str());
-    if (!file) {
+    if (!file)
+    {
         raise_nvm_error("Failed to create file " + filename + ".");
     }
 }
 
 // Helper function to check if a string is a valid number (integer or floating-point)
-bool is_numeric(const string& s) {
+bool is_numeric(const string &s)
+{
     istringstream iss(s);
     double d;
     char c;
@@ -660,32 +763,43 @@ bool is_numeric(const string& s) {
 }
 
 // Custom comparator function
-bool sort_iterator_elements(const string& a, const string& b) {
+bool sort_iterator_elements(const string &a, const string &b)
+{
     bool a_is_numeric = is_numeric(a);
     bool b_is_numeric = is_numeric(b);
 
-    if (a_is_numeric && b_is_numeric) {
+    if (a_is_numeric && b_is_numeric)
+    {
         // If both are numeric, compare their double values
         return stod(a) < stod(b);
-    } else if (a_is_numeric) {
+    }
+    else if (a_is_numeric)
+    {
         // If only a is numeric, it should come first
         return true;
-    } else if (b_is_numeric) {
+    }
+    else if (b_is_numeric)
+    {
         // If only b is numeric, it should come first
         return false;
-    } else {
+    }
+    else
+    {
         // If neither is numeric, compare lexicographically
         return a < b;
     }
 }
 
-void replace_all(string& str, const string& from, const string& to) {
-    if (from.empty()) {
+void replace_all(string &str, const string &from, const string &to)
+{
+    if (from.empty())
+    {
         return; // Avoid infinite loop if 'from' is an empty string
     }
 
     size_t start_pos = 0;
-    while ((start_pos = str.find(from, start_pos)) != string::npos) {
+    while ((start_pos = str.find(from, start_pos)) != string::npos)
+    {
         str.replace(start_pos, from.length(), to);
         start_pos += to.length(); // Move past the replaced substring
     }
@@ -697,6 +811,7 @@ void execute_code_listing(vector<Command> &code_listing)
     while (pc < code_listing.size())
     {
         Command &command = code_listing[pc];
+        last_command = &command;
         if (command.get_command() == "PUSH")
         {
             push(command.get_arguments()[0]);
@@ -704,6 +819,10 @@ void execute_code_listing(vector<Command> &code_listing)
         else if (command.get_command() == "PNIL")
         {
             push(get_nil_value());
+        }
+        else if (command.get_command() == "PLIM")
+        {
+            push(get_listlimit_value());
         }
         else if (command.get_command() == "ADDV")
         {
@@ -967,11 +1086,7 @@ void execute_code_listing(vector<Command> &code_listing)
                     push(get_nil_value());
                 }
             }
-            else if (table.get_type() == NIL)
-            {
-                raise_nvm_error("Cannot index a nil value.");
-            }
-            else
+            else if (table.get_type() == TEXT || table.get_type() == NUMB)
             {
                 if (!num_eq(index.get_as_number(), floor(index.get_as_number())))
                 {
@@ -1003,6 +1118,10 @@ void execute_code_listing(vector<Command> &code_listing)
                     push(std::move(result));
                 }
             }
+            else
+            {
+                raise_nvm_error("Cannot index a " + get_type_name(table.get_type()) + " value.");
+            }
         }
         else if (command.get_command() == "ARRR")
         {
@@ -1013,9 +1132,13 @@ void execute_code_listing(vector<Command> &code_listing)
             while (true)
             {
                 Value v = pop(command);
-                if (v.get_type() == NIL)
+                if (v.get_type() == LISTLIMIT)
                 {
                     break;
+                }
+                else if (v.get_type() == NIL || v.get_type() == ITER)
+                {
+                    raise_nvm_error("Cannot add a " + get_type_name(v.get_type()) + " value to a table. This error may trigger if you are passing a nil value to a function or a table constructor.");
                 }
                 else
                 {
@@ -1095,13 +1218,15 @@ void execute_code_listing(vector<Command> &code_listing)
             }
             // Open the file
             fstream *new_file;
-            if(file_exists(str_filename))
+            if (file_exists(str_filename))
             {
                 new_file = new fstream(str_filename, ios::in | ios::out);
-            }else{
+            }
+            else
+            {
                 new_file = new fstream(str_filename, ios::in | ios::out | ios::trunc);
             }
-            if(!(*new_file))
+            if (!(*new_file))
             {
                 raise_nvm_error("Failed to open file " + str_filename + " for read/write.");
             }
@@ -1120,7 +1245,7 @@ void execute_code_listing(vector<Command> &code_listing)
             }
             // Open the file
             fstream *new_file = new fstream(str_filename, ios::in | ios::out | ios::app);
-            if(!(*new_file))
+            if (!(*new_file))
             {
                 raise_nvm_error("Failed to open file " + str_filename + " for read/append.");
             }
@@ -1437,10 +1562,11 @@ void execute_code_listing(vector<Command> &code_listing)
     }
 }
 
-void read_source(string filename, string& output)
+void read_source(string filename, string &output)
 {
     fstream file(filename, ios::in);
-    if (!file.is_open()) {
+    if (!file.is_open())
+    {
         cerr << "File not found: " << filename << endl;
         exit(1);
     }
@@ -1456,9 +1582,10 @@ void read_source(string filename, string& output)
     }
 }
 
-int main(int argc, char* argv[]) {
+int main(int argc, char *argv[])
+{
     vector<string> args(argv, argv + argc);
-    if(args.size() != 2)
+    if (args.size() != 2)
     {
         cerr << "Usage: narivm <nambly_file>" << endl;
         exit(1);
