@@ -4,7 +4,7 @@ if !is_open($file);
 ok;
 printc("Loading... ");
 $contents: substr(read($file), 1, 100000);
-$lines: split($contents, "\n", -1, $true);
+$lines: split($contents, "\n");
 print("There are: ", len($lines), " in $contents.");
 print("Loaded ", len($contents), " bytes.");
 print("0%");
