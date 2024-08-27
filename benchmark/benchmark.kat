@@ -1,11 +1,7 @@
 $file: open_rw("quijote.txt");
-if !is_open($file);
-    halt("Error opening ", $file, ".");
-ok;
+exec("date"); printc($_stdout);
 printc("Loading... ");
 $contents: substr(read($file), 1, 100000);
-$lines: split($contents, "\n");
-print("There are: ", len($lines), " in $contents.");
 print("Loaded ", len($contents), " bytes.");
 print("0%");
 $contents: replace_slow($contents, "hecho", "a ver mario si me optimizas esta porqueria");
@@ -17,4 +13,4 @@ print("75%");
 $contents: replace_slow($contents, "el", "a ver mario si me optimizas esta porqueria");
 print("100%");
 print("Final length: ", len($contents), " bytes.");
-close($file);
+exec("date"); printc($_stdout);
