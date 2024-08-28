@@ -2,7 +2,7 @@
     <img src="images/logo_small.png">
     <br>
     <img src="https://img.shields.io/badge/release-v0.1.0-yellow.svg">
-    <img src="https://img.shields.io/badge/license-_apache_2.0-green">
+    <a href="https://github.com/Lartu/katalyn/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-_apache_2.0-green"></a>
 </p>
 
 The **Katalyn** programming language is a powerful scripting language designed to pair _the simplicity of Lua with the power of Perl_.
