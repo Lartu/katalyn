@@ -1,7 +1,7 @@
 <p align=center>
     <img src="images/logo_small.png">
     <br>
-    <img src="https://img.shields.io/badge/release-v0.0.1-red.svg">
+    <img src="https://img.shields.io/badge/release-v0.1.0-yellow.svg">
     <img src="https://img.shields.io/badge/license-_apache_2.0-green">
 </p>
 
