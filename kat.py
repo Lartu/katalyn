@@ -34,6 +34,8 @@ RESULT_VAR = "$_r"
 FLAGS_VAR = "$_args"
 EXEC_STDOUT_VAR = "$_stdout"
 EXEC_STDERR_VAR = "$_stderr"
+CALLER_VAR = "$_caller"
+CONTEXT_VAR = "$_context"
 EXEC_EXITCODE_VAR = "$_exitcode"
 STDLIB_LOCATION = "/Users/lartu/No Sync/Katalyn"
 
@@ -158,8 +160,8 @@ class CompilerState:
         """Adds a function and links it to its label
         """
         function_name: str = caller_command.value
-        if function_name in self.__function_to_labels:
-            parse_error(f"Duplicate function declaration for '{function_name}'.", caller_command.line, caller_command.file)
+        #if function_name in self.__function_to_labels:
+        #    parse_error(f"Duplicate function declaration for '{function_name}'.", caller_command.line, caller_command.file)
         self.__function_to_labels[function_name] = (start_label, end_label, post_label)
 
     def get_function_label(self, caller_command: Token) -> Tuple[str, str]:
@@ -884,11 +886,12 @@ def compile_terminator(expr_tokens: List[Token], unsafe: bool = False) -> str:
                         open_pars -= 1
                         if open_pars == 0:
                             if not arguments and (prev_token is not None and prev_token.type == LexType.DECORATION and prev_token.value == ","):
-                                expression_error(
-                                    f"Empty argument for function call",
-                                    token.line,
-                                    token.file
-                                )
+                                #expression_error(
+                                #    f"Empty argument for function call",
+                                #    token.line,
+                                #    token.file
+                                #)
+                                pass
                             else:
                                 if arguments:
                                     arguments_list.append(arguments)
@@ -1668,12 +1671,21 @@ def parse_command_def(command_token: Token, args: List[Token]) -> str:
     compiled_code += f"\nADSC"
     args_var: Token = Token(ARGS_VAR, command_token.line, command_token.file)
     args_var.type = LexType.VARIABLE
+    # Parameter variable
     compiled_code += f'\nARRR'
     compiled_code += f'\nVSET "{global_compiler_state.declare_variable(args_var, False)}"'
-    args_var: Token = Token(ARGS_VAR, command_token.line, command_token.file)
-    args_var.type = LexType.VARIABLE
-    args_var: str = global_compiler_state.declare_variable(args_var, False)
-    compiled_code += f'\nPNIL'  # Default return value
+    # Context variables
+    caller_var: Token = Token(CALLER_VAR, command_token.line, command_token.file)
+    caller_var.type = LexType.VARIABLE
+    caller_var_id = global_compiler_state.declare_variable(caller_var, False)
+    compiled_code += f"\nVSET \"{caller_var_id}\""
+    new_context_var: Token = Token(CONTEXT_VAR, command_token.line, command_token.file)
+    new_context_var.type = LexType.VARIABLE
+    new_context_var_id = global_compiler_state.declare_variable(new_context_var, False)
+    compiled_code += f"\nPUSH \"{args[0].value}\""
+    compiled_code += f"\nVSET \"{new_context_var_id}\""
+    # Default return value
+    compiled_code += f'\nPNIL'  
     # Push end code to state for it to be used on next ok;
     block_end_code += f"\n@{end_tag}"
     block_end_code += f"\nDLSC"
@@ -1687,6 +1699,12 @@ def parse_command_def(command_token: Token, args: List[Token]) -> str:
 def parse_function_call(command_token: Token, args_list: List[List[Token]]) -> str:
     # All functions are variadic in Katalyn
     compiled_code: str = ""
+    # Push Caller
+    context_var: Token = Token(CONTEXT_VAR, command_token.line, command_token.file)
+    context_var.type = LexType.VARIABLE
+    context_var_id = global_compiler_state.get_var_identifier(context_var, False)
+    compiled_code += f"\nVGET \"{context_var_id}\""
+    # Push argument array
     compiled_code += f'\nPLIM'  # So the ARRR works.
     for args in args_list:
         compiled_code += "\n" + compile_expression(args)
@@ -1839,10 +1857,16 @@ def code_to_nambly(code: str, filename: str) -> str:
 
 
 if __name__ == "__main__":
+    full_nambly: str = ""
+    context_var: Token = Token(CONTEXT_VAR, 0, "")
+    context_var.type = LexType.VARIABLE
+    context_var_id = global_compiler_state.declare_variable(context_var, True)
+    full_nambly += f"\nPUSH \"\""
+    full_nambly += f"\nVSET \"{context_var_id}\""
     flags_var: Token = Token(FLAGS_VAR, 0, "")
     flags_var.type = LexType.VARIABLE
     flags_var_id = global_compiler_state.declare_variable(flags_var, True)
-    full_nambly: str = "PLIM"
+    full_nambly += "\nPLIM"
     filename: str = ""
     dont_expect_filename: bool = False
     include_standard_lib: bool = True
