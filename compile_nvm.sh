@@ -1,6 +1,6 @@
 set -e
 
-optimization="-O3"
+optimization="-O1"
 
 # Compile the NariVM
 echo "Compiling NariVM"
