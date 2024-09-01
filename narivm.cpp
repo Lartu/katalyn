@@ -1105,11 +1105,11 @@ void run_command(const string &command, string &stdout_str, string &stderr_str, 
         command, "",
         [&stdout_str](const char *bytes, size_t n)
         {
-            stdout_str = string(bytes, n);
+            stdout_str += string(bytes, n);
         },
         [&stderr_str](const char *bytes, size_t n)
         {
-            stderr_str = string(bytes, n);
+            stderr_str += string(bytes, n);
         });
     return_code = subprocess.get_exit_status();
 }
