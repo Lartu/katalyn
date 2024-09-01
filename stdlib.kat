@@ -661,6 +661,7 @@ def datetime;
     $tokens: wssplit($_stdout, -1, $true);
     $time{dow}: $tokens[1];
     $time{date}: $tokens[2];
+    $time{day}: $time{date};
     $time{month}: $tokens[3];
     $time{year}: $tokens[4];
     $time{hour}: $tokens[5];
