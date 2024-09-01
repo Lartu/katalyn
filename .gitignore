@@ -5,3 +5,4 @@ __pycache__/narivm.cpython-312.pyc
 kat.bin
 /kat.dist
 narivm
+*.o

@@ -23,9 +23,10 @@
 #include <fstream>
 #include <set>
 #include <sys/stat.h>
-#include <boost/process.hpp>
+#include "tiny-process-library/process.hpp"
 
 using namespace std;
+using namespace TinyProcessLib;
 
 #define NUMB 1      // Numeric Value
 #define TEXT 2      // String Value
@@ -184,11 +185,11 @@ Opcode opcode_from_string(string_view str)
         {"KEYS", Opcode::KEYS},
         {"GITR", Opcode::GITR},
         {"NEXT", Opcode::NEXT},
-	{"PLIM", Opcode::PLIM},
-	{"EXPL", Opcode::EXPL},
-	{"MXPL", Opcode::MXPL},
-	{"FORE", Opcode::FORE},
-	{"ISOP", Opcode::ISOP},
+        {"PLIM", Opcode::PLIM},
+        {"EXPL", Opcode::EXPL},
+        {"MXPL", Opcode::MXPL},
+        {"FORE", Opcode::FORE},
+        {"ISOP", Opcode::ISOP},
         {"NIL?", Opcode::ISNIL},
     };
     return str_to_opcode[str];
@@ -499,7 +500,9 @@ public:
                     if (it->second.get_type() == TEXT)
                     {
                         table_string += "'" + it->second.get_as_string() + "'";
-                    }else{
+                    }
+                    else
+                    {
                         table_string += it->second.get_as_string();
                     }
                     table_values.push(table_string);
@@ -1096,9 +1099,19 @@ void run_command(const string &command, string &stdout_str, string &stderr_str, 
     // Wait for the process to finish and get the return code
     process.wait();
     return_code = process.exit_code();*/
-    stdout_str = "MISSING";
-    stderr_str = "MISSING";
-    return_code = -1;
+    stdout_str = "";
+    stderr_str = "";
+    Process subprocess(
+        command, "",
+        [&stdout_str](const char *bytes, size_t n)
+        {
+            stdout_str = string(bytes, n);
+        },
+        [&stderr_str](const char *bytes, size_t n)
+        {
+            stderr_str = string(bytes, n);
+        });
+    return_code = subprocess.get_exit_status();
 }
 
 bool file_exists(const string &filename)
@@ -1411,7 +1424,7 @@ void execute_code_listing(vector<Command> &code_listing)
                 ++index;
             }
             push(std::move(result));
-	    break;
+            break;
         }
         case Opcode::MXPL: // Multi eXPLode
         {
@@ -1441,7 +1454,7 @@ void execute_code_listing(vector<Command> &code_listing)
                 ++index;
             }
             push(std::move(result));
-	    break;
+            break;
         }
         case Opcode::JUMP:
         {
@@ -1815,7 +1828,7 @@ void execute_code_listing(vector<Command> &code_listing)
             Value result;
             result.set_number_value(open_files.count(str_filename) == 0 || !open_files[str_filename]->is_open() ? 0 : 1);
             push(result);
-	    break;
+            break;
         }
         case Opcode::RLNE: // File Read Line
         {

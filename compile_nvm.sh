@@ -2,8 +2,13 @@ set -e
 
 # Compile the NariVM
 echo "Compiling NariVM"
-g++ -std=c++17 narivm.cpp -c -o narivm.o -O1 -lboost_system -lboost_filesystem 
-#g++ -std=c++11 -I/opt/homebrew/opt/boost/include -L/opt/homebrew/opt/boost/lib -lboost_system -lboost_filesystem narivm.o -o narivm -O3
+g++ -std=c++17 narivm.cpp -c -o narivm.o -O1
+
+echo "Building Tiny Process Library"
+processdir="tiny-process-library"
+g++ -std=c++17 "$processdir/process.cpp" -c -o process.o -O1
+g++ -std=c++17 "$processdir/process_unix.cpp" -c -o process_unix.o -O1
+
 echo "Linking NariVM"
-g++ -std=c++17 narivm.o -o narivm -O1
+g++ -std=c++17 narivm.o process.o process_unix.o -o narivm -O1
 mv narivm ~/bin/narivm
