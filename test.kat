@@ -1,4 +1,6 @@
-def Point;
+datetime();
+
+(*def Point;
     $point_prototype: table;
     if is($_[1]);
         $point_prototype{x}: $_[1];

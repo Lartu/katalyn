@@ -629,3 +629,47 @@ def plural;
         ok;
     ok;
 ok;
+
+def wssplit;
+    # Splits string $_[1] using whitespace.
+    # If $_[2] is set, it splits that max amount of times.
+    # If $_[3] is true, empty tokens are ignored from the split.
+    $max: -1;
+    $ignore: $false;
+    if is($_[2]);
+        $max: $_[2];
+    ok;
+    if is($_[3]);
+        $ignore: $_[3];
+    ok;
+    return explode($_[1], arr(" ", "\n", "\t"), $max, $ignore);
+ok;
+
+def datetime;
+    # Returns a table containing:
+    # {dow}: day of week (1-7)
+    # {date}: current date (1-31)
+    # {month}: current month (1-12)
+    # {year}: current year (XXXX)
+    # {hour}: current hour (24 hour format)
+    # {h12}: current hour (12 hour format)
+    # {ampm}: "AM" or "PM"
+    # {min}: current minutes (0-59)
+    # {sec}: current seconds (0-59)
+    exec("date +\"%u %d %m %Y %H %I %p %M %S\"");
+    $time: table;
+    print($_stdout);
+    $tokens: wssplit($_stdout, -1, $true);
+    print($tokens);
+    $time{dow}: $tokens[1];
+    $time{date}: $tokens[2];
+    $time{month}: $tokens[3];
+    $time{year}: $tokens[4];
+    $time{hour}: $tokens[5];
+    $time{h12}: $tokens[6];
+    $time{ampm}: $tokens[7];
+    $time{min}: $tokens[8];
+    $time{sec}: $tokens[9];
+    print($time);
+    return $time;
+ok;
