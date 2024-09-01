@@ -658,9 +658,7 @@ def datetime;
     # {sec}: current seconds (0-59)
     exec("date +\"%u %d %m %Y %H %I %p %M %S\"");
     $time: table;
-    print($_stdout);
     $tokens: wssplit($_stdout, -1, $true);
-    print($tokens);
     $time{dow}: $tokens[1];
     $time{date}: $tokens[2];
     $time{month}: $tokens[3];
@@ -670,6 +668,5 @@ def datetime;
     $time{ampm}: $tokens[7];
     $time{min}: $tokens[8];
     $time{sec}: $tokens[9];
-    print($time);
     return $time;
 ok;
