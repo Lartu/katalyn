@@ -23,7 +23,7 @@
 #include <fstream>
 #include <set>
 #include <sys/stat.h>
-#include <boost/process.hpp>
+// #include <boost/process.hpp>
 
 using namespace std;
 
@@ -1077,7 +1077,7 @@ bool is_true(Value &value)
 
 void run_command(const string &command, string &stdout_str, string &stderr_str, int &return_code)
 {
-    namespace bp = boost::process;
+    /*namespace bp = boost::process;
     // Capture output and errors
     bp::ipstream stdout_stream;
     bp::ipstream stderr_stream;
@@ -1095,7 +1095,10 @@ void run_command(const string &command, string &stdout_str, string &stderr_str, 
     }
     // Wait for the process to finish and get the return code
     process.wait();
-    return_code = process.exit_code();
+    return_code = process.exit_code();*/
+    stdout_str = "MISSING";
+    stderr_str = "MISSING";
+    return_code = -1;
 }
 
 bool file_exists(const string &filename)
