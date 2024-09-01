@@ -610,3 +610,22 @@ def get_http;
     ok;
     return $_stdout;
 ok;
+
+def plural;
+    # Used for plurals.
+    # If $_[1] is 1, returns "" or $_[2] if set.
+    # If $_[1] isn't 1, returns "s" or $_[3] if set.
+    if $_[1] = 1;
+        if is($_[2]);
+            return $_[2];
+        else;
+            return "";
+        ok;
+    else;
+        if is($_[3]);
+            return $_[3];
+        else;
+            return "s";
+        ok;
+    ok;
+ok;
