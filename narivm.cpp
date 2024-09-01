@@ -363,17 +363,28 @@ string_view opcode_as_string(Opcode opcode)
     }
 }
 
+#define EPSILON 0.000000
+bool num_eq(double a, double b)
+{
+    return fabs(a - b) < numeric_limits<double>::epsilon();
+}
+
 string double_to_string(double value)
 {
     // Check if the value is effectively an integer
-    if (value == floor(value))
+    if (num_eq(value, floor(value)))
     {
         return to_string(static_cast<long long>(value)); // Convert to integer string
     }
     else
     {
         // Otherwise, keep the precision for non-integers
-        return to_string(value);
+        string str_rep = to_string(value);
+        while (str_rep[str_rep.size() - 1] == '0' || str_rep[str_rep.size() - 1] == '.')
+        {
+            str_rep = str_rep.substr(0, str_rep.size() - 1);
+        }
+        return str_rep;
     }
 }
 
@@ -484,7 +495,14 @@ public:
                 queue<string> table_values;
                 for (auto it = get_table()->begin(); it != get_table()->end(); ++it)
                 {
-                    table_values.push("'" + it->first + "': '" + it->second.get_as_string() + "'");
+                    string table_string = "'" + it->first + "':";
+                    if (it->second.get_type() == TEXT)
+                    {
+                        table_string += "'" + it->second.get_as_string() + "'";
+                    }else{
+                        table_string += it->second.get_as_string();
+                    }
+                    table_values.push(table_string);
                 }
                 string return_value = "[";
                 while (!table_values.empty())
@@ -629,12 +647,6 @@ Value get_listlimit_value()
     Value ll_value;
     ll_value.set_listlimit_value();
     return ll_value;
-}
-
-#define EPSILON 0.000000
-bool num_eq(double a, double b)
-{
-    return fabs(a - b) < numeric_limits<double>::epsilon();
 }
 
 void print_command_listing(vector<Command> &code_listing)
