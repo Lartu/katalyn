@@ -37,7 +37,7 @@ EXEC_STDERR_VAR = "$_stderr"
 CALLER_VAR = "$_caller"
 CONTEXT_VAR = "$_context"
 EXEC_EXITCODE_VAR = "$_exitcode"
-STDLIB_LOCATION = "/Users/lartu/No Sync/Katalyn"
+STDLIB_LOCATION = os.path.abspath(os.path.dirname(__file__))
 
 
 class ScopeSearchType(Enum):
