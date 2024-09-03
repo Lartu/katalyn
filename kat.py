@@ -270,7 +270,7 @@ class Token:
         if self.type == LexType.TABLE:
             return '"TABLE"'
         else:
-            return str(self.value).replace('"', '\\"').replace('\n', '\\n')
+            return str(self.value).replace('\\', '\\\\').replace('"', '\\"').replace('\n', '\\n')
         
     def get_var_name(self) -> str:
         """"Returns a nambly formated variable name (without the $)

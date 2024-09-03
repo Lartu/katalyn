@@ -1,4 +1,4 @@
-datetime();
+print("\\\\");
 
 (*def Point;
     $point_prototype: table;

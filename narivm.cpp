@@ -743,6 +743,22 @@ Command split_command_arguments(const string &line, const size_t full_line_numbe
             {
                 current_token += '\t';
             }
+            else if (ch == 'r')
+            {
+                current_token += '\r';
+            }
+            else if (ch == 'b')
+            {
+                current_token += '\b';
+            }
+            else if (ch == 'f')
+            {
+                current_token += '\f';
+            }
+            else if (ch == 'v')
+            {
+                current_token += '\v';
+            }
             else
             {
                 current_token += ch;
