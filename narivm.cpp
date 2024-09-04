@@ -408,10 +408,10 @@ private:
     }
 
 public:
-    void set_string_value(const string &value)
+    void set_string_value(string value)
     {
         reset_values();
-        this->str_rep = value;
+        this->str_rep = std::move(value);
         this->type = TEXT;
         has_str_rep = true;
     }
@@ -1392,7 +1392,7 @@ void execute_code_listing(vector<Command> &code_listing)
             Value v1 = pop(command);
             Value result;
             string join_result = v1.get_as_string() + v2.get_as_string();
-            result.set_string_value(join_result);
+            result.set_string_value(std::move(join_result));
             push(std::move(result));
             break;
         }
@@ -1406,7 +1406,7 @@ void execute_code_listing(vector<Command> &code_listing)
             {
                 idx_from -= 1;
             }
-            result.set_string_value(substring(val_str, idx_from, idx_count));
+            result.set_string_value(std::move(substring(val_str, idx_from, idx_count)));
             push(std::move(result));
             break;
         }
@@ -1417,7 +1417,7 @@ void execute_code_listing(vector<Command> &code_listing)
             string haystack = pop(command).get_as_string();
             Value result;
             replace_all(haystack, needle, replacement);
-            result.set_string_value(haystack);
+            result.set_string_value(std::move(haystack));
             push(std::move(result));
             break;
         }
@@ -1577,7 +1577,7 @@ void execute_code_listing(vector<Command> &code_listing)
                     }
                     if (idx >= table.get_as_string().size())
                     {
-                        result.set_string_value("");
+                        result.set_string_value(std::move(""));
                         push(std::move(result));
                     }
                     if (idx < 0)
@@ -1586,10 +1586,10 @@ void execute_code_listing(vector<Command> &code_listing)
                     }
                     if (idx < 0)
                     {
-                        result.set_string_value("");
+                        result.set_string_value(std::move(""));
                         push(std::move(result));
                     }
-                    result.set_string_value(table.get_as_string().substr(idx, 1));
+                    result.set_string_value(std::move(table.get_as_string().substr(idx, 1)));
                     push(std::move(result));
                 }
             }
@@ -1653,7 +1653,7 @@ void execute_code_listing(vector<Command> &code_listing)
         case Opcode::ACCP:
         {
             Value result;
-            result.set_string_value(input());
+            result.set_string_value(std::move(input()));
             push(std::move(result));
             break;
         }
@@ -1816,7 +1816,7 @@ void execute_code_listing(vector<Command> &code_listing)
                     file_contents += line;
                 }
                 Value result;
-                result.set_string_value(file_contents);
+                result.set_string_value(std::move(file_contents));
                 push(std::move(result));
             }
             break;
@@ -1865,7 +1865,7 @@ void execute_code_listing(vector<Command> &code_listing)
                 if (getline(*file, line))
                 {
                     Value result;
-                    result.set_string_value(line);
+                    result.set_string_value(std::move(line));
                     push(std::move(result));
                 }
                 else
@@ -1948,7 +1948,7 @@ void execute_code_listing(vector<Command> &code_listing)
         case Opcode::TRIM:
         {
             Value result;
-            result.set_string_value(trim(pop(command).get_as_string()));
+            result.set_string_value(std::move(trim(pop(command).get_as_string())));
             push(std::move(result));
             break;
         }
@@ -2037,9 +2037,9 @@ void execute_code_listing(vector<Command> &code_listing)
             Value exit_code_value;
             exit_code_value.set_number_value(return_code);
             Value stderr_value;
-            stderr_value.set_string_value(stderr_str);
+            stderr_value.set_string_value(std::move(stderr_str));
             Value stdout_value;
-            stdout_value.set_string_value(stdout_str);
+            stdout_value.set_string_value(std::move(stdout_str));
             push(exit_code_value);
             push(stderr_value);
             push(stdout_value);
