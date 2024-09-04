@@ -24,6 +24,7 @@
 #include <set>
 #include <sys/stat.h>
 #include "tiny-process-library/process.hpp"
+#include "linenoise.hpp"
 
 using namespace std;
 using namespace TinyProcessLib;
@@ -1070,10 +1071,14 @@ queue<string> multisplit(const string &haystack, const vector<string> &delimiter
     return result;
 }
 
-string input()
+string input(const string& prompt)
 {
-    string user_input;
-    getline(cin, user_input);
+    string user_input = "";
+    //getline(cin, user_input);
+    linenoise::SetHistoryMaxLen(20);
+    // Constant Prompt
+    linenoise::Readline(prompt.c_str(), user_input);
+    linenoise::AddHistory(user_input.c_str());
     return user_input;
 }
 
@@ -1652,8 +1657,9 @@ void execute_code_listing(vector<Command> &code_listing)
         }
         case Opcode::ACCP:
         {
+            Value prompt = pop(command);
             Value result;
-            result.set_string_value(input());
+            result.set_string_value(input(prompt.get_as_string()));
             push(std::move(result));
             break;
         }

@@ -1084,7 +1084,7 @@ def parse_command_in(command_token: Token, args: List[Token], global_var: bool) 
 
     # Compile righthand side
     if not right_side:
-        parse_error("Empty right side for 'in' statement.", command_token.line, command_token.file)
+        parse_error("Empty right side for 'in' statement (are you using '=' instead of ':'?)", command_token.line, command_token.file)
     else:
         value_compiled_code += "\n" + compile_expression(right_side)
 
@@ -1176,9 +1176,13 @@ def parse_command_print(command_token: Token, args_list: List[List[Token]]) -> s
     
 
 def parse_command_accept(command_token: Token, args_list: List[List[Token]]) -> str:
+    if len(args_list) > 1:
+        parse_error(f"Wrong number of arguments for function '{command_token.value}' (expected 0 or 1).", command_token.line, command_token.file)
     compiled_code: str = ""
-    if args_list:
-        compiled_code += "\n" + parse_command_printc(command_token, args_list)
+    if len(args_list) >= 1:  # Default Prompt
+        compiled_code += "\n" + compile_expression(args_list[0])
+    else:
+        compiled_code += '\nPUSH ""'
     compiled_code += "\nACCP"
     return compiled_code
 

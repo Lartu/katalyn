@@ -11,6 +11,16 @@ def array;
     return $_;
 ok;
 
+def tuple;
+    # Generates a table with every value in $_ as its keys and 1s as its values.
+    # For use with ::.
+    $tuple: table;
+    for $_;
+        $tuple[$_[$_r]]: 1;
+    ok;
+    return $tuple;
+ok;
+
 def in_array;
 (** Returns if $_[1] is found in the array table $_[2]. **)
     in $needle: $_[1];
