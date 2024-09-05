@@ -449,7 +449,7 @@ public:
     void set_iterator_value()
     {
         reset_values();
-        this->iterator_elements = new queue<string>();
+        this->iterator_elements = std::make_shared<queue<string>>();
         this->type = ITER;
     }
 
@@ -465,7 +465,7 @@ public:
 
     queue<string> *get_iterator_queue()
     {
-        return iterator_elements;
+        return iterator_elements.get();
     }
 
     const string &get_raw_string_value() const
