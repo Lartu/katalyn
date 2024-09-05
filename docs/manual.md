@@ -126,6 +126,8 @@ Multiline comments in Katalyn can be nested, meaning you can place one multiline
 
 ## 8.3 – Arrays
 
+## 8.4 – Table Prototyping
+
 # 9 – Working with Multiple Files
 
 # 10 – Katalyn Compiler Flags
