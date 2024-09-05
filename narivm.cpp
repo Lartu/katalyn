@@ -401,7 +401,7 @@ private:
     string str_rep;
     double num_rep;
     shared_ptr<map<string, Value>> table_rep;
-    queue<string> *iterator_elements;
+    shared_ptr<queue<string> /**/> iterator_elements;
 
     void reset_values()
     {
