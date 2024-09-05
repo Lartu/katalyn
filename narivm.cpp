@@ -577,6 +577,8 @@ private:
     vector<Value> arguments;
     const size_t line_number;
     const string filename;
+    // Only for branch instructions
+    size_t branch_target;
 
 public:
     Command(const string command, const size_t line_number, const string filename) : opcode(opcode_from_string(command)), line_number(line_number), filename(filename) {};
@@ -609,6 +611,17 @@ public:
     const string get_file() const
     {
         return filename;
+    }
+
+    // Use only for branch instructions
+    size_t get_branch_target() const
+    {
+        return branch_target;
+    }
+
+    void set_branch_target(size_t pc)
+    {
+        branch_target = pc;
     }
 };
 
@@ -864,6 +877,18 @@ vector<Command> generate_label_map_and_code_listing(const string &code)
         {
             code_listing.push_back(split_command_arguments(line, full_source_line_number, full_source_filename));
             ++pc;
+        }
+    }
+    for (auto &command: code_listing)
+    {
+        switch (command.get_opcode())
+        {
+        case Opcode::JUMP:
+        case Opcode::JPIF:
+        case Opcode::CALL:
+            pc = label_to_pc[command.get_arguments()[0].get_raw_string_value()] - 1;
+            command.set_branch_target(pc);
+        default: break;
         }
     }
     return code_listing;
@@ -1481,13 +1506,13 @@ void execute_code_listing(vector<Command> &code_listing)
         }
         case Opcode::JUMP:
         {
-            pc = label_to_pc[command.get_arguments()[0].get_raw_string_value()] - 1;
+            pc = command.get_branch_target();
             break;
         }
         case Opcode::CALL:
         {
             return_stack.push(pc);
-            pc = label_to_pc[command.get_arguments()[0].get_raw_string_value()] - 1;
+            pc = command.get_branch_target();
             break;
         }
         case Opcode::RTRN:
@@ -1510,25 +1535,25 @@ void execute_code_listing(vector<Command> &code_listing)
             {
                 if (num_eq(value.get_as_number(), 0))
                 {
-                    pc = label_to_pc[command.get_arguments()[0].get_raw_string_value()] - 1;
+                    pc = command.get_branch_target();
                 }
             }
             else if (value.get_type() == NIL)
             {
-                pc = label_to_pc[command.get_arguments()[0].get_raw_string_value()] - 1;
+                pc = command.get_branch_target();
             }
             else if (value.get_type() == TABLE)
             {
                 if ((*value.get_table()).size() == 0)
                 {
-                    pc = label_to_pc[command.get_arguments()[0].get_raw_string_value()] - 1;
+                    pc = command.get_branch_target();
                 }
             }
             else if (value.get_type() == TEXT)
             {
                 if (value.get_as_string().empty())
                 {
-                    pc = label_to_pc[command.get_arguments()[0].get_raw_string_value()] - 1;
+                    pc = command.get_branch_target();
                 }
             }
             else
