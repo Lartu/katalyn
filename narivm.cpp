@@ -23,8 +23,8 @@
 #include <fstream>
 #include <set>
 #include <sys/stat.h>
-#include "tiny-process-library/process.hpp"
-#include "linenoise.hpp"
+#include "lib/tiny-process-library/process.hpp"
+#include "lib/linenoise.hpp"
 
 using namespace std;
 using namespace TinyProcessLib;

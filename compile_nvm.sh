@@ -7,7 +7,7 @@ echo "Compiling NariVM"
 g++ -std=c++17 narivm.cpp -c -o narivm.o $optimization
 
 echo "Building Tiny Process Library"
-processdir="tiny-process-library"
+processdir="lib/tiny-process-library"
 g++ -std=c++17 "$processdir/process.cpp" -c -o process.o $optimization
 g++ -std=c++17 "$processdir/process_unix.cpp" -c -o process_unix.o $optimization
 
