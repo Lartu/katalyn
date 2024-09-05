@@ -399,7 +399,7 @@ private:
     string str_rep;
     double num_rep;
     map<string, Value> *table_rep; // TODO: this is probably a huge memory leak lol
-    queue<string> *iterator_elements;
+    shared_ptr<queue<string>> iterator_elements;
 
     void reset_values()
     {
@@ -447,7 +447,7 @@ public:
     void set_iterator_value()
     {
         reset_values();
-        this->iterator_elements = new queue<string>();
+        this->iterator_elements = std::make_shared<queue<string>>();
         this->type = ITER;
     }
 
@@ -463,7 +463,7 @@ public:
 
     queue<string> *get_iterator_queue()
     {
-        return iterator_elements;
+        return iterator_elements.get();
     }
 
     const string &get_raw_string_value() const
