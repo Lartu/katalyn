@@ -39,6 +39,8 @@ using namespace TinyProcessLib;
 size_t pc = 0; // Program Counter
 void raise_nvm_error(string error_message);
 
+extern const char __attribute__((weak)) user_code[] = "";
+
 string get_type_name(char type)
 {
     switch (type)
@@ -398,8 +400,8 @@ private:
     bool has_str_rep;
     string str_rep;
     double num_rep;
-    map<string, Value> *table_rep; // TODO: this is probably a huge memory leak lol
-    shared_ptr<queue<string>> iterator_elements;
+    shared_ptr<map<string, Value>> table_rep;
+    queue<string> *iterator_elements;
 
     void reset_values()
     {
@@ -428,7 +430,7 @@ public:
     void set_table_value()
     {
         reset_values();
-        this->table_rep = new map<string, Value>();
+        this->table_rep = std::make_shared<map<string, Value>>();
         this->type = TABLE;
     }
 
@@ -458,7 +460,7 @@ public:
 
     map<string, Value> *get_table()
     {
-        return table_rep;
+        return table_rep.get();
     }
 
     queue<string> *get_iterator_queue()
@@ -575,6 +577,8 @@ private:
     vector<Value> arguments;
     const size_t line_number;
     const string filename;
+    // Only for branch instructions
+    size_t branch_target;
 
 public:
     Command(const string command, const size_t line_number, const string filename) : opcode(opcode_from_string(command)), line_number(line_number), filename(filename) {};
@@ -607,6 +611,17 @@ public:
     const string get_file() const
     {
         return filename;
+    }
+
+    // Use only for branch instructions
+    size_t get_branch_target() const
+    {
+        return branch_target;
+    }
+
+    void set_branch_target(size_t pc)
+    {
+        branch_target = pc;
     }
 };
 
@@ -862,6 +877,18 @@ vector<Command> generate_label_map_and_code_listing(const string &code)
         {
             code_listing.push_back(split_command_arguments(line, full_source_line_number, full_source_filename));
             ++pc;
+        }
+    }
+    for (auto &command: code_listing)
+    {
+        switch (command.get_opcode())
+        {
+        case Opcode::JUMP:
+        case Opcode::JPIF:
+        case Opcode::CALL:
+            pc = label_to_pc[command.get_arguments()[0].get_raw_string_value()] - 1;
+            command.set_branch_target(pc);
+        default: break;
         }
     }
     return code_listing;
@@ -1479,13 +1506,13 @@ void execute_code_listing(vector<Command> &code_listing)
         }
         case Opcode::JUMP:
         {
-            pc = label_to_pc[command.get_arguments()[0].get_raw_string_value()] - 1;
+            pc = command.get_branch_target();
             break;
         }
         case Opcode::CALL:
         {
             return_stack.push(pc);
-            pc = label_to_pc[command.get_arguments()[0].get_raw_string_value()] - 1;
+            pc = command.get_branch_target();
             break;
         }
         case Opcode::RTRN:
@@ -1508,25 +1535,25 @@ void execute_code_listing(vector<Command> &code_listing)
             {
                 if (num_eq(value.get_as_number(), 0))
                 {
-                    pc = label_to_pc[command.get_arguments()[0].get_raw_string_value()] - 1;
+                    pc = command.get_branch_target();
                 }
             }
             else if (value.get_type() == NIL)
             {
-                pc = label_to_pc[command.get_arguments()[0].get_raw_string_value()] - 1;
+                pc = command.get_branch_target();
             }
             else if (value.get_type() == TABLE)
             {
                 if ((*value.get_table()).size() == 0)
                 {
-                    pc = label_to_pc[command.get_arguments()[0].get_raw_string_value()] - 1;
+                    pc = command.get_branch_target();
                 }
             }
             else if (value.get_type() == TEXT)
             {
                 if (value.get_as_string().empty())
                 {
-                    pc = label_to_pc[command.get_arguments()[0].get_raw_string_value()] - 1;
+                    pc = command.get_branch_target();
                 }
             }
             else
@@ -1557,9 +1584,10 @@ void execute_code_listing(vector<Command> &code_listing)
             string index_string = index.get_as_string();
             if (table.get_type() == TABLE)
             {
-                if ((*table.get_table()).count(index_string)) // TODO usar count no es eficiente at all porque no para al encontrarlo
+                auto it = table.get_table()->find(index_string);
+                if (it != table.get_table()->end())
                 {
-                    push((*table.get_table())[index_string]);
+                    push(it->second);
                 }
                 else
                 {
@@ -2172,14 +2200,17 @@ void read_source(string filename, string &output)
 
 int main(int argc, char *argv[])
 {
-    vector<string> args(argv, argv + argc);
-    if (args.size() != 2)
+    string code = user_code;
+    if (code.empty())
     {
-        cerr << "Usage: narivm <nambly_file>" << endl;
-        exit(1);
+        vector<string> args(argv, argv + argc);
+        if (args.size() != 2)
+        {
+            cerr << "Usage: narivm <nambly_file>" << endl;
+            exit(1);
+        }
+        read_source(argv[1], code);
     }
-    string code;
-    read_source(argv[1], code);
     // cout << code << endl;
     vector<Command> code_listing = generate_label_map_and_code_listing(code);
     // print_command_listing(code_listing);
