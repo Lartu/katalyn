@@ -39,6 +39,8 @@ using namespace TinyProcessLib;
 size_t pc = 0; // Program Counter
 void raise_nvm_error(string error_message);
 
+extern const char __attribute__((weak)) user_code[] = "";
+
 string get_type_name(char type)
 {
     switch (type)
@@ -2172,14 +2174,17 @@ void read_source(string filename, string &output)
 
 int main(int argc, char *argv[])
 {
-    vector<string> args(argv, argv + argc);
-    if (args.size() != 2)
+    string code = user_code;
+    if (code.empty())
     {
-        cerr << "Usage: narivm <nambly_file>" << endl;
-        exit(1);
+        vector<string> args(argv, argv + argc);
+        if (args.size() != 2)
+        {
+            cerr << "Usage: narivm <nambly_file>" << endl;
+            exit(1);
+        }
+        read_source(argv[1], code);
     }
-    string code;
-    read_source(argv[1], code);
     // cout << code << endl;
     vector<Command> code_listing = generate_label_map_and_code_listing(code);
     // print_command_listing(code_listing);
