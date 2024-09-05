@@ -400,7 +400,7 @@ private:
     bool has_str_rep;
     string str_rep;
     double num_rep;
-    map<string, Value> *table_rep; // TODO: this is probably a huge memory leak lol
+    shared_ptr<map<string, Value>> table_rep;
     queue<string> *iterator_elements;
 
     void reset_values()
@@ -430,7 +430,7 @@ public:
     void set_table_value()
     {
         reset_values();
-        this->table_rep = new map<string, Value>();
+        this->table_rep = std::make_shared<map<string, Value>>();
         this->type = TABLE;
     }
 
@@ -460,7 +460,7 @@ public:
 
     map<string, Value> *get_table()
     {
-        return table_rep;
+        return table_rep.get();
     }
 
     queue<string> *get_iterator_queue()
