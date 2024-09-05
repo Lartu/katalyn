@@ -1584,9 +1584,10 @@ void execute_code_listing(vector<Command> &code_listing)
             string index_string = index.get_as_string();
             if (table.get_type() == TABLE)
             {
-                if ((*table.get_table()).count(index_string)) // TODO usar count no es eficiente at all porque no para al encontrarlo
+                auto it = table.get_table()->find(index_string);
+                if (it != table.get_table()->end())
                 {
-                    push((*table.get_table())[index_string]);
+                    push(it->second);
                 }
                 else
                 {
