@@ -127,6 +127,26 @@ ok;
 
 ## 4.1 – Explicit Variable Scoping
 
+As mentioned in the previous section, when assigning a value to a variable within a function, if the variable doesn’t exist in that function’s local scope, a new variable will be created there. This can effectively shadow variables from the outer scope.
+
+To explicitly tell Katalyn that you want to modify a variable from the global scope, thereby preventing shadowing, you can use the `global` statement instead of `in`.
+
+Example:
+
+```
+$foo: 50;
+print($foo);  # Will print 50
+
+def set_global;
+    global $foo: 100;
+ok;
+
+set_global();
+print($foo);  # Will print 100
+```
+
+The `global` statement can also be used to declare global variables from within functions.
+
 ## 4.2 – Unsafe Variables
 
 ## 4.3 – Magic Variables
