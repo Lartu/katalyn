@@ -63,7 +63,7 @@ Comments are used to annotate the code, making it easier to understand for anyon
 
 Katalyn supports two types of comments: line comments and multiline comments.
 
-Line comments: These are created by placing a `#` symbol at the beginning of the line. Everything after the `#` on that line is ignored by the compiler.
+Line comments: These are created by placing a `#` symbol at the beginning of the line. Everything after the `#` on that line is ignored by the compiler. It's not needed to add a `;` to end a line comment, unlike other lines of code.
 
 Example:
 
@@ -71,13 +71,15 @@ Example:
 # This is a line comment
 ```
 
-Multiline comments: These are enclosed between `(*` and `*)`. Anything between these symbols is ignored, allowing for comments that span multiple lines.
+Multiline comments: These are enclosed between `(*` and `*)`. Anything between these symbols is ignored, allowing for comments that span multiple lines. Again, a `;` is not needed in a multiline comment (although you may need to add it if the comment is in the middle of another line).
 
 Example:
 
 ```
 (* This is a
 multiline comment *)
+
+$a: (* You can also add comments in the middle of other statements *) 3 + 3;
 ```
 
 Multiline comments in Katalyn can be nested, meaning you can place one multiline comment inside another.
