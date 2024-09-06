@@ -25,7 +25,7 @@ Katalyn is a case-sensitive language.
 
 ## 3.2 – Datatypes
 
-Katalyn is an operator-typed language, meaning values themselves don’t have types, but the operations do. This means values are handled differently depending on the operation. That said, you’ll typically work with four primary data types: numbers, texts, tables, and the nil value.
+Katalyn is an operator-typed language, meaning values themselves don’t have types, but the operations do. The only datatype Katalyn uses is the “value,” which gets cast between type representations as operators dictate. As a result, values are handled differently depending on the operation. In practice, however, this means you’ll typically work with four primary data types: numbers, texts, tables, and the nil value.
 
 Number: Represents real numbers, stored internally as binary64 double-precision floating-point numbers, as defined by the IEEE 754 standard.
 
@@ -86,6 +86,45 @@ Multiline comments in Katalyn can be nested, meaning you can place one multiline
 
 # 4 – Variable Declaration and Assignment
 
+Variables in Katalyn are explicitly declared when you first assign a value to them. There’s no need to declare their type, as Katalyn is dynamically typed, and thus the type is based on the current value stored in the variable. To assign a value to a variable, use the `in` statement, followed by the variable name, a colon (`:`), and an expression.
+
+Example:
+
+```
+in $foo: 18 * 9 - 1;
+in $bar: "The result is: " & $foo;
+```
+
+The `in` statement is optional. You can also declare and set values to variables without it:
+
+```
+$foo: 18 * 9 - 1;
+$bar: "The result is: " & $foo;
+```
+
+Variables are declared, by default, in the scope they are in. Variables declared outside function definitions become part of the global scope, while variables declared inside functions become part of the function’s local scope (unless explicitly declared otherwise). When a scope ceases to exist, any variables within that scope are destroyed. It’s important to note that if a table (which is passed by reference) is shared between two variables, and one of those variables ceases to exist while the other does not, the table itself will not be destroyed.
+
+When accessing a variable in a function’s local scope, Katalyn first looks for it in the local scope. If it’s not found, the search moves to the global scope. If it’s still not found, an error is raised.
+
+```
+$foo: 50;
+
+def my_function;
+    print($foo);  # Will print 50
+ok;
+```
+
+When assigning a value to a variable within a function, if the variable doesn’t exist in the local scope, a new variable will be created there, regardless of whether a variable with the same name exists in the global scope. It’s important to note that “shadowing” a global variable in this way prevents access to the global variable’s value.
+
+```
+$foo: 50;
+
+def my_function;
+    $foo: "Hello World!";
+    print($foo);  # Will print Hello World!
+ok;
+```
+
 ## 4.1 – Explicit Variable Scoping
 
 ## 4.2 – Unsafe Variables
@@ -133,3 +172,5 @@ Multiline comments in Katalyn can be nested, meaning you can place one multiline
 # 9 – Working with Multiple Files
 
 # 10 – Katalyn Compiler Flags
+
+# 11 – Style Conventions
