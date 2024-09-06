@@ -34,9 +34,9 @@ RESULT_VAR = "$_r"
 FLAGS_VAR = "$_args"
 EXEC_STDOUT_VAR = "$_stdout"
 EXEC_STDERR_VAR = "$_stderr"
+EXEC_EXITCODE_VAR = "$_exitcode"
 CALLER_VAR = "$_caller"
 CONTEXT_VAR = "$_context"
-EXEC_EXITCODE_VAR = "$_exitcode"
 STDLIB_LOCATION = os.path.abspath(os.path.dirname(__file__))
 
 
@@ -1219,6 +1219,7 @@ def parse_command_del(command_token: Token, args_list: List[List[Token]]) -> str
     compiled_code += "\n" + compile_expression(args_list[0])
     compiled_code += "\n" + compile_expression(args_list[1])
     compiled_code += "\nPUST"
+    # TODO: Does this return anything? What happens if I assign this to a variable?
     return compiled_code
 
 
@@ -1233,6 +1234,7 @@ def parse_command_unset(command_token: Token, args_list: List[List[Token]]) -> s
             parse_error(f"Variable expected, got {arg[0]}.", arg[0].line, arg[0].file)
         compiled_code += f"\n UNST {global_compiler_state.get_var_identifier(arg[0], True)}"
         global_compiler_state.unset_variable(arg[0], False)
+    # TODO: Does this return anything? What happens if I assign this to a variable?
     return compiled_code
 
 
@@ -1267,6 +1269,7 @@ def parse_command_exit(command_token: Token, args_list: List[List[Token]]) -> st
         parse_error("Wrong number of arguments for function exit (expected 1).", command_token.line, command_token.file)
     compiled_code += "\n" + compile_expression(args_list[0])
     compiled_code += "\nEXIT"
+    # TODO: Does this return anything? What happens if I assign this to a variable?
     return compiled_code
 
 

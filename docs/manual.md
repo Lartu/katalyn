@@ -151,9 +151,77 @@ There’s no need to use `global` to read values from global variables. As long 
 
 ## 4.2 – Unsafe Variables
 
+In some situations, you may want to reference a variable before it’s been declared. Consider the following scenario:
+
+```
+def print_value;
+    print($my_value);  # <- Error here!
+ok;
+
+$my_value: "Hey!";
+print_value();
+```
+
+This will throw a compilation error because, when Katalyn starts compiling your code, it encounters `print($my_value);` before the declaration of `$my_value`. Even though `$my_value` is declared later, the compiler sees it too late.
+
+To make this code work, you’ll need to use the `unsafe(...)` command to explicitly tell Katalyn that you’re sure, very sure the variable will be declared by the time execution reaches that point.
+
+When using `unsafe(...)`, you’re taking full responsibility. Katalyn won’t raise an error if the variable doesn’t exist, but if it hasn’t been declared by that point, your program will likely crash.
+
+```
+def print_value;
+    print(unsafe($my_value));  # <- Error here!
+ok;
+
+$my_value: "Hey!";
+print_value();
+```
+
+The `unsafe(...)` command only makes sense when reading the value of a global variable. Writing to a global variable would implicitly declare it if it didn’t already exist.
+
 ## 4.3 – Magic Variables
 
+Katalyn implicitly declares some variables for you in certain contexts. These variables won’t appear in your code with an explicit value assignment, but you’ll still be able to read their values. Such variables are called “Magic Variables” and always start with the characters `$_`. For this reason, it’s good practice to avoid starting the names of your own variables with this sequence.
+
+The following magic variables exist: `$_`, `$_r`, `$_args`, `$_stdout`, `$_stderr`, `$_exitcode`, `$_caller` and `$_context`.
+
+Individual magic variables will be explained in full detail in the sections relevant to the contexts that create them.
+
+### 4.3.1 – `$_`
+
+This magic variable exists only within the local context of functions. It’s a table array that contains all the values passed to the function when it’s called. The first parameter is stored at index 1, the second at index 2, and so on.
+
+### 4.3.2 – `$_r`
+
+The “result” magic variable represents different things in different contexts, but it’s generally used in flow control blocks to store the result of the expression that led the code into the current block. For example, in an `if` block, the “result” magic variable will contain the result of the `if` guard expression.
+
+### 4.3.3 – `$_args`
+
+This magic variable is a table array that contains all the parameters passed to the Katalyn program. The first parameter is in position 1, the second in position 2, and so on. For example, if you call your script like this:
+
+```
+kat myscript.kat Arg1 Arg2 Arg3
+```
+
+The `$_args` variable will contain `"Arg1"` in `$_args[1]`, `"Arg2"` in `$_args[2]`, and `"Arg3"` in `$_args[3]`.
+
+### 4.3.4 – `$_stdout`, `$_stderr` and `$_exitcode`
+
+These magic variables contain the text standard output, text standard error output, and numeric exit code of an `exec(...)` subexecution, respectively.
+
+### 4.3.5 – `$_caller` and `$_context`
+
+These magic variables contain the string names of the context that called the current function and the name of the current context. In the global context, `$_context` will contain the empty string `""`. Inside functions, it will contain the name of the function. `$_caller` does not exist in the global scope, but within a function, it will contain the name of the context that called the current function. For example, if function `foo()` calls function `bar()`, the `$_caller` variable in `bar()` will contain the value `"foo"`.
+
 ## 4.4 – Undeclaring Variables
+
+If, for any reason, you want to make a variable cease to exist, you can use the `unset(...)` function. This can be useful, for instance, to unshadow global variables within the scope of a function.
+
+Example:
+
+```
+unset($foo);
+```
 
 # 5 – Expressions
 
@@ -161,13 +229,17 @@ There’s no need to use `global` to read values from global variables. As long 
 
 ## 5.2 – Function Calls
 
-# 6 – Function Definition and Calling
+# 6 – Function
 
-## 6.1 – Function Shadowing
+What are these?
 
-## 6.2 – Function Magic Variables
+## 6.1 – Definition and Calling
 
-## 6.3 – Built-in Functions
+## 6.2 – Function Shadowing
+
+## 6.3 – Function Magic Variables
+
+## 6.4 – Built-in Functions
 
 # 7 – Flow Control Structures
 
@@ -191,8 +263,10 @@ There’s no need to use `global` to read values from global variables. As long 
 
 ## 8.4 – Table Prototyping
 
-# 9 – Working with Multiple Files
+# 9 – File Reading and Writing
 
-# 10 – Katalyn Compiler Flags
+# 10 – Working with Multiple Katalyn Source Files
 
-# 11 – Style Conventions
+# 11 – Katalyn Compiler Flags
+
+# 12 – Style Conventions
