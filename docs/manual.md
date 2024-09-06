@@ -147,6 +147,8 @@ print($foo);  # Will print 100
 
 The `global` statement can also be used to declare global variables from within functions.
 
+There’s no need to use `global` to read values from global variables. As long as a variable with the same name doesn’t exist in the local scope of the function, accessing that variable will return the value stored in the global variable without any shadowing.
+
 ## 4.2 – Unsafe Variables
 
 ## 4.3 – Magic Variables
