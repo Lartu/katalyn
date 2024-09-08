@@ -645,7 +645,7 @@ void raise_nvm_error(string error_message)
     exit(1);
 }
 
-vector<map<string, Value> /**/> variable_tables;
+vector<unordered_map<string, Value> /**/> variable_tables;
 map<string, size_t> label_to_pc;
 map<size_t, string> pc_to_label;
 stack<Value> execution_stack;
@@ -912,7 +912,7 @@ Value pop(Command &command)
 
 void add_scope()
 {
-    variable_tables.push_back(map<string, Value>());
+    variable_tables.push_back(unordered_map<string, Value>());
 }
 
 void set_variable(const string &var_name, Value value)
@@ -962,13 +962,15 @@ const Value &get_variable(const string &var_name)
     if (!variable_tables.empty())
     {
         // TODO esta busqueda es ineficiente para variables en el scope global porque busca dos veces
-        if (variable_tables[variable_tables.size() - 1].count(var_name) > 0)
+        auto location = variable_tables[variable_tables.size() - 1].find(var_name);
+        if (location != variable_tables[variable_tables.size() - 1].end())
         {
-            return variable_tables[variable_tables.size() - 1][var_name];
+            return location->second;
         }
-        else if (variable_tables[0].count(var_name) > 0)
+	location = variable_tables[0].find(var_name);
+        if (location != variable_tables[0].end())
         {
-            return variable_tables[0][var_name];
+            return location->second;
         }
     }
     static Value nil_value;
