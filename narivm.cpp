@@ -126,6 +126,7 @@ enum Opcode : uint8_t
     FORE, // File Open for REad
     ISOP, // IS file OPen?
     ISNIL,
+    DEBUG,
 };
 
 Opcode opcode_from_string(string_view str)
@@ -194,6 +195,7 @@ Opcode opcode_from_string(string_view str)
         {"FORE", Opcode::FORE},
         {"ISOP", Opcode::ISOP},
         {"NIL?", Opcode::ISNIL},
+        {"DBUG", Opcode::DEBUG},
     };
     return str_to_opcode[str];
 }
@@ -362,6 +364,8 @@ string_view opcode_as_string(Opcode opcode)
         return "ISOP";
     case Opcode::ISNIL:
         return "NIL?";
+    case Opcode::DEBUG:
+        return "DBUG";
     default:
         raise_nvm_error("Unknown Nambly opcode");
     }
@@ -858,8 +862,15 @@ vector<Command> generate_label_map_and_code_listing(const string &code)
         {
             int jmp_pc_value = pc;
             string label_name = line.substr(1);
-            label_to_pc[label_name] = jmp_pc_value;
-            pc_to_label[pc] = label_name;
+            if (label_to_pc.find(label_name) == label_to_pc.end())
+            {
+                label_to_pc[label_name] = jmp_pc_value;
+                pc_to_label[pc] = label_name;
+            }
+            else
+            {
+                raise_nvm_error("Duplicate label: " + label_name);
+            }
             continue;
         }
         string sub = line.substr(0, 5);
@@ -879,7 +890,7 @@ vector<Command> generate_label_map_and_code_listing(const string &code)
             ++pc;
         }
     }
-    for (auto &command: code_listing)
+    for (auto &command : code_listing)
     {
         switch (command.get_opcode())
         {
@@ -888,7 +899,8 @@ vector<Command> generate_label_map_and_code_listing(const string &code)
         case Opcode::CALL:
             pc = label_to_pc[command.get_arguments()[0].get_raw_string_value()] - 1;
             command.set_branch_target(pc);
-        default: break;
+        default:
+            break;
         }
     }
     return code_listing;
@@ -967,7 +979,7 @@ const Value &get_variable(const string &var_name)
         {
             return location->second;
         }
-	location = variable_tables[0].find(var_name);
+        location = variable_tables[0].find(var_name);
         if (location != variable_tables[0].end())
         {
             return location->second;
@@ -1100,10 +1112,10 @@ queue<string> multisplit(const string &haystack, const vector<string> &delimiter
     return result;
 }
 
-string input(const string& prompt)
+string input(const string &prompt)
 {
     string user_input = "";
-    //getline(cin, user_input);
+    // getline(cin, user_input);
     linenoise::SetHistoryMaxLen(20);
     // Constant Prompt
     linenoise::Readline(prompt.c_str(), user_input);
@@ -2171,6 +2183,24 @@ void execute_code_listing(vector<Command> &code_listing)
                 }
                 push(std::move(result));
             }
+            break;
+        }
+        case Opcode::DEBUG:
+        {
+            cout << "NariVM Debug Output:" << endl;
+            cout << "--- Variables ---" << endl;
+            for (size_t scope = 0; scope < variable_tables.size(); ++scope)
+            {
+                cout << "Variable scope #" << scope << endl;
+                for (auto it = variable_tables[scope].begin(); it != variable_tables[scope].end(); ++it)
+                {
+                    cout << "[" << it->first << "] =>" << it->second.get_as_string();
+                }
+            }
+            cout << "--- Return Stack ---" << endl;
+            cout << "Size: " << return_stack.size() << endl;
+            cout << "--- Execution Stack ---" << endl;
+            cout << "Size: " << execution_stack.size() << endl;
             break;
         }
         default:

@@ -54,6 +54,7 @@ class CompilerState:
         self.__open_loop_tags: List[Tuple[str, str]] = []
         self.__function_to_labels: Dict[str, Tuple[str, str]] = {}
         self.__expected_functions: Dict[str, Token, Tuple[str, str]] = {}
+        self.shadower_functions: List[Tuple[str, str]] = []  # Must be ordered. Thus, a list.
         self.add_scope()
 
     def add_open_loop(self, start_label: str, end_label: str) -> None:
@@ -164,11 +165,22 @@ class CompilerState:
         #    parse_error(f"Duplicate function declaration for '{function_name}'.", caller_command.line, caller_command.file)
         self.__function_to_labels[function_name] = (start_label, end_label, post_label)
 
-    def get_function_label(self, caller_command: Token) -> Tuple[str, str]:
+    def get_function_label(self, caller_command: Token, force_new: bool = False) -> Tuple[str, str]:
         function_name: str = caller_command.value
-        if function_name not in self.__function_to_labels:
-            if function_name in self.__expected_functions:
-                return self.__expected_functions[caller_command.value][1]
+        if function_name not in self.__function_to_labels or force_new:
+            if force_new and function_name in self.__function_to_labels:
+                #parse_error(
+                #    f"Redefining function '{caller_command.value}'.",
+                #    caller_command.line,
+                #    caller_command.file,
+                #)
+                self.shadower_functions.append((caller_command.value, self.__function_to_labels[caller_command.value]))
+                # This function                 ^^^ is a shadower to  ^^^ this function
+                # The proper way to add function shadowing would be to replace all jumps and calls
+                # to the previous function with calls to the new one
+            if not force_new:  # The force new logic doesn't make sense in function calls, only defs.
+                if function_name in self.__expected_functions:
+                    return self.__expected_functions[caller_command.value][1]
             block_number: int = self.block_count
             self.block_count += 1
             start_label: str = f"FUN_{block_number}_START"
@@ -1670,7 +1682,7 @@ def parse_command_def(command_token: Token, args: List[Token]) -> str:
     if len(args) != 1:
         parse_error(f"Unexpected token in def line '{args[1].value}'.", args[1].line, args[1].file)
     global_compiler_state.add_scope()
-    start_tag, end_tag, post_tag = global_compiler_state.get_function_label(args[0])
+    start_tag, end_tag, post_tag = global_compiler_state.get_function_label(args[0], force_new=True)
     compiled_code: str = ""
     block_end_code: str = ""
     compiled_code += f"\nJUMP {post_tag}"
@@ -1801,6 +1813,7 @@ def parse_command_import(command_token: Token, args: List[Token]) -> str:
             parse_error(f"Expected a static string argument for command '{command_token.value}'.", command_token.line, command_token.file)
         else:
             path = get_relative_path(command_token.file, args[0].value.strip())
+            compiled_code += f"\n;\n;\n; --- Imported File: '{path}' ---\n;\n;"
             compiled_code += "\n" + file_to_nambly(path)
     return compiled_code
 
@@ -1928,6 +1941,10 @@ if __name__ == "__main__":
     else:
         full_nambly += "\n" + file_to_nambly(filename)
     nambly = stylize_namby(full_nambly)
+    # Replace shadowed functions
+    for shadow_tuple in global_compiler_state.shadower_functions:
+        shadower_function, shadowed_function = shadow_tuple
+        nambly = nambly.replace(f"CALL {shadowed_function}", f"CALL {shadower_function}")
     if print_ir:
         print(nambly)
     else:
