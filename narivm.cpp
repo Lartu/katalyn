@@ -1,10 +1,4 @@
 // -- NariVM for Katalyn in C++ by Lartu (25G24 00:17) --
-// This is a naïve NariVM implementation that not only does not
-// compile comands (it instead parses them every time), but it also
-// does not efficiently handle variables or anything. The point of this
-// NariVM version is to have a faster implementation than the Python
-// one, where other smaller optimizations can be implemented until we
-// can migrate NariVM to a better architecture.
 
 #include <iostream>
 #include <map>
