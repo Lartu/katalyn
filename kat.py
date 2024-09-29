@@ -81,12 +81,15 @@ class CompilerState:
     def add_scope(self) -> None:
         self.__declared_variables.append({})
 
-    def del_scope(self) -> str:
+    def del_scope(self, command_token: Token) -> str:
         """Deletes a variable scope only if the current scope is that of a function
         """
         compiled_code: str = ""
-        if self.__block_end_code_stack[-1][1].value in self.__function_to_labels:
-            self.__declared_variables.pop()
+        if self.__block_end_code_stack:
+            if self.__block_end_code_stack[-1][1].value in self.__function_to_labels:
+                self.__declared_variables.pop()
+        else:
+            parse_error(f"Unexpected '{command_token.value}'. Do you have mismatched blocks?", command_token.line, command_token.file)
         return compiled_code
 
     def get_var_identifier(self, var: Token, fail_if_not_found: bool, scope_type: ScopeSearchType = ScopeSearchType.LOCAL_AND_GLOBAL, unsafe: bool = False) -> Optional[str]:
@@ -1569,7 +1572,7 @@ def parse_command_ok(command_token: Token, args: List[Token]) -> str:
         parse_error(f"Unexpected arguments for command '{command_token.value}'.", command_token.line, command_token.file)
     compiled_code: str = ""
     global_compiler_state.close_open_loop()
-    compiled_code += global_compiler_state.del_scope()
+    compiled_code += global_compiler_state.del_scope(command_token)
     block_end_data = global_compiler_state.get_block_end_data(command_token)
     compiled_code += block_end_data[0]
     if block_end_data[1].type == LexType.WORD and block_end_data[1].value in ("if", "elif", "else"):

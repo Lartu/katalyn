@@ -681,3 +681,12 @@ def datetime;
     $time{sec}: $tokens[9];
     return $time;
 ok;
+
+def dataset;
+    # Creates a table with its keys being every element in $_ and each with a value of $true.
+    $set: table;
+    for $_;
+        $set[$_[$_r]]: $true;
+    ok;
+    return $set;
+ok;
