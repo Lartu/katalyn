@@ -41,13 +41,19 @@ def print_arr;
     in $i: 1;
     printc("(");
     until $i > len($array);
+        printc("<");
         printc($array[$i]);
+        printc(">");
         $i: $i + 1;
         unless $i > len($array);
             printc(", ");
         ok;
     ok;
     print(")");
+ok;
+
+def arrprint;
+    print_arr($_[1]);
 ok;
 
 def ceil;
@@ -689,4 +695,69 @@ def dataset;
         $set[$_[$_r]]: $true;
     ok;
     return $set;
+ok;
+
+def arrdataset;
+    # Creates a table with its keys being every element in the array $_[1] and each with a value of $true.
+    $set: table;
+    for $_[1];
+        $set[$_[1][$_r]]: $true;
+    ok;
+    return $set;
+ok;
+
+def sort;
+    # Sorts $_[1] an array of values from lower to higher. If $_[2] is true, the table is sorted
+    # from higher to lower.
+    in $array: $_[1];
+    if is($_[2]);
+        in $low_to_high: $_[2];
+    else;
+        in $low_to_high: $true;
+    ok;
+    in $i: 1;
+    in $j: 2;
+    until $i = len($array);
+        until $j = len($array) + 1;
+            if $low_to_high;
+                if $array[$j] < $array[$i];
+                    in $swap: $array[$i];
+                    in $array[$i]: $array[$j];
+                    in $array[$j]: $swap;
+                ok;
+            else;
+                if $array[$j] > $array[$i];
+                    in $swap: $array[$i];
+                    in $array[$i]: $array[$j];
+                    in $array[$j]: $swap;
+                ok;
+            ok;
+            in $j: $j + 1;
+        ok;
+        in $i: $i + 1;
+        in $j: $i + 1;
+    ok;
+    return $array;
+ok;
+
+def abs;
+    # Turns $_[1] into a number and returns its absolute value.
+    in $num: to_num($_[1]);
+    if $num < 0;
+        in $num: -$num;
+    ok;
+    return $num;
+ok;
+
+def arrcount;
+    # Given an array of values $_[1] and a value $_[2], counts how many times the value appears in the array.
+    in $array: $_[1];
+    in $value: $_[2];
+    in $count: 0;
+    for $array;
+        if $array[$_r] = $value;
+            in $count: $count + 1;
+        ok;
+    ok;
+    return $count;
 ok;
