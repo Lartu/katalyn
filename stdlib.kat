@@ -761,3 +761,17 @@ def arrcount;
     ok;
     return $count;
 ok;
+
+def in_range;
+    # If $min <= $value <= $max
+    $min: $_[1];
+    $value: $_[2];
+    $max: $_[3];
+    if $value < $min;
+        return $false;
+    ok;
+    if $value > $max;
+        return $false;
+    ok;
+    return $true;
+ok;
