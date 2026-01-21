@@ -26,7 +26,7 @@ import random
 import os
 
 VERSION = "0.1.0"
-OPERATOR_PRESEDENCE = ("*", "^", "/", "%", "//", "+", "&", "-", "::", "!", "<", ">", "<=", ">=", "<>", "!=", "=", "||", "&&")
+OPERATOR_PRECEDENCE = ("*", "^", "/", "%", "//", "+", "&", "-", "::", "!", "<", ">", "<=", ">=", "<>", "!=", "=", "||", "&&")
 LOOP_TAGS = ("while", "until", "for")
 NON_DEF_BLOCK_TAGS = ("if", "unless", "while", "until")
 ARGS_VAR = "$_"
@@ -601,7 +601,7 @@ def lex_tokens(tokenized_lines: List[List[Token]]) -> List[List[Token]]:
                 token.type = LexType.INTEGER
             elif is_float(token.value):
                 token.type = LexType.FLOAT
-            elif token.value in OPERATOR_PRESEDENCE:
+            elif token.value in OPERATOR_PRECEDENCE:
                 token.type = LexType.OPERATOR
             elif is_valid_identifier(token.value):
                 token.type = LexType.WORD
@@ -663,7 +663,7 @@ def compile_expression(expr_tokens: List[Token], discard_return_value: bool = Fa
             if operator is None:
                 operator = token
             else:
-                if OPERATOR_PRESEDENCE.index(operator.value) <= OPERATOR_PRESEDENCE.index(token.value):
+                if OPERATOR_PRECEDENCE.index(operator.value) <= OPERATOR_PRECEDENCE.index(token.value):
                     left_side_tokens.append(operator)
                     left_side_tokens += right_side_tokens
                     right_side_tokens = []
