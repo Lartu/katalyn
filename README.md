@@ -11,3 +11,6 @@ writing console scripts, calling APIs or parsing text, Katalyn helps you get thi
 
 > [!NOTE]  
 > I'm literally working on this README right now (July 26 2026), come back later!
+
+> [!CAUTION]  
+> Katalyn is not production ready in any way, form or universe.
