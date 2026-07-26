@@ -1,0 +1,79 @@
+import "assert.kat";
+
+$branch: "";
+if 0;
+    $branch: "wrong";
+elif 1;
+    $branch: "elif";
+else;
+    $branch: "wrong";
+ok;
+check($branch = "elif", "if/elif/else");
+
+$unless_value: 0;
+unless 0;
+    $unless_value: 1;
+ok;
+check($unless_value = 1, "unless");
+
+$i: 0;
+$sum: 0;
+while $i < 5;
+    $i: $i + 1;
+    if $i = 3;
+        continue;
+    ok;
+    $sum: $sum + $i;
+ok;
+check($sum = 12, "while and continue");
+
+$until_count: 0;
+until $until_count = 4;
+    $until_count: $until_count + 1;
+ok;
+check($until_count = 4, "until");
+
+$values: table;
+$values[1]: 4;
+$values[2]: 5;
+$values[3]: 6;
+$for_sum: 0;
+for $values;
+    $for_sum: $for_sum + $values[$_r];
+ok;
+check($for_sum = 15, "for table");
+
+$letters: "";
+for "abc";
+    $letters: $letters & "abc"[$_r];
+ok;
+check($letters = "abc", "for text");
+
+$lines: table;
+$lines[1]: "";
+$lines[2]: 0;
+$lines[3]: "done";
+$position: 1;
+$present_count: 0;
+whileis $lines[$position];
+    $present_count: $present_count + 1;
+    $position: $position + 1;
+ok;
+check($present_count = 3, "whileis tests presence rather than truth");
+
+$outer: 0;
+$visits: 0;
+while $outer < 3;
+    $outer: $outer + 1;
+    $inner: 0;
+    while $inner < 3;
+        $inner: $inner + 1;
+        $visits: $visits + 1;
+        if $outer = 2 && $inner = 2;
+            break 2;
+        ok;
+    ok;
+ok;
+check($visits = 5, "break depth");
+
+finish("control-flow-ok");

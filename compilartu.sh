@@ -1,6 +1,11 @@
-set -e
+#!/bin/sh
 
-sh compile_nvm.sh
-sh compile_kat.sh
+set -eu
 
-echo 'print("Katalyn compilation successful!");' | kat -s
+script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+install_prefix=${PREFIX:-"$HOME"}
+
+make -C "$script_dir"
+make -C "$script_dir" install PREFIX="$install_prefix"
+
+"$install_prefix/bin/katalyn" -n -a 'print("Katalyn compilation successful!");'

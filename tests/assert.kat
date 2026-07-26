@@ -1,0 +1,19 @@
+# Shared helpers for compatibility tests.
+$test_checks: 0;
+$test_failures: 0;
+
+def check;
+    global $test_checks: $test_checks + 1;
+    unless $_[1];
+        global $test_failures: $test_failures + 1;
+        print("FAIL: ", $_[2]);
+    ok;
+ok;
+
+def finish;
+    if $test_failures;
+        print("FAILED ", $test_failures, " of ", $test_checks, " checks");
+        exit(1);
+    ok;
+    print($_[1]);
+ok;

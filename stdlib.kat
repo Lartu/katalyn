@@ -36,18 +36,17 @@ def in_array;
 ok;
 
 def print_arr;
-(** Prints an array, sorted. **)
+(** Prints an array in iteration order. Empty and sparse tables are supported. **)
     in $array: $_[1];
-    in $i: 1;
+    in $first: $true;
     printc("(");
-    until $i > len($array);
-        printc("<");
-        printc($array[$i]);
-        printc(">");
-        $i: $i + 1;
-        unless $i > len($array);
+    for $array;
+        $key: $_r;
+        unless $first;
             printc(", ");
         ok;
+        printc("<", $array[$key], ">");
+        $first: $false;
     ok;
     print(")");
 ok;
@@ -57,8 +56,13 @@ def arrprint;
 ok;
 
 def ceil;
-(** Rounds $_[1] to the nearest higher integer. **)
-    return floor($_[1]) + 1;
+(** Returns the least integer greater than or equal to $_[1]. **)
+    $value: 0 + $_[1];
+    $result: floor($value);
+    if $result = $value;
+        return $result;
+    ok;
+    return $result + 1;
 ok;
 
 def append;
@@ -316,12 +320,16 @@ ok;
 
 def shift_arr;
 (** Shifts the array $_[1] a number of $_[2] times to the left. For example, if [a, b, c] is shifted one
-time, it becomes [b, c, a]. If it's shifted twice, it becomes [c, a, b]. **)
+time, it becomes [b, c, a]. If it's shifted twice, it becomes [c, a, b].
+The array is changed in place and returned. **)
     $array: $_[1];
     $max: len($array);
+    if $max = 0;
+        return $array;
+    ok;
     $count: $_[2] % $max;
     if $count <= 0;
-        return;
+        return $array;
     ok;
     until $count = 0;
         $index: 1;
@@ -333,6 +341,7 @@ time, it becomes [b, c, a]. If it's shifted twice, it becomes [c, a, b]. **)
         $array[$max]: $swap;
         $count: $count - 1;
     ok;
+    return $array;
 ok;
 
 def ucasec;
@@ -593,8 +602,9 @@ def to_num;
 ok;
 
 def last;
-    # Returns the last value of an array
-    return $_[len($_)];
+    # Returns the last value of the array in $_[1], or nil if it is empty.
+    $array: $_[1];
+    return $array[len($array)];
 ok;
 
 def call_api;
@@ -658,7 +668,7 @@ def wssplit;
     if is($_[3]);
         $ignore: $_[3];
     ok;
-    return explode($_[1], arr(" ", "\n", "\t"), $max, $ignore);
+    return explode($_[1], arr(" ", "\n", "\t"), $max, !$ignore);
 ok;
 
 def datetime;

@@ -1,0 +1,70 @@
+import "assert.kat";
+
+$record: table;
+$record{name}: "Katalyn";
+$record["year"]: 2026;
+check(len($record) = 2, "table entry count");
+check($record{name} = "Katalyn", "brace key access");
+check($record["year"] = 2026, "bracket key access");
+check("name" :: $record, "table contains key");
+check(!("missing" :: $record), "table lacks key");
+check(!is($record{missing}), "missing key is nil");
+
+$key: "dynamic";
+$record[$key]: 17;
+check($record{dynamic} = 17, "dynamic key assignment");
+check(set($record{dynamic}, 18) = 18, "set returns assigned table value");
+check($record{dynamic} = 18, "set mutates table place");
+
+$same: $record;
+check($same = $record, "table identity equality");
+$same{name}: "Changed";
+check($record{name} = "Changed", "table assignment shares reference");
+
+$different: table;
+$different{name}: "Changed";
+$different{year}: 2026;
+$different{dynamic}: 18;
+check($different != $record, "separate tables are not identical");
+
+del($record, "dynamic");
+check(!("dynamic" :: $record), "del removes key");
+check(len($record) = 2, "del updates table length");
+
+$nested: table;
+$nested{inner}: table;
+$nested{inner}{value}: 42;
+check($nested{inner}{value} = 42, "nested table assignment");
+
+$array: table;
+$array[1]: "one";
+$array[2]: "two";
+$array[3]: "three";
+check(len($array) = 3, "dense array length");
+check($array[2] = "two", "dense array access");
+
+$key_source: table;
+$key_source{beta}: 2;
+$key_source{alpha}: 1;
+$key_count: len($key_source);
+$key_list: keys($key_source);
+check(len($key_list) = 2, "keys result length");
+check($key_list[1] = "alpha", "keys first lexical key");
+check($key_list[2] = "beta", "keys second lexical key");
+check(len($key_source) = $key_count, "keys does not change source length");
+check(!("1" :: $key_source), "keys does not insert numeric source entries");
+$key_list[1]: "changed";
+check($key_list[1] = "changed", "keys result can be changed independently");
+check("alpha" :: $key_source, "mutating keys result leaves source untouched");
+
+$numeric_order: "";
+$mixed: table;
+$mixed[10]: "ten";
+$mixed[2]: "two";
+$mixed{z}: "zee";
+for $mixed;
+    $numeric_order: $numeric_order & $_r & ",";
+ok;
+check($numeric_order = "2,10,z,", "iteration orders numeric keys numerically");
+
+finish("tables-ok");

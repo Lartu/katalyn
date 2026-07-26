@@ -1,0 +1,39 @@
+import "assert.kat";
+
+$calls: 0;
+$missing: table;
+
+def touch;
+    global $calls: $calls + 1;
+    return $_[1];
+ok;
+
+# Both operators normalize their result to 0 or 1.
+check((0 && 1) = 0, "false AND true");
+check((1 && 2) = 1, "true AND true");
+check((0 || 0) = 0, "false OR false");
+check((0 || 2) = 1, "false OR true");
+
+# The right operand must not run when the left side decides the result.
+check((0 && touch(1)) = 0, "AND short-circuit result");
+check($calls = 0, "AND skipped its right operand");
+check((1 || touch(0)) = 1, "OR short-circuit result");
+check($calls = 0, "OR skipped its right operand");
+
+# The right operand still runs when it is needed.
+check((1 && touch(1)) = 1, "AND evaluates a needed right operand");
+check($calls = 1, "AND right-operand side effect");
+check((0 || touch(1)) = 1, "OR evaluates a needed right operand");
+check($calls = 2, "OR right-operand side effect");
+
+# These would terminate or fail if evaluated.
+check((0 && exit(91)) = 0, "AND skips exit");
+check((1 || exit(92)) = 1, "OR skips exit");
+check((0 && $missing{value}{nested}) = 0, "AND skips invalid nil indexing");
+check((1 || $missing{value}{nested}) = 1, "OR skips invalid nil indexing");
+
+# Nested logical expressions leave exactly one normalized value.
+check(((1 && 1) && (0 || 1)) = 1, "nested logical expressions");
+check((!($missing{value}) && (1 || 0)) = 1, "nil and nested logic");
+
+finish("short-circuit-ok");

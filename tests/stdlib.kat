@@ -1,0 +1,80 @@
+import "assert.kat";
+
+$a: arr(3, 1, 2, 1);
+check(len($a) = 4, "arr");
+append($a, 4);
+check($a[5] = 4, "append");
+check(in_array(2, $a) = 3, "in_array");
+check(arrcount($a, 1) = 2, "arrcount");
+sort($a);
+check(arrjoin($a, ",") = "1,1,2,3,4", "sort ascending and arrjoin");
+sort($a, $false);
+check(arrjoin($a, ",") = "4,3,2,1,1", "sort descending");
+
+$t: init_table("a", 1, "b", 2);
+check($t{a} = 1 && $t{b} = 2, "init_table");
+$copy: prototype($t);
+check($copy != $t, "prototype creates a new outer table");
+check($copy{a} = 1, "prototype copies values");
+
+$set: dataset("red", "green");
+check("red" :: $set, "dataset");
+$arrset: arrdataset(arr("x", "y"));
+check("y" :: $arrset, "arrdataset");
+$membership: tuple("cat", "dog");
+check("cat" :: $membership, "tuple");
+
+check(join("a", 2, "c") = "a2c", "join");
+check(join_with("-", "a", "b", "c") = "a-b-c", "join_with");
+check(index("katalyn", "tal") = 3, "index");
+check(starts_with("katalyn", "kat"), "starts_with");
+check(ends_with("katalyn", "lyn"), "ends_with");
+check(is_whitespace(" \n\t"), "is_whitespace");
+check(ltrim("  x") = "x", "ltrim whitespace");
+check(rtrim("x  ") = "x", "rtrim whitespace");
+check(trim("  x \n") = "x", "trim whitespace");
+
+check(ucase("Katalyn 2") = "KATALYN 2", "ucase");
+check(lcase("KATALYN 2") = "katalyn 2", "lcase");
+check(ucasefirst("hELLO") = "Hello", "ucasefirst");
+check(title("hELLO wORLD") = "Hello World", "title");
+
+check(is_numeric("-12.5"), "is_numeric valid");
+check(!is_numeric("12x"), "is_numeric invalid");
+check(to_num("12.5") = 12.5, "to_num valid");
+check(to_num("no") = 0, "to_num fallback");
+check(abs(-9) = 9, "abs");
+check(in_range(1, 3, 3), "in_range inclusive");
+check(plural(1) = "", "plural singular default");
+check(plural(2) = "s", "plural plural default");
+check(plural(1, " item", " items") = " item", "plural custom singular");
+
+check(ceil(2) = 2, "ceil exact positive integer");
+check(ceil(2.2) = 3, "ceil positive fraction");
+check(ceil(-2) = -2, "ceil exact negative integer");
+check(ceil(-2.2) = -2, "ceil negative fraction");
+
+$with_empties: wssplit(" a  b ");
+check(len($with_empties) = 5, "wssplit keeps empties by default");
+check($with_empties[1] = "" && $with_empties[3] = "" &&
+      $with_empties[5] = "", "wssplit default empty fields");
+$without_empties: wssplit(" a  b ", -1, $true);
+check(len($without_empties) = 2, "wssplit ignore-empty flag");
+check($without_empties[1] = "a" && $without_empties[2] = "b",
+      "wssplit ignored empty fields");
+
+$shifted: arr(1, 2, 3);
+$shift_result: shift_arr($shifted, 1);
+check($shift_result = $shifted, "shift_arr returns its array");
+check(arrjoin($shifted, ",") = "2,3,1", "shift_arr rotates left");
+check(shift_arr($shifted, 0) = $shifted, "shift_arr zero count returns array");
+$empty_array: arr();
+check(shift_arr($empty_array, 4) = $empty_array,
+      "shift_arr safely returns an empty array");
+check(len($empty_array) = 0, "shift_arr leaves empty array empty");
+
+check(last(arr("first", "middle", "last")) = "last",
+      "last returns final array value");
+check(!is(last(arr())), "last of empty array is nil");
+
+finish("stdlib-ok");

@@ -1,8 +1,4 @@
 
 .DS_Store
-__pycache__/narivm.cpython-312.pyc
-/__pycache__
-kat.bin
-/kat.dist
-narivm
 *.o
+/build/

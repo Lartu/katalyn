@@ -1,0 +1,27 @@
+import "assert.kat";
+import "fixtures/imported.kat";
+
+check(imported_value() = "import-ok", "relative import");
+check(len($_args) = 2, "command-line argument count");
+check($_args[1] = "alpha", "first command-line argument");
+check($_args[2] = "beta", "second command-line argument");
+
+$input: open_r("tests/fixtures/input.txt");
+check(is_open($input), "open_r");
+check(read_line($input) = "first", "read_line first line");
+check(read_line($input) = "second", "read_line second line");
+check(!is(read_line($input)), "read_line EOF is nil");
+close($input);
+check(!is_open($input), "close");
+
+$output: open_rw("build/katalyn-test-output.txt");
+check(is_open($output), "open_rw");
+check(write($output, "hello") = "hello", "write return value");
+write($output, "\nworld");
+close($output);
+
+$output: open_r("build/katalyn-test-output.txt");
+check(read($output) = "hello\nworld", "write then read whole file");
+close($output);
+
+finish("io-import-ok");

@@ -1,0 +1,17 @@
+in $values: table;
+in $values[1]: 2;
+in $values[2]: 3;
+
+def sum;
+    in $total: 0;
+    for $_[1];
+        in $total: $total + $_[1][$_r];
+    ok;
+    return $total;
+ok;
+
+if sum($values) = 5;
+    print("core-ok");
+else;
+    print("core-failed");
+ok;

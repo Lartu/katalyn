@@ -1,0 +1,7 @@
+print_arr(arr());
+print_arr(arr("a", "b"));
+
+$sparse: table;
+$sparse[3]: "three";
+$sparse[1]: "one";
+print_arr($sparse);

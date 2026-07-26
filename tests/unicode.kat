@@ -1,0 +1,41 @@
+import "assert.kat";
+
+$text: "á猫🙂";
+check(len($text) = 3, "Unicode length counts code points");
+check($text[1] = "á", "two-byte code point indexing");
+check($text[2] = "猫", "three-byte code point indexing");
+check($text[3] = "🙂", "four-byte code point indexing");
+check($text[-1] = "🙂", "negative Unicode indexing");
+check($text[-2] = "猫", "negative Unicode indexing from end");
+check($text[4] = "", "Unicode positive index out of range");
+check($text[-4] = "", "Unicode negative index out of range");
+
+check(substr($text, 2, 2) = "猫🙂", "Unicode substring");
+check(substr($text, -2, 1) = "猫", "negative Unicode substring");
+check(substr($text, 2) = "猫🙂", "Unicode substring to end");
+
+$rebuilt: "";
+$visited: 0;
+for $text;
+    $rebuilt: $rebuilt & $text[$_r];
+    $visited: $visited + 1;
+ok;
+check($visited = 3, "Unicode text iteration count");
+check($rebuilt = $text, "Unicode text iteration values");
+
+check(index("a🙂b", "🙂") = 2, "standard-library index uses code points");
+check(ucase("héllo猫🙂") = "HéLLO猫🙂",
+      "ASCII case conversion preserves non-ASCII code points");
+
+# Code-point semantics deliberately differ from grapheme-cluster semantics.
+check(len("é") = 2, "combining sequence contains two code points");
+check(len("👨‍👩‍👧‍👦") = 7, "emoji family contains seven code points");
+
+# Byte-oriented native operations still preserve valid UTF-8 sequences.
+check(replace("á猫á", "á", "🙂") = "🙂猫🙂", "Unicode replacement");
+$pieces: split("á|猫|🙂", "|");
+check(len($pieces) = 3, "Unicode split field count");
+check($pieces[1] = "á" && $pieces[2] = "猫" && $pieces[3] = "🙂",
+      "Unicode split preserves fields");
+
+finish("unicode-ok");

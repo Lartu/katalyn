@@ -1,0 +1,30 @@
+# Nil is an absence sentinel: it is false and negates to true, but it does not
+# compare equal to anything, including another nil value.
+$source: table;
+$passed: 1;
+
+# nil used as a condition is false.
+if $source{missing};
+    $passed: 0;
+ok;
+
+# !nil is true.
+unless !$source{missing};
+    $passed: 0;
+ok;
+
+# nil = nil is false.
+if $source{missing} = $source{also_missing};
+    $passed: 0;
+ok;
+
+# nil != nil is true.
+unless $source{missing} != $source{also_missing};
+    $passed: 0;
+ok;
+
+if $passed;
+    print("nil-truth-ok");
+else;
+    print("nil-truth-failed");
+ok;

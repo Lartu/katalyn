@@ -11,6 +11,7 @@
 #include <cctype>
 #include <cmath>
 #include <limits>
+#include <memory>
 #include <thread>
 #include <chrono>
 #include <queue>
@@ -32,8 +33,6 @@ using namespace TinyProcessLib;
 
 size_t pc = 0; // Program Counter
 void raise_nvm_error(string error_message);
-
-extern const char __attribute__((weak)) user_code[] = "";
 
 string get_type_name(char type)
 {
@@ -390,6 +389,82 @@ string double_to_string(double value)
     }
 }
 
+bool is_utf8_continuation(unsigned char byte)
+{
+    return byte >= 0x80 && byte <= 0xBF;
+}
+
+vector<size_t> build_utf8_offsets(const string &text)
+{
+    vector<size_t> offsets;
+    offsets.reserve(text.size() + 1);
+    offsets.push_back(0);
+
+    size_t i = 0;
+    while (i < text.size())
+    {
+        const unsigned char first = static_cast<unsigned char>(text[i]);
+        size_t width = 1;
+
+        if (first >= 0xC2 && first <= 0xDF && i + 1 < text.size() &&
+            is_utf8_continuation(static_cast<unsigned char>(text[i + 1])))
+        {
+            width = 2;
+        }
+        else if (first == 0xE0 && i + 2 < text.size() &&
+                 static_cast<unsigned char>(text[i + 1]) >= 0xA0 &&
+                 static_cast<unsigned char>(text[i + 1]) <= 0xBF &&
+                 is_utf8_continuation(static_cast<unsigned char>(text[i + 2])))
+        {
+            width = 3;
+        }
+        else if (((first >= 0xE1 && first <= 0xEC) ||
+                  (first >= 0xEE && first <= 0xEF)) &&
+                 i + 2 < text.size() &&
+                 is_utf8_continuation(static_cast<unsigned char>(text[i + 1])) &&
+                 is_utf8_continuation(static_cast<unsigned char>(text[i + 2])))
+        {
+            width = 3;
+        }
+        else if (first == 0xED && i + 2 < text.size() &&
+                 static_cast<unsigned char>(text[i + 1]) >= 0x80 &&
+                 static_cast<unsigned char>(text[i + 1]) <= 0x9F &&
+                 is_utf8_continuation(static_cast<unsigned char>(text[i + 2])))
+        {
+            width = 3;
+        }
+        else if (first == 0xF0 && i + 3 < text.size() &&
+                 static_cast<unsigned char>(text[i + 1]) >= 0x90 &&
+                 static_cast<unsigned char>(text[i + 1]) <= 0xBF &&
+                 is_utf8_continuation(static_cast<unsigned char>(text[i + 2])) &&
+                 is_utf8_continuation(static_cast<unsigned char>(text[i + 3])))
+        {
+            width = 4;
+        }
+        else if (first >= 0xF1 && first <= 0xF3 && i + 3 < text.size() &&
+                 is_utf8_continuation(static_cast<unsigned char>(text[i + 1])) &&
+                 is_utf8_continuation(static_cast<unsigned char>(text[i + 2])) &&
+                 is_utf8_continuation(static_cast<unsigned char>(text[i + 3])))
+        {
+            width = 4;
+        }
+        else if (first == 0xF4 && i + 3 < text.size() &&
+                 static_cast<unsigned char>(text[i + 1]) >= 0x80 &&
+                 static_cast<unsigned char>(text[i + 1]) <= 0x8F &&
+                 is_utf8_continuation(static_cast<unsigned char>(text[i + 2])) &&
+                 is_utf8_continuation(static_cast<unsigned char>(text[i + 3])))
+        {
+            width = 4;
+        }
+
+        // Invalid UTF-8 is deliberately consumed one byte at a time. This
+        // keeps arbitrary file and subprocess data indexable without crashes.
+        i += width;
+        offsets.push_back(i);
+    }
+    return offsets;
+}
+
 class Value
 {
 private:
@@ -400,12 +475,14 @@ private:
     double num_rep;
     shared_ptr<map<string, Value>> table_rep;
     shared_ptr<queue<string> /**/> iterator_elements;
+    shared_ptr<vector<size_t>> utf8_offsets;
 
     void reset_values()
     {
         has_num_rep = false;
         has_str_rep = false;
         table_rep = nullptr;
+        utf8_offsets = nullptr;
     }
 
 public:
@@ -415,6 +492,7 @@ public:
         this->str_rep = value;
         this->type = TEXT;
         has_str_rep = true;
+        utf8_offsets = make_shared<vector<size_t>>();
     }
 
     void set_number_value(double value)
@@ -423,6 +501,7 @@ public:
         this->num_rep = value;
         this->type = NUMB;
         has_num_rep = true;
+        utf8_offsets = make_shared<vector<size_t>>();
     }
 
     void set_table_value()
@@ -528,6 +607,25 @@ public:
         }
     }
 
+    const vector<size_t> &get_utf8_offsets()
+    {
+        const string &text = get_as_string();
+        if (!utf8_offsets)
+        {
+            utf8_offsets = make_shared<vector<size_t>>();
+        }
+        if (utf8_offsets->empty())
+        {
+            *utf8_offsets = build_utf8_offsets(text);
+        }
+        return *utf8_offsets;
+    }
+
+    size_t get_codepoint_count()
+    {
+        return get_utf8_offsets().size() - 1;
+    }
+
     double get_as_number()
     {
         if (has_num_rep)
@@ -601,7 +699,7 @@ public:
         return debug_string;
     }
 
-    const size_t get_line_number() const
+    size_t get_line_number() const
     {
         return line_number;
     }
@@ -984,9 +1082,11 @@ const Value &get_variable(const string &var_name)
     return nil_value;
 }
 
-string substring(const string &s, long long from, long long count)
+string substring(Value &value, long long from, long long count)
 {
-    long long len = s.size();
+    const string &text = value.get_as_string();
+    const vector<size_t> &offsets = value.get_utf8_offsets();
+    long long len = static_cast<long long>(value.get_codepoint_count());
 
     // Handle negative indices
     if (from < 0)
@@ -1013,8 +1113,9 @@ string substring(const string &s, long long from, long long count)
     // Adjust `count` so that it doesn't go out of bounds
     count = min(count, len - from);
 
-    // Return the substring
-    return s.substr(from, count);
+    const size_t byte_from = offsets[static_cast<size_t>(from)];
+    const size_t byte_to = offsets[static_cast<size_t>(from + count)];
+    return text.substr(byte_from, byte_to - byte_from);
 }
 
 queue<string> split(const string &haystack, const string &delimiter, long long max_splits, bool add_empty)
@@ -1440,13 +1541,13 @@ void execute_code_listing(vector<Command> &code_listing)
         {
             long long idx_count = pop(command).get_as_number();
             long long idx_from = pop(command).get_as_number();
-            string val_str = pop(command).get_as_string();
+            Value value = pop(command);
             Value result;
             if (idx_from > 0)
             {
                 idx_from -= 1;
             }
-            result.set_string_value(substring(val_str, idx_from, idx_count));
+            result.set_string_value(substring(value, idx_from, idx_count));
             push(std::move(result));
             break;
         }
@@ -1611,26 +1712,30 @@ void execute_code_listing(vector<Command> &code_listing)
                 else
                 {
                     Value result;
-                    size_t idx = floor(index.get_as_number());
+                    long long idx = static_cast<long long>(floor(index.get_as_number()));
+                    const string &text = table.get_as_string();
+                    const vector<size_t> &offsets = table.get_utf8_offsets();
+                    const long long length =
+                        static_cast<long long>(table.get_codepoint_count());
                     if (idx > 0)
                     {
                         idx -= 1;
                     }
-                    if (idx >= table.get_as_string().size())
-                    {
-                        result.set_string_value("");
-                        push(std::move(result));
-                    }
                     if (idx < 0)
                     {
-                        idx = table.get_as_string().size() + idx;
+                        idx = length + idx;
                     }
-                    if (idx < 0)
+                    if (idx < 0 || idx >= length)
                     {
                         result.set_string_value("");
-                        push(std::move(result));
                     }
-                    result.set_string_value(table.get_as_string().substr(idx, 1));
+                    else
+                    {
+                        const size_t position = static_cast<size_t>(idx);
+                        const size_t byte_from = offsets[position];
+                        const size_t byte_to = offsets[position + 1];
+                        result.set_string_value(text.substr(byte_from, byte_to - byte_from));
+                    }
                     push(std::move(result));
                 }
             }
@@ -1950,7 +2055,11 @@ void execute_code_listing(vector<Command> &code_listing)
         {
             Value value = pop(command);
             Value result;
-            if (value.get_type() == TABLE)
+            if (value.get_type() == NIL)
+            {
+                result.set_number_value(1);
+            }
+            else if (value.get_type() == TABLE)
             {
                 result.set_number_value((*value.get_table()).size() > 0 ? 0 : 1);
             }
@@ -2004,7 +2113,7 @@ void execute_code_listing(vector<Command> &code_listing)
             }
             else if (value.get_type() == TEXT || value.get_type() == NUMB)
             {
-                result.set_number_value(value.get_as_string().size()); // No es Unicode friendly esto! TODO
+                result.set_number_value(value.get_codepoint_count());
             }
             else
             {
@@ -2106,10 +2215,9 @@ void execute_code_listing(vector<Command> &code_listing)
                 size_t index = 1;
                 for (auto it = value.get_table()->begin(); it != value.get_table()->end(); ++it)
                 {
-                    // Idea: I can use it->second here to add the values as well to the table maybe
                     Value key;
                     key.set_string_value(it->first);
-                    (*value.get_table())[double_to_string(index)] = key;
+                    (*result.get_table())[double_to_string(index)] = key;
                     ++index;
                 }
                 push(std::move(result));
@@ -2138,7 +2246,7 @@ void execute_code_listing(vector<Command> &code_listing)
             }
             else if (container.get_type() == TEXT || container.get_type() == NUMB)
             {
-                for (size_t i = 0; i < container.get_as_string().size(); ++i)
+                for (size_t i = 0; i < container.get_codepoint_count(); ++i)
                 {
                     string character = double_to_string(i + 1);
                     result.get_iterator_queue()->push(character);
@@ -2204,42 +2312,9 @@ void execute_code_listing(vector<Command> &code_listing)
     }
 }
 
-void read_source(string filename, string &output)
+int execute_nambly(const string &code)
 {
-    fstream file(filename, ios::in);
-    if (!file.is_open())
-    {
-        cerr << "File not found: " << filename << endl;
-        exit(1);
-    }
-    output = "";
-    string line;
-    while (getline(file, line))
-    {
-        if (!output.empty())
-        {
-            output += "\n";
-        }
-        output += line;
-    }
-}
-
-int main(int argc, char *argv[])
-{
-    string code = user_code;
-    if (code.empty())
-    {
-        vector<string> args(argv, argv + argc);
-        if (args.size() != 2)
-        {
-            cerr << "Usage: narivm <nambly_file>" << endl;
-            exit(1);
-        }
-        read_source(argv[1], code);
-    }
-    // cout << code << endl;
     vector<Command> code_listing = generate_label_map_and_code_listing(code);
-    // print_command_listing(code_listing);
     execute_code_listing(code_listing);
     return 0;
 }

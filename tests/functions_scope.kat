@@ -1,0 +1,64 @@
+import "assert.kat";
+
+def add_all;
+    $total: 0;
+    for $_;
+        $total: $total + $_[$_r];
+    ok;
+    return $total;
+ok;
+
+check(add_all(1, 2, 3, 4) = 10, "variadic arguments");
+
+def no_value;
+    return;
+ok;
+
+check(!is(no_value()), "bare return produces nil");
+
+def implicit_nil;
+    $local: 1;
+ok;
+
+check(!is(implicit_nil()), "implicit return produces nil");
+
+$global_value: 10;
+def change_scopes;
+    $global_value: 99;
+    global $changed_global: 20;
+    return $global_value;
+ok;
+
+check(change_scopes() = 99, "local shadows global");
+check($global_value = 10, "ordinary function assignment remains local");
+check($changed_global = 20, "global assignment escapes function");
+
+def factorial;
+    if $_[1] <= 1;
+        return 1;
+    ok;
+    return $_[1] * factorial($_[1] - 1);
+ok;
+
+check(factorial(6) = 720, "recursion");
+
+def context_name;
+    return $_context;
+ok;
+
+check(context_name() = "context_name", "function context name");
+
+$shared: table;
+$shared{x}: 1;
+def mutate;
+    $_[1]{x}: 2;
+ok;
+mutate($shared);
+check($shared{x} = 2, "table argument reference semantics");
+
+$temporary: 7;
+unset($temporary);
+check(!is(unsafe($temporary)), "unset removes a variable");
+check(!is(unsafe($never_declared)), "unsafe permits absent variable probe");
+
+finish("functions-scope-ok");

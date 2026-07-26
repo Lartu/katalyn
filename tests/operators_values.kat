@@ -1,0 +1,63 @@
+import "assert.kat";
+
+# Arithmetic.
+check(2 + 3 = 5, "addition");
+check(7 - 4 = 3, "subtraction");
+check(6 * 7 = 42, "multiplication");
+check(7 / 2 = 3.5, "division");
+check(7 // 2 = 3, "floor division");
+check(7 % 4 = 3, "remainder");
+check(2 ^ 5 = 32, "power");
+check((-5) + 8 = 3, "unary minus");
+check((2 + 3) * 4 = 20, "parenthesized arithmetic");
+
+# Comparisons and scalar conversion.
+check(3 < 4, "less than");
+check(4 > 3, "greater than");
+check(3 <= 3, "less than or equal");
+check(3 >= 3, "greater than or equal");
+check(3 = "3", "numeric equality conversion");
+check("cat" = "cat", "text equality");
+check("cat" != "dog", "text inequality");
+check(("ab" & 12) = "ab12", "concatenation");
+
+# Truthiness and logical normalization.
+$empty: table;
+$full: table;
+$full{x}: 1;
+check(!0, "zero is false");
+check(!"", "empty text is false");
+check(!$empty, "empty table is false");
+check(!(!7), "nonzero number is true");
+check(!(!"x"), "nonempty text is true");
+check(!(!$full), "nonempty table is true");
+
+# Text membership, indexing, length, and native text operations.
+check("pha" :: "alphabet", "substring membership");
+check(!("xyz" :: "alphabet"), "substring non-membership");
+check("abc"[1] = "a", "one-based text indexing");
+check("abc"[3] = "c", "last text index");
+check("abc"[9] = "", "out-of-range text indexing");
+check("abc"[-1] = "c", "negative text indexing");
+check("abc"[-4] = "", "negative out-of-range text indexing");
+check(len("Katalyn") = 7, "text length");
+check(len(12.5) = 4, "number display length");
+check(substr("abcdef", 2, 3) = "bcd", "substring with length");
+check(substr("abcdef", 4) = "def", "substring to end");
+check(substr("abcdef", -2, 2) = "ef", "negative substring start");
+check(replace("one two one", "one", "1") = "1 two 1", "replace all");
+
+$parts: split("a,,b", ",");
+check(len($parts) = 3, "split keeps empty fields by default");
+check($parts[1] = "a", "split first field");
+check($parts[2] = "", "split empty field");
+check($parts[3] = "b", "split last field");
+
+$delimiters: table;
+$delimiters[1]: ",";
+$delimiters[2]: ";";
+$many: explode("a,b;c", $delimiters, -1, 0);
+check(len($many) = 3, "explode field count");
+check($many[2] = "b", "explode multiple delimiters");
+
+finish("operators-values-ok");

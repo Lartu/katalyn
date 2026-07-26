@@ -1,0 +1,1202 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>Katalyn Programming Language — Complete Reference</title>
+  <style>
+    :root {
+      --ink: #302b28;
+      --muted: #6d625b;
+      --paper: #fbf7ed;
+      --paper-2: #f3ead8;
+      --line: #d8cbb5;
+      --accent: #c64f2f;
+      --accent-dark: #82331e;
+      --nav: #252221;
+      --nav-ink: #f8edda;
+      --code: #211f1e;
+      --code-ink: #f5ead7;
+      --note: #fff0bf;
+      --warn: #f8d7ce;
+      --ok: #dcebd9;
+    }
+
+    * { box-sizing: border-box; }
+
+    html {
+      scroll-behavior: smooth;
+      background: var(--paper);
+    }
+
+    body {
+      margin: 0;
+      color: var(--ink);
+      background: var(--paper);
+      font: 17px/1.68 Georgia, "Times New Roman", serif;
+    }
+
+    a { color: var(--accent-dark); }
+    a:hover { color: var(--accent); }
+
+    .sidebar {
+      position: fixed;
+      inset: 0 auto 0 0;
+      width: 286px;
+      overflow-y: auto;
+      padding: 30px 24px 45px;
+      color: var(--nav-ink);
+      background: var(--nav);
+      border-right: 6px solid var(--accent);
+    }
+
+    .sidebar a { color: #ead8bd; text-decoration: none; }
+    .sidebar a:hover { color: #fff; text-decoration: underline; }
+    .sidebar .brand {
+      display: block;
+      margin: 0 0 4px;
+      color: #fff;
+      font: 700 27px/1.1 Georgia, serif;
+      letter-spacing: .02em;
+    }
+    .sidebar .edition {
+      margin: 0 0 24px;
+      color: #c8b9a5;
+      font: italic 14px/1.4 Georgia, serif;
+    }
+    .sidebar ol {
+      margin: 0;
+      padding-left: 22px;
+      font: 14px/1.45 Arial, Helvetica, sans-serif;
+    }
+    .sidebar li { margin: 7px 0; }
+    .sidebar .small {
+      margin-top: 28px;
+      color: #a99a88;
+      font: 12px/1.5 Arial, sans-serif;
+    }
+
+    main {
+      max-width: 1080px;
+      margin-left: 286px;
+      padding: 64px 72px 120px;
+    }
+
+    header {
+      padding: 10px 0 38px;
+      border-bottom: 3px double var(--line);
+    }
+    h1, h2, h3, h4 {
+      color: #211e1c;
+      font-family: Georgia, "Times New Roman", serif;
+      line-height: 1.18;
+    }
+    h1 {
+      margin: 0 0 12px;
+      font-size: clamp(40px, 6vw, 70px);
+      letter-spacing: -.045em;
+    }
+    h1 span { color: var(--accent); }
+    .lede {
+      max-width: 760px;
+      margin: 0;
+      color: var(--muted);
+      font-size: 21px;
+    }
+    .version {
+      display: inline-block;
+      margin-top: 22px;
+      padding: 4px 10px;
+      border: 1px solid var(--line);
+      background: var(--paper-2);
+      font: 12px/1.5 Arial, sans-serif;
+      text-transform: uppercase;
+      letter-spacing: .12em;
+    }
+
+    section {
+      padding-top: 52px;
+      scroll-margin-top: 20px;
+    }
+    section + section {
+      margin-top: 18px;
+      border-top: 1px solid var(--line);
+    }
+    h2 {
+      margin: 0 0 20px;
+      font-size: 36px;
+      letter-spacing: -.025em;
+    }
+    h2 .number {
+      color: var(--accent);
+      font-size: .62em;
+      vertical-align: .23em;
+    }
+    h3 {
+      margin: 34px 0 10px;
+      font-size: 24px;
+    }
+    h4 {
+      margin: 25px 0 8px;
+      font-size: 18px;
+    }
+    p { margin: 10px 0 16px; }
+    li + li { margin-top: 6px; }
+
+    code, kbd {
+      padding: .08em .3em;
+      color: #5d2113;
+      background: #eee3d2;
+      border: 1px solid #dfd0ba;
+      border-radius: 3px;
+      font: .9em/1.4 "Courier New", Courier, monospace;
+    }
+    pre {
+      overflow-x: auto;
+      margin: 18px 0 24px;
+      padding: 20px 22px;
+      color: var(--code-ink);
+      background: var(--code);
+      border-left: 5px solid var(--accent);
+      border-radius: 2px;
+      font: 14px/1.6 "Courier New", Courier, monospace;
+      tab-size: 4;
+    }
+    pre code {
+      padding: 0;
+      color: inherit;
+      background: transparent;
+      border: 0;
+      border-radius: 0;
+      font: inherit;
+    }
+
+    table {
+      width: 100%;
+      margin: 18px 0 28px;
+      border-collapse: collapse;
+      font-size: 15px;
+    }
+    th, td {
+      padding: 10px 12px;
+      vertical-align: top;
+      text-align: left;
+      border: 1px solid var(--line);
+    }
+    th {
+      color: #fff;
+      background: #4b423d;
+      font: 700 13px/1.35 Arial, sans-serif;
+      letter-spacing: .025em;
+    }
+    tr:nth-child(even) td { background: #f7f0e3; }
+    td:first-child code { white-space: nowrap; }
+
+    .callout {
+      margin: 22px 0;
+      padding: 15px 18px;
+      background: var(--note);
+      border-left: 5px solid #c79714;
+    }
+    .callout.warning {
+      background: var(--warn);
+      border-color: var(--accent);
+    }
+    .callout.tip {
+      background: var(--ok);
+      border-color: #5a8451;
+    }
+    .callout strong {
+      font-family: Arial, sans-serif;
+      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing: .06em;
+    }
+
+    .signature {
+      color: #5d2113;
+      font-family: "Courier New", Courier, monospace;
+      font-weight: bold;
+    }
+    .compact li { margin-top: 2px; }
+    .twocol {
+      columns: 2 300px;
+      column-gap: 42px;
+    }
+    .twocol > * { break-inside: avoid; }
+    .toplink {
+      display: block;
+      margin-top: 30px;
+      font: 12px Arial, sans-serif;
+      text-align: right;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+    }
+    footer {
+      margin-top: 70px;
+      padding-top: 24px;
+      color: var(--muted);
+      border-top: 3px double var(--line);
+      font-size: 14px;
+    }
+
+    @media (max-width: 900px) {
+      .sidebar {
+        position: static;
+        width: auto;
+        max-height: none;
+        border-right: 0;
+        border-bottom: 6px solid var(--accent);
+      }
+      .sidebar ol { columns: 2 220px; }
+      main {
+        margin-left: 0;
+        padding: 42px 28px 80px;
+      }
+    }
+
+    @media (max-width: 520px) {
+      body { font-size: 16px; }
+      .sidebar ol { columns: 1; }
+      main { padding-inline: 18px; }
+      h2 { font-size: 30px; }
+      th, td { padding: 8px; }
+    }
+
+    @media print {
+      body { font-size: 11pt; background: #fff; }
+      .sidebar { display: none; }
+      main { max-width: none; margin: 0; padding: 0; }
+      section { break-inside: auto; }
+      pre, table, .callout { break-inside: avoid; }
+      a { color: inherit; text-decoration: none; }
+      .toplink { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <nav class="sidebar" id="top" aria-label="Table of contents">
+    <a class="brand" href="#introduction">Katalyn</a>
+    <p class="edition">Complete language reference</p>
+    <ol>
+      <li><a href="#introduction">Introduction</a></li>
+      <li><a href="#running">Build and run</a></li>
+      <li><a href="#source">Source and lexical rules</a></li>
+      <li><a href="#values">Values and conversion</a></li>
+      <li><a href="#variables">Variables and scope</a></li>
+      <li><a href="#expressions">Expressions and operators</a></li>
+      <li><a href="#tables">Tables, arrays and indexing</a></li>
+      <li><a href="#functions">Functions</a></li>
+      <li><a href="#control">Control flow</a></li>
+      <li><a href="#input-output">Console input and output</a></li>
+      <li><a href="#files">Files</a></li>
+      <li><a href="#processes">Processes and time</a></li>
+      <li><a href="#imports">Imports</a></li>
+      <li><a href="#native-reference">Native function reference</a></li>
+      <li><a href="#stdlib-reference">Standard library reference</a></li>
+      <li><a href="#cli">Command-line reference</a></li>
+      <li><a href="#errors">Errors and diagnostics</a></li>
+      <li><a href="#quirks">Nooks, crannies and limitations</a></li>
+      <li><a href="#grammar">Grammar and cheat sheet</a></li>
+    </ol>
+    <p class="small">One HTML file. No scripts, images, fonts, frameworks, or network access required. Use your browser’s Find command to search the entire manual.</p>
+  </nav>
+
+  <main>
+    <header>
+      <h1>Katalyn <span>complete reference</span></h1>
+      <p class="lede">A practical and implementation-aware guide to the entire Katalyn language: syntax, semantics, native facilities, shipped standard library, command-line interface, and the small surprises that matter in real programs.</p>
+      <span class="version">C++ implementation · July 2026</span>
+    </header>
+
+    <section id="introduction">
+      <h2><span class="number">01</span> Introduction</h2>
+      <p>Katalyn is a small interpreted scripting language created by Lartu. It favors a compact vocabulary, semicolon-terminated statements, dynamically typed values, one-based array conventions, associative tables, and block endings written as <code>ok;</code>. The current interpreter compiles source to Nambly VM instructions in memory and immediately executes them.</p>
+      <p>This manual documents the behavior of the current C++ implementation in this repository. It combines the historical manual, both earlier HTML manuals, the compiler and VM source, the command-line program, and the bundled <code>stdlib.kat</code>. Where an implementation detail differs from an intuitive or documented intention, the difference is called out explicitly.</p>
+
+      <h3>A first program</h3>
+      <pre><code># Every statement ends in a semicolon.
+$name: accept("Your name: ");
+
+if len($name);
+    print("Hello, ", title($name), "!");
+else;
+    print("Hello, mysterious stranger!");
+ok;</code></pre>
+
+      <h3>The language at a glance</h3>
+      <ul>
+        <li>Values are numbers, text, tables, or the internal <em>nil</em> value.</li>
+        <li>Variables begin with <code>$</code>; assignments use <code>:</code>.</li>
+        <li>Tables serve as dictionaries, arrays, sets, records, and lightweight objects.</li>
+        <li>Functions are declared with <code>def</code>; all arguments arrive in the table <code>$_</code>.</li>
+        <li>Blocks end with <code>ok;</code>, not braces.</li>
+        <li>The standard library is written in Katalyn and embedded into the executable at build time.</li>
+        <li>There are no classes, modules, exceptions, booleans as a distinct type, or a source-level nil literal.</li>
+      </ul>
+      <a class="toplink" href="#top">Back to contents</a>
+    </section>
+
+    <section id="running">
+      <h2><span class="number">02</span> Build and run</h2>
+
+      <h3>Build</h3>
+      <p>A C++17 compiler and <code>make</code> are required. From the repository root:</p>
+      <pre><code>make
+./build/katalyn examples/disan_count.kat</code></pre>
+      <p>The executable is <code>build/katalyn</code>. Useful maintenance targets are:</p>
+      <table>
+        <thead><tr><th>Command</th><th>Effect</th></tr></thead>
+        <tbody>
+          <tr><td><code>make</code></td><td>Compile the interpreter and embed the current standard library.</td></tr>
+          <tr><td><code>make test</code></td><td>Build and run the language, standard-library, CLI, import, and file-I/O regression suites.</td></tr>
+          <tr><td><code>make run SCRIPT=file.kat</code></td><td>Build if necessary, then run one script.</td></tr>
+          <tr><td><code>make clean</code></td><td>Remove the generated <code>build</code> directory.</td></tr>
+          <tr><td><code>make install</code></td><td>Install <code>katalyn</code> in <code>/usr/local/bin</code> by default. Override with <code>PREFIX</code> or <code>DESTDIR</code>.</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Run source</h3>
+      <pre><code>katalyn program.kat one two three
+katalyn -a 'print("Hello from an argument!");'
+printf 'print("Hello from standard input!");' | katalyn -s
+katalyn -n program.kat</code></pre>
+      <p>The normal form loads the bundled standard library before the program. <code>-n</code> omits it. <code>-a</code> runs the next argument as source text; <code>-s</code> reads source from standard input. Arguments after the selected source are available to Katalyn as <code>$_args</code>.</p>
+      <div class="callout tip"><strong>Portable scripts.</strong> A Unix script may begin with <code>#!/usr/bin/env katalyn</code>. The line is harmless to Katalyn because it begins with <code>#</code>.</div>
+      <a class="toplink" href="#top">Back to contents</a>
+    </section>
+
+    <section id="source">
+      <h2><span class="number">03</span> Source and lexical rules</h2>
+
+      <h3>Statements and whitespace</h3>
+      <p>Every command and assignment ends with a semicolon. A newline is ordinary whitespace, so a statement can span lines and several statements can share one line. Function argument lists and expressions do not use semicolons internally.</p>
+      <pre><code>$message:
+    "one statement over several lines";
+print($message); print("second statement");</code></pre>
+
+      <h3>Comments</h3>
+      <pre><code># A single-line comment runs to the newline.
+
+(* A multiline comment.
+   It may contain (* another comment *) inside it. *)
+
+(** This historical documentation style is simply a nested comment. **)</code></pre>
+      <p>Multiline comments nest. In the current tokenizer, an unterminated multiline comment silently consumes the rest of the file instead of reporting an error.</p>
+
+      <h3>Identifiers and variables</h3>
+      <ul>
+        <li>A command or function identifier begins with an ASCII letter or underscore, followed by ASCII letters, digits, or underscores.</li>
+        <li>A variable is <code>$</code> followed by one or more ASCII letters, digits, or underscores. Unlike ordinary identifiers, the first character after <code>$</code> may be a digit.</li>
+        <li>Names are case-sensitive: <code>$name</code>, <code>$Name</code>, and <code>$NAME</code> differ.</li>
+      </ul>
+
+      <h3>Number literals</h3>
+      <p>Source number literals are unsigned decimal integers or decimal numbers with digits on both sides of the point: <code>0</code>, <code>42</code>, <code>3.14</code>. Negative values use the unary minus operator. Forms such as <code>.5</code>, <code>1.</code>, hexadecimal, and scientific notation are not source literals.</p>
+
+      <h3>Text literals and escapes</h3>
+      <p>Text is delimited by double quotes and may physically span lines. The recognized source escapes are:</p>
+      <table>
+        <thead><tr><th>Source</th><th>Value</th></tr></thead>
+        <tbody>
+          <tr><td><code>\n</code></td><td>Newline</td></tr>
+          <tr><td><code>\t</code></td><td>Horizontal tab</td></tr>
+          <tr><td><code>\"</code></td><td>A double quote</td></tr>
+          <tr><td><code>\</code> followed by whitespace</td><td>Consumes that run of whitespace; useful as source line continuation.</td></tr>
+          <tr><td>Any other <code>\x</code></td><td>Produces <code>x</code>; the backslash is discarded.</td></tr>
+        </tbody>
+      </table>
+      <div class="callout warning"><strong>Backslashes.</strong> There is no dedicated <code>\\</code> escape. An unknown escape loses its backslash, so represent paths with forward slashes where possible.</div>
+
+      <h3>Tokens and punctuation</h3>
+      <p>The language recognizes parentheses, square brackets, braces, commas, assignment colon, arithmetic and logical glyphs. The two-character glyphs are <code>&gt;=</code>, <code>&lt;=</code>, <code>::</code>, <code>&lt;&gt;</code>, <code>!=</code>, <code>//</code>, <code>&amp;&amp;</code>, and <code>||</code>.</p>
+      <p>Brace access is shorthand for a quoted key: <code>$person{name}</code> means <code>$person["name"]</code>. The contents are static text, not a variable or expression. <code>$table{}</code> addresses the empty-text key.</p>
+      <a class="toplink" href="#top">Back to contents</a>
+    </section>
+
+    <section id="values">
+      <h2><span class="number">04</span> Values and conversion</h2>
+
+      <h3>The four user-visible kinds</h3>
+      <table>
+        <thead><tr><th>Kind</th><th>Examples and origin</th><th>False when</th></tr></thead>
+        <tbody>
+          <tr><td>Number</td><td><code>12</code>, <code>-4</code>, <code>3.5</code>; internally a floating-point value.</td><td>It is zero.</td></tr>
+          <tr><td>Text</td><td><code>"Katalyn"</code>, input, file and process output.</td><td>It is empty.</td></tr>
+          <tr><td>Table</td><td><code>table</code>, arrays, records, function argument lists.</td><td>It has no entries.</td></tr>
+          <tr><td>Nil</td><td>Missing variables or keys, exhausted reads, and functions without an explicit value.</td><td>Always.</td></tr>
+        </tbody>
+      </table>
+      <p>There is no separate Boolean kind. The bundled library declares <code>$true</code> as <code>1</code> and <code>$false</code> as <code>0</code>. With <code>-n</code>, those names are absent unless the program declares them.</p>
+
+      <h3>Nil and existence</h3>
+      <p>There is no nil literal. Use <code>is(expression)</code> to ask whether a value is non-nil and <code>unsafe($name)</code> when probing a variable that the compiler cannot prove exists.</p>
+      <pre><code>if is($record{optional});
+    print($record{optional});
+ok;
+
+unless is(unsafe($possibly_undeclared));
+    print("No value");
+ok;</code></pre>
+
+      <h3>Implicit conversion</h3>
+      <table>
+        <thead><tr><th>Context</th><th>Behavior</th></tr></thead>
+        <tbody>
+          <tr><td>Number to text</td><td>Integers print without a decimal point. Fractional formatting uses the runtime’s trimmed decimal representation, with roughly six fractional digits.</td></tr>
+          <tr><td>Text to number</td><td>Arithmetic and numeric comparison invoke C++ numeric parsing. A numeric prefix is accepted, so current behavior converts <code>"12abc"</code> to <code>12</code>; text without a numeric beginning raises a runtime error.</td></tr>
+          <tr><td>Table to number</td><td>The number of entries in the table.</td></tr>
+          <tr><td>Table to text</td><td>A diagnostic map representation such as <code>['a':1, 'b':"two"]</code>.</td></tr>
+          <tr><td>Nil to number/text</td><td>Not convertible; attempts generally raise a runtime error.</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Equality</h3>
+      <ul>
+        <li>Two text values compare exactly as text.</li>
+        <li>Otherwise, scalar values compare numerically where conversion is possible.</li>
+        <li>Numeric equality uses a very small floating-point tolerance.</li>
+        <li>Tables compare identity, not contents. Two variables are equal only when they refer to the same table object.</li>
+        <li>Nil is unusual: any equality involving nil is false, even nil against nil. Any inequality involving nil is true.</li>
+      </ul>
+
+      <h3>Nil truth table</h3>
+      <p>Nil represents absence rather than an ordinary comparable value. A missing table key is used below to produce it because Katalyn has no nil literal.</p>
+      <table>
+        <thead><tr><th>Operation</th><th>Result</th></tr></thead>
+        <tbody>
+          <tr><td>Nil used as a condition</td><td>False</td></tr>
+          <tr><td><code>!nil</code></td><td><code>1</code></td></tr>
+          <tr><td><code>nil = nil</code></td><td><code>0</code></td></tr>
+          <tr><td><code>nil != nil</code></td><td><code>1</code></td></tr>
+        </tbody>
+      </table>
+      <pre><code>$source: table;
+if !$source{missing};
+    print("The value is absent");
+ok;</code></pre>
+      <a class="toplink" href="#top">Back to contents</a>
+    </section>
+
+    <section id="variables">
+      <h2><span class="number">05</span> Variables and scope</h2>
+
+      <h3>Declaration and reassignment</h3>
+      <pre><code># `in` is optional.
+in $answer: 42;
+$name: "Ada";
+
+# The same syntax reassigns an existing variable.
+$answer: $answer + 1;
+
+# Assignment is a command, not an expression.
+set($answer, 99);  # `set` provides expression-like assignment.</code></pre>
+      <p>The compiler tracks declarations in source order. Reading an unknown variable is a parse error, even if a similarly named value might exist at runtime. A declaration encountered inside a conditional branch is considered known after that point at compile time, although the branch may not execute and the runtime value may therefore be nil.</p>
+
+      <h3>Scopes</h3>
+      <p>Top-level variables are global. A function call creates one local variable scope. Control-flow blocks do not create scopes. A read inside a function checks the current local scope, then globals. An ordinary assignment inside a function creates or updates a local variable; use <code>global</code> to write the global instead.</p>
+      <pre><code>$counter: 0;
+
+def tick;
+    global $counter: $counter + 1;
+    $temporary: "local";
+    return $counter;
+ok;</code></pre>
+
+      <h3>Unset</h3>
+      <p><code>unset($a, $b)</code> removes variables. At runtime each name is removed from the current scope if present, otherwise from globals. The compiler also forgets those names, so a later ordinary read requires redeclaration or <code>unsafe</code>.</p>
+
+      <h3>Magic variables</h3>
+      <table>
+        <thead><tr><th>Name</th><th>Meaning</th></tr></thead>
+        <tbody>
+          <tr><td><code>$_</code></td><td>Inside a user function, a one-based table containing every argument.</td></tr>
+          <tr><td><code>$_r</code></td><td>The current key/index for loops; also the most recently evaluated condition result in relevant flow constructs.</td></tr>
+          <tr><td><code>$_args</code></td><td>One-based table of command-line arguments that follow the selected script/source.</td></tr>
+          <tr><td><code>$_caller</code></td><td>Name of the calling function/context.</td></tr>
+          <tr><td><code>$_context</code></td><td>Name of the currently executing function/context.</td></tr>
+          <tr><td><code>$_stdout</code></td><td>Standard output captured by the latest <code>exec</code>.</td></tr>
+          <tr><td><code>$_stderr</code></td><td>Standard error captured by the latest <code>exec</code>.</td></tr>
+          <tr><td><code>$_exitcode</code></td><td>Exit status of the latest <code>exec</code>.</td></tr>
+        </tbody>
+      </table>
+      <p><code>$swap</code> is used internally while compiling some native operations. Avoid relying on it in application code.</p>
+      <a class="toplink" href="#top">Back to contents</a>
+    </section>
+
+    <section id="expressions">
+      <h2><span class="number">06</span> Expressions and operators</h2>
+
+      <h3>Operator reference</h3>
+      <table>
+        <thead><tr><th>Operator</th><th>Meaning</th><th>Notes</th></tr></thead>
+        <tbody>
+          <tr><td><code>+</code></td><td>Addition</td><td>Numeric conversion.</td></tr>
+          <tr><td><code>-</code></td><td>Subtraction; unary negation</td><td>Numeric conversion. Unary negation accepts literals, calls, variables, and grouped expressions.</td></tr>
+          <tr><td><code>*</code></td><td>Multiplication</td><td>Numeric conversion.</td></tr>
+          <tr><td><code>/</code></td><td>Division</td><td>Floating-point result.</td></tr>
+          <tr><td><code>//</code></td><td>Floor division</td><td>Floors the quotient.</td></tr>
+          <tr><td><code>%</code></td><td>Remainder</td><td>Floors both operands, then applies integer remainder.</td></tr>
+          <tr><td><code>^</code></td><td>Power</td><td>Numeric exponentiation.</td></tr>
+          <tr><td><code>&amp;</code></td><td>Concatenation</td><td>Converts both operands to text.</td></tr>
+          <tr><td><code>=</code></td><td>Equality</td><td>Not assignment; assignment uses <code>:</code>.</td></tr>
+          <tr><td><code>&lt;&gt;</code>, <code>!=</code></td><td>Inequality</td><td>Synonyms.</td></tr>
+          <tr><td><code>&lt;</code>, <code>&gt;</code>, <code>&lt;=</code>, <code>&gt;=</code></td><td>Ordering</td><td>Numeric comparison.</td></tr>
+          <tr><td><code>!</code></td><td>Logical not</td><td>Returns 1 for a false value, including nil, and 0 for a true value.</td></tr>
+          <tr><td><code>&amp;&amp;</code></td><td>Logical and</td><td>Short-circuits when the left operand is false; returns numeric 0 or 1.</td></tr>
+          <tr><td><code>||</code></td><td>Logical or</td><td>Short-circuits when the left operand is true; returns numeric 0 or 1.</td></tr>
+          <tr><td><code>::</code></td><td>Membership</td><td>Tests whether the left value is a key of the right table, or whether the left text occurs within the right scalar text.</td></tr>
+          <tr><td><code>[ ]</code></td><td>Index/key access</td><td>Dynamic expression inside brackets.</td></tr>
+          <tr><td><code>{ }</code></td><td>Literal key access</td><td><code>$x{name}</code> is <code>$x["name"]</code>.</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Precedence</h3>
+      <p>Katalyn follows the conventional mathematical/programming hierarchy below, from tightest to loosest:</p>
+      <ol class="compact">
+        <li><code>^</code></li>
+        <li>Prefix <code>!</code> and unary <code>-</code></li>
+        <li><code>*</code>, <code>/</code>, <code>//</code>, <code>%</code></li>
+        <li><code>+</code>, binary <code>-</code></li>
+        <li><code>&amp;</code></li>
+        <li><code>::</code>, <code>&lt;</code>, <code>&gt;</code>, <code>&lt;=</code>, <code>&gt;=</code></li>
+        <li><code>=</code>, <code>&lt;&gt;</code>, <code>!=</code></li>
+        <li><code>&amp;&amp;</code></li>
+        <li><code>||</code></li>
+      </ol>
+      <div class="callout tip"><strong>Examples.</strong> <code>2 + 3 * 4</code> is 14, <code>1 || 0 &amp;&amp; 0</code> is 1, and <code>-2 ^ 2</code> is -4. Parentheses always override precedence.</div>
+      <p>Power is right-associative, so <code>2 ^ 3 ^ 2</code> means <code>2 ^ (3 ^ 2)</code>. Other binary operators at the same level are left-associative. Power binds more tightly than unary negation, following mathematical and Python convention; a negative exponent such as <code>2 ^ -2</code> is accepted. Function calls, indexing, and parenthesized expressions bind as units. There is no unary plus and no ternary operator.</p>
+
+      <h3>Short-circuit evaluation</h3>
+      <p><code>&amp;&amp;</code> evaluates its right operand only when the left operand is true. <code>||</code> evaluates its right operand only when the left operand is false. The result is always the normalized number 0 or 1, rather than one of the original operands.</p>
+      <pre><code># Safe guard:
+if is($config{path}) &amp;&amp; len($config{path}) > 0;
+    print($config{path});
+ok;</code></pre>
+      <p>Because the skipped operand is not evaluated, it produces no function calls, assignments, process activity, file activity, or runtime errors. Compilation still parses and validates both operands.</p>
+      <a class="toplink" href="#top">Back to contents</a>
+    </section>
+
+    <section id="tables">
+      <h2><span class="number">07</span> Tables, arrays and indexing</h2>
+
+      <h3>Tables are the universal collection</h3>
+      <pre><code>$person: table;
+$person{name}: "Katalyn";
+$person["year"]: 2026;
+
+$numbers: arr(10, 20, 30);
+append($numbers, 40);
+
+$seen: dataset("red", "green", "blue");
+if "green" :: $seen;
+    print("present");
+ok;</code></pre>
+      <p>Keys are converted to text. Braces contain a literal key; brackets evaluate an expression. Reading a missing key yields nil. Nested assignment is supported when intermediate values are tables.</p>
+
+      <h3>Array convention</h3>
+      <p>An “array” is simply a table with consecutive text keys <code>"1"</code>, <code>"2"</code>, and so on. Function arguments, command-line arguments, <code>arr</code>, <code>array</code>, <code>split</code>, and <code>explode</code> follow this convention. Nothing prevents sparse, zero, negative, or named keys, but many library functions assume a dense one-based sequence.</p>
+
+      <h3>References and mutation</h3>
+      <p>Tables have reference semantics. Assigning a table to another variable does not copy it; both variables point to the same object. Mutation through either name is visible through the other. <code>prototype</code> makes a shallow copy: the outer table is new, but nested tables are still shared.</p>
+      <pre><code>$a: arr(1, 2);
+$b: $a;
+$b[1]: 99;
+print($a[1]);          # 99
+
+$c: prototype($a);    # new outer table</code></pre>
+
+      <h3>Scalar indexing and substrings</h3>
+      <p>Text and numbers can be indexed as their text representation. Text uses Unicode code-point semantics: positive indices are one-based and return one complete UTF-8 code point. Index <code>0</code> also returns the first code point. Negative indices count backward from the end, so <code>"á猫🙂"[-1]</code> is <code>"🙂"</code>. Any index beyond either end returns empty text.</p>
+
+      <h3>Unicode semantics</h3>
+      <p>Katalyn stores text as UTF-8 and lazily caches code-point boundaries. Consequently, <code>len</code>, indexing, <code>substr</code>, and <code>for</code> operate efficiently in Unicode code points rather than bytes. The cache is built once per text value and shared by copies.</p>
+      <pre><code>$text: "á猫🙂";
+print(len($text));           # 3
+print($text[2]);             # 猫
+print(substr($text, 2, 2));  # 猫🙂</code></pre>
+      <p>A code point is not necessarily one user-perceived character. A decomposed <code>e</code> followed by a combining accent has length 2, and the joined family emoji <code>👨‍👩‍👧‍👦</code> has length 7. Katalyn does not normalize canonically equivalent spellings. Malformed UTF-8 is tolerated: each invalid byte is treated as one independently indexable unit so file and process data cannot crash text operations.</p>
+
+      <h3>Iteration order</h3>
+      <p><code>for</code> iterates keys. Numeric-looking keys come first in numeric order; other keys follow in lexical order. Iterating text or a number’s text representation yields indices <code>1</code> through its Unicode code-point length. During each iteration, <code>$_r</code> is the current key/index.</p>
+
+      <h3>Rendering</h3>
+      <p>Printing a table shows a map-like diagnostic representation. Storage uses ordered keys, so display order is lexical rather than array-numeric order; for example, key <code>"10"</code> may display before <code>"2"</code>. Cyclic tables should not be printed because recursive rendering has no cycle detector.</p>
+
+      <h3>Collection operations</h3>
+      <ul>
+        <li><code>len($table)</code> returns entry count, not highest numeric key.</li>
+        <li><code>$key :: $table</code> tests key presence, even if the stored value is false.</li>
+        <li><code>keys($table)</code> returns a new dense one-based array of key text in lexical storage order.</li>
+        <li><code>del($table, $key)</code> removes an entry in place and returns the table.</li>
+        <li><code>set($table[$key], $value)</code> assigns a place and returns its new value.</li>
+        <li>A table literal constructed from function arguments cannot contain an internal nil/iterator value.</li>
+      </ul>
+      <a class="toplink" href="#top">Back to contents</a>
+    </section>
+
+    <section id="functions">
+      <h2><span class="number">08</span> Functions</h2>
+
+      <h3>Declaration and calling</h3>
+      <pre><code>def greet;
+    $name: "world";
+    if is($_[1]);
+        $name: $_[1];
+    ok;
+    print("Hello, ", $name);
+    return len($name);
+ok;
+
+$length: greet("Katalyn");</code></pre>
+      <p>A definition has no parameter list. All arguments are placed into the local one-based table <code>$_</code>, making every function naturally variadic. There are no formal arity declarations or default-parameter syntax; test optional arguments with <code>is($_[n])</code>.</p>
+
+      <h3>Return</h3>
+      <p><code>return expression;</code> exits with a value. Bare <code>return;</code>, or reaching <code>ok;</code> at the end, returns nil. A return may appear inside nested flow blocks and exits the function immediately.</p>
+
+      <h3>Local state and context</h3>
+      <p>Each call receives a fresh local scope containing <code>$_</code>, <code>$_caller</code>, and <code>$_context</code>. Ordinary assignments are local. Explicit <code>global</code> assignments update shared state. Recursion is supported by the VM’s call frames, subject to memory and stack limits.</p>
+
+      <h3>Definition order and shadowing</h3>
+      <p>Define a function before calling it. Forward calls are not reliable in the current compiler. Redefinition is source-position-sensitive: calls compiled before a later definition keep targeting the older body, while later calls target the new definition. This permits deliberate shadowing but can be surprising.</p>
+
+      <h3>Calls are expressions</h3>
+      <p>Native and user calls can be nested and used wherever a value is expected. Arguments are comma-separated. A trailing comma is currently accepted, but leading or doubled empty arguments are errors; portable code should omit trailing commas.</p>
+      <a class="toplink" href="#top">Back to contents</a>
+    </section>
+
+    <section id="control">
+      <h2><span class="number">09</span> Control flow</h2>
+
+      <h3>Conditional blocks</h3>
+      <pre><code>if $score >= 90;
+    print("excellent");
+elif $score >= 60;
+    print("pass");
+else;
+    print("try again");
+ok;
+
+unless is($optional);
+    print("missing");
+ok;</code></pre>
+      <p><code>if</code> and <code>elif</code> execute on a truthy condition. <code>else</code> has no condition. <code>unless</code> executes when its condition is false. An <code>if</code> chain has one final <code>ok;</code>. A stand-alone <code>unless</code> also ends with <code>ok;</code>.</p>
+
+      <h3>Loops</h3>
+      <table>
+        <thead><tr><th>Form</th><th>Behavior</th></tr></thead>
+        <tbody>
+          <tr><td><code>while expression;</code></td><td>Repeat while the expression is truthy.</td></tr>
+          <tr><td><code>whileis expression;</code></td><td>Repeat while the expression is non-nil; unlike <code>while</code>, zero and empty text still count as present.</td></tr>
+          <tr><td><code>until expression;</code></td><td>Repeat while the expression is false.</td></tr>
+          <tr><td><code>for expression;</code></td><td>Iterate the expression’s keys or scalar Unicode code-point indices, placing the current key in <code>$_r</code>.</td></tr>
+        </tbody>
+      </table>
+      <pre><code>$i: 1;
+while $i <= 3;
+    print($i);
+    $i: $i + 1;
+ok;
+
+for $person;
+    print($_r, ": ", $person[$_r]);
+ok;
+
+whileis read_line($file);
+    print($_r);  # the condition result is available here
+ok;</code></pre>
+
+      <h3>Loop control</h3>
+      <ul>
+        <li><code>continue;</code> skips to the next iteration of the nearest loop.</li>
+        <li><code>break;</code> exits the nearest loop.</li>
+        <li><code>break 2;</code> exits two nested loops; the depth is a source number, not a runtime expression.</li>
+        <li><code>ok;</code> closes the current function or control block according to the compiler’s block stack.</li>
+      </ul>
+      <p>Conditions and iteration update <code>$_r</code>. Because it is shared magic state within the scope, nested conditions and loops overwrite its previous value; copy it to a named variable when it must survive nested work.</p>
+      <a class="toplink" href="#top">Back to contents</a>
+    </section>
+
+    <section id="input-output">
+      <h2><span class="number">10</span> Console input and output</h2>
+      <table>
+        <thead><tr><th>Call</th><th>Behavior</th></tr></thead>
+        <tbody>
+          <tr><td><code>print(values...)</code></td><td>Writes every value with no separator, then a newline. Returns the concatenated text.</td></tr>
+          <tr><td><code>printc(values...)</code></td><td>Writes every value with no separator and no newline. Returns the concatenated text.</td></tr>
+          <tr><td><code>accept()</code></td><td>Reads an interactive line with an empty prompt.</td></tr>
+          <tr><td><code>accept(prompt)</code></td><td>Displays a prompt, then reads a line. Interactive history holds up to 20 entries.</td></tr>
+        </tbody>
+      </table>
+      <pre><code>print("A", 1, "B");       # A1B, then newline
+printcs("A", 1, "B");     # A, 1, B, then newline
+$answer: accept("&gt; ");</code></pre>
+      <p><code>print</code> is not comma-formatting: commas separate arguments but insert no spaces. Use literal separators, <code>printcs</code>, <code>join_with</code>, or <code>arrjoin</code>.</p>
+      <a class="toplink" href="#top">Back to contents</a>
+    </section>
+
+    <section id="files">
+      <h2><span class="number">11</span> Files</h2>
+
+      <h3>Opening and closing</h3>
+      <table>
+        <thead><tr><th>Call</th><th>Mode</th><th>Return</th></tr></thead>
+        <tbody>
+          <tr><td><code>open_r(path)</code></td><td>Read only.</td><td>The path text.</td></tr>
+          <tr><td><code>open_rw(path)</code></td><td>Read/write. An existing file is truncated on the first write; a missing file is created.</td><td>The path text.</td></tr>
+          <tr><td><code>open_ra(path)</code></td><td>Read/append.</td><td>The path text.</td></tr>
+          <tr><td><code>is_open(path)</code></td><td>Tests whether the runtime has an open handle for the path.</td><td>Numeric truth value.</td></tr>
+          <tr><td><code>close(path)</code></td><td>Close the path’s handle.</td><td>The path text.</td></tr>
+        </tbody>
+      </table>
+      <p>File handles are represented by their path strings. Opening the same path again closes its previous handle. The open calls return the path even if opening fails, so use <code>is_open</code> to verify success.</p>
+
+      <h3>Reading and writing</h3>
+      <table>
+        <thead><tr><th>Call</th><th>Behavior</th></tr></thead>
+        <tbody>
+          <tr><td><code>read(path)</code></td><td>Seek to the beginning and read the whole file. Lines are rejoined with <code>\n</code>; a final newline is not preserved. Returns nil if the path is not open.</td></tr>
+          <tr><td><code>read_line(path)</code></td><td>Read from the current position through the next line ending. Returns nil at EOF or when not open.</td></tr>
+          <tr><td><code>write(path, value)</code></td><td>Write at the end. In <code>open_rw</code>, the first write to a pre-existing file truncates first; later writes append. Returns the written value.</td></tr>
+        </tbody>
+      </table>
+      <pre><code>$file: open_r("input.txt");
+if is_open($file);
+    whileis read_line($file);
+        print($_r);
+    ok;
+    close($file);
+ok;
+
+$out: open_rw("result.txt");
+write($out, "first line\n");
+write($out, "second line\n");
+close($out);</code></pre>
+      <div class="callout"><strong>Read position.</strong> <code>read</code> always resets to the beginning. <code>read_line</code> advances the current stream. A whole-file <code>read</code> therefore changes the position used by later line reads.</div>
+      <a class="toplink" href="#top">Back to contents</a>
+    </section>
+
+    <section id="processes">
+      <h2><span class="number">12</span> Processes and time</h2>
+
+      <h3>External commands</h3>
+      <pre><code>$status: exec("printf 'hello'");
+print("status: ", $status);
+print("out: ", $_stdout);
+print("err: ", $_stderr);</code></pre>
+      <p><code>exec</code> is synchronous: Katalyn waits for the child process. It captures exact standard output and standard error, updates <code>$_stdout</code>, <code>$_stderr</code>, and <code>$_exitcode</code>, and returns the numeric exit code. Multiple arguments are concatenated with no inserted separator, so these two forms differ:</p>
+      <pre><code>exec("printf ", "'hello'");  # compiler joins to: printf 'hello'
+exec("printf", "'hello'");   # compiler joins to: printf'hello'</code></pre>
+      <p>The command is interpreted according to the process library and host platform. Treat untrusted text as dangerous: Katalyn does not provide structured argument escaping.</p>
+
+      <h3>Sleeping</h3>
+      <p><code>sleep seconds;</code> pauses the current process. Fractions are supported; the runtime converts seconds to an integer number of microseconds.</p>
+      <pre><code>printc("waiting...");
+sleep 0.25;
+print("done");</code></pre>
+
+      <h3>Clock and network helpers</h3>
+      <p>The standard-library <code>datetime</code> function invokes the POSIX <code>date</code> command. <code>get_http</code> and <code>call_api</code> invoke <code>curl</code>. These are conveniences, not native protocols, and depend on those host commands being installed.</p>
+      <a class="toplink" href="#top">Back to contents</a>
+    </section>
+
+    <section id="imports">
+      <h2><span class="number">13</span> Imports</h2>
+      <pre><code>import "helpers.kat";
+import "models/person.kat";</code></pre>
+      <p>An import path must be static quoted text. It is resolved relative to the file containing the import, not necessarily the process working directory. Imported source is compiled inline at the import location and shares global variables and function names with the importer.</p>
+      <ul>
+        <li>There are no namespaces, export lists, or private declarations.</li>
+        <li>Imports are source-position-sensitive; imported definitions become available after the import.</li>
+        <li>There is no automatic deduplication. Importing a file twice compiles it twice.</li>
+        <li>There is no cycle detector; cyclic imports eventually fail or exhaust resources.</li>
+        <li>Because code is inline, name collisions and function shadowing follow normal source-order rules.</li>
+      </ul>
+      <a class="toplink" href="#top">Back to contents</a>
+    </section>
+
+    <section id="native-reference">
+      <h2><span class="number">14</span> Native function reference</h2>
+      <p>These facilities are recognized directly by the compiler and work with <code>-n</code>. “Returns” describes the value left by the current compiled call.</p>
+
+      <h3>Output, input, inspection and control</h3>
+      <table>
+        <thead><tr><th>Signature</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td><code>print(...)</code></td><td>Print all arguments without separators and add a newline; returns the concatenated text. Zero arguments prints a blank line.</td></tr>
+          <tr><td><code>printc(...)</code></td><td>Print all arguments without separators or final newline; returns the concatenated text.</td></tr>
+          <tr><td><code>accept([prompt])</code></td><td>Read one interactive input line, optionally after a prompt.</td></tr>
+          <tr><td><code>is(value)</code></td><td>Return 1 when value is not nil, otherwise 0. It tests presence, not truthiness.</td></tr>
+          <tr><td><code>unsafe(expression)</code></td><td>Compile an expression without the normal compile-time variable-existence check. Runtime semantics are otherwise unchanged.</td></tr>
+          <tr><td><code>exit(status)</code></td><td>Terminate the interpreter with the numeric status.</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Values, variables and tables</h3>
+      <table>
+        <thead><tr><th>Signature</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td><code>len(value)</code></td><td>Table entry count, or Unicode code-point length of the scalar’s text representation.</td></tr>
+          <tr><td><code>floor(value)</code></td><td>Convert to number and round downward.</td></tr>
+          <tr><td><code>keys(table)</code></td><td>Return a new dense one-based array containing the table’s keys as text, in lexical storage order. The input table is not modified.</td></tr>
+          <tr><td><code>del(table, key)</code></td><td>Remove <code>key</code> from <code>table</code> in place; return the table.</td></tr>
+          <tr><td><code>set(place, value)</code></td><td>Assign a variable or table place and return the newly assigned value. <code>place</code> is syntax, not an arbitrary computed value.</td></tr>
+          <tr><td><code>unset(variables...)</code></td><td>Remove each named variable and make the compiler forget it. Arguments must be bare variable names. With no arguments it performs no work.</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Text splitting and replacement</h3>
+      <table>
+        <thead><tr><th>Signature</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td><code>substr(text, start[, length])</code></td><td>Return a Unicode code-point substring. Positive starts are one-based; zero starts at the first code point; negative starts count from the end. Omitted length means the remainder. Negative length becomes zero; invalid ranges return empty text.</td></tr>
+          <tr><td><code>replace(text, needle, replacement)</code></td><td>Replace all non-overlapping occurrences. An empty needle leaves text unchanged.</td></tr>
+          <tr><td><code>split(text, delimiter[, max[, add_empties]])</code></td><td>Return a one-based token table split on one delimiter. <code>max</code> defaults to <code>-1</code> (unlimited). The fourth value defaults to <code>1</code>; exactly 1 retains empty tokens, while 0 discards them.</td></tr>
+          <tr><td><code>explode(text, delimiters[, max[, add_empties]])</code></td><td>Like <code>split</code>, but <code>delimiters</code> is a table. At each position, the earliest matching delimiter wins.</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Files and processes</h3>
+      <table>
+        <thead><tr><th>Signature</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td><code>open_r(path)</code></td><td>Open for reading; return path.</td></tr>
+          <tr><td><code>open_rw(path)</code></td><td>Open for reading/writing, creating if needed; return path.</td></tr>
+          <tr><td><code>open_ra(path)</code></td><td>Open for reading/appending; return path.</td></tr>
+          <tr><td><code>is_open(path)</code></td><td>Return whether the path currently has an open stream.</td></tr>
+          <tr><td><code>close(path)</code></td><td>Close and return path.</td></tr>
+          <tr><td><code>read(path)</code></td><td>Read the complete open file from its beginning.</td></tr>
+          <tr><td><code>read_line(path)</code></td><td>Read the next line or return nil.</td></tr>
+          <tr><td><code>write(path, value)</code></td><td>Write/append and return value.</td></tr>
+          <tr><td><code>exec(parts...)</code></td><td>Concatenate at least one argument into a command, run synchronously, capture output, and return exit status.</td></tr>
+        </tbody>
+      </table>
+      <a class="toplink" href="#top">Back to contents</a>
+    </section>
+
+    <section id="stdlib-reference">
+      <h2><span class="number">15</span> Standard library reference</h2>
+      <p>The following Katalyn functions are prepended to ordinary programs. They are unavailable under <code>-n</code>. Since the library is embedded during <code>make</code>, editing <code>stdlib.kat</code> requires rebuilding the executable.</p>
+
+      <h3>Constants and collections</h3>
+      <table>
+        <thead><tr><th>Symbol</th><th>Behavior</th></tr></thead>
+        <tbody>
+          <tr><td><code>$true</code>, <code>$false</code></td><td>Numeric constants 1 and 0.</td></tr>
+          <tr><td><code>arr(values...)</code></td><td>Return all arguments as the one-based table <code>$_</code>.</td></tr>
+          <tr><td><code>array(values...)</code></td><td>Alias of <code>arr</code>.</td></tr>
+          <tr><td><code>tuple(values...)</code></td><td>Return a table mapping each supplied value, converted to a key, to 1. Useful with <code>::</code>.</td></tr>
+          <tr><td><code>dataset(values...)</code></td><td>Return a set-like table mapping each argument to <code>$true</code>.</td></tr>
+          <tr><td><code>arrdataset(array)</code></td><td>Set-like table whose keys are the values in a dense one-based array.</td></tr>
+          <tr><td><code>init_table(key, value, ...)</code></td><td>Build a table from alternating key/value arguments. A final key without a value is ignored.</td></tr>
+          <tr><td><code>append(array, value)</code></td><td>Mutate <code>array</code> at key <code>len(array)+1</code> and return it.</td></tr>
+          <tr><td><code>prototype(table)</code></td><td>Return a shallow copy.</td></tr>
+          <tr><td><code>in_array(needle, array)</code></td><td>Search dense values from key 1 until the first nil; return the first index or 0.</td></tr>
+          <tr><td><code>arrcount(array, value)</code></td><td>Count equal values across all iterated keys.</td></tr>
+          <tr><td><code>sort(array[, ascending])</code></td><td>Naive in-place comparison sort of a dense array, returning it. Defaults to ascending; false selects descending. Complexity is quadratic.</td></tr>
+          <tr><td><code>shift_arr(array, count)</code></td><td>Rotate a dense array left, in place, by <code>count % len(array)</code>, and return the same array. Empty arrays are returned unchanged.</td></tr>
+          <tr><td><code>last(array)</code></td><td>Return the final value of a dense one-based array. Return nil when the array is empty.</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Text construction and search</h3>
+      <table>
+        <thead><tr><th>Function</th><th>Behavior</th></tr></thead>
+        <tbody>
+          <tr><td><code>join(values...)</code></td><td>Concatenate all arguments with no separator.</td></tr>
+          <tr><td><code>arrjoin(array[, separator])</code></td><td>Join dense array values; separator defaults to empty text.</td></tr>
+          <tr><td><code>join_with(separator, values...)</code></td><td>Join the remaining arguments with the first argument.</td></tr>
+          <tr><td><code>index(haystack, needle)</code></td><td>Return the one-based Unicode code-point position of the first occurrence or 0.</td></tr>
+          <tr><td><code>replace_slow(text, needle, replacement)</code></td><td>Katalyn-level all-occurrences replacement retained for compatibility; native <code>replace</code> is preferred.</td></tr>
+          <tr><td><code>starts_with(text, prefix)</code></td><td>Numeric truth value for a prefix match.</td></tr>
+          <tr><td><code>ends_with(text, suffix)</code></td><td>Numeric truth value for a suffix match.</td></tr>
+          <tr><td><code>is_whitespace(text)</code></td><td>True when every code point is ASCII space, tab, or newline. Empty text is considered whitespace.</td></tr>
+          <tr><td><code>ltrim(text[, needle])</code></td><td>Remove leading whitespace, or repeated leading <code>needle</code> when supplied.</td></tr>
+          <tr><td><code>rtrim(text[, needle])</code></td><td>Remove trailing whitespace. The custom-needle path is intended to remove repeated trailing <code>needle</code> values, but currently returns an incorrect result in simple cases such as <code>rtrim("x--", "--")</code>.</td></tr>
+          <tr><td><code>trim(text[, needle])</code></td><td>Apply both trims. Whitespace trimming works; custom-needle trimming inherits the current <code>rtrim</code> defect.</td></tr>
+          <tr><td><code>wssplit(text[, max[, ignore_empties]])</code></td><td>Split on space, newline, or tab. Empty tokens are retained by default; pass true as the third argument to discard them.</td></tr>
+          <tr><td><code>plural(number[, singular[, plural]])</code></td><td>If number equals 1, return <code>singular</code> or empty text; otherwise return <code>plural</code> or <code>"s"</code>.</td></tr>
+        </tbody>
+      </table>
+
+      <h3>ASCII letter case</h3>
+      <table>
+        <thead><tr><th>Function</th><th>Behavior</th></tr></thead>
+        <tbody>
+          <tr><td><code>ucasec(value)</code></td><td>Uppercase one ASCII <code>a</code>–<code>z</code> code point; other input is unchanged.</td></tr>
+          <tr><td><code>lcasec(value)</code></td><td>Lowercase one ASCII <code>A</code>–<code>Z</code> code point; other input is unchanged.</td></tr>
+          <tr><td><code>ucase(text)</code></td><td>ASCII case conversion over Unicode code points; non-ASCII code points are preserved.</td></tr>
+          <tr><td><code>lcase(text)</code></td><td>ASCII case conversion over Unicode code points; non-ASCII code points are preserved.</td></tr>
+          <tr><td><code>ucasefirst(text)</code></td><td>Uppercase the first code point and lowercase the rest using ASCII-only case mappings.</td></tr>
+          <tr><td><code>title(text)</code></td><td>ASCII title case, treating space, tab, and newline as word boundaries and lowercasing non-initial letters.</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Numbers</h3>
+      <table>
+        <thead><tr><th>Function</th><th>Behavior</th></tr></thead>
+        <tbody>
+          <tr><td><code>ceil(value)</code></td><td>Return the least integer greater than or equal to the numeric value. Exact integers remain unchanged.</td></tr>
+          <tr><td><code>is_numeric(value)</code></td><td>Validate a trimmed decimal spelling with optional sign and optional internal decimal point. Rejects <code>.5</code>, <code>1.</code>, exponents, and empty text.</td></tr>
+          <tr><td><code>to_num(value)</code></td><td>Return numeric conversion if <code>is_numeric</code> succeeds, otherwise 0.</td></tr>
+          <tr><td><code>abs(value)</code></td><td>Apply <code>to_num</code> and return the non-negative result.</td></tr>
+          <tr><td><code>in_range(min, value, max)</code></td><td>Return whether both inclusive bounds hold.</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Display, termination, system and data</h3>
+      <table>
+        <thead><tr><th>Function</th><th>Behavior</th></tr></thead>
+        <tbody>
+          <tr><td><code>print_arr(array)</code></td><td>Print values in table iteration order using the historical form <code>(&lt;one&gt;, &lt;two&gt;)</code>. Empty tables print <code>()</code>; sparse and named keys are supported.</td></tr>
+          <tr><td><code>arrprint(array)</code></td><td>Alias wrapper for <code>print_arr</code>.</td></tr>
+          <tr><td><code>printcs(values...)</code></td><td>Print arguments separated by comma-space and end with newline.</td></tr>
+          <tr><td><code>halt(values...)</code></td><td>Concatenate and print all arguments, then <code>exit(1)</code>.</td></tr>
+          <tr><td><code>datetime()</code></td><td>Invoke POSIX <code>date</code> and return a table with <code>dow</code>, <code>date</code>/<code>day</code>, <code>month</code>, <code>year</code>, <code>hour</code>, <code>h12</code>, <code>ampm</code>, <code>min</code>, and <code>sec</code>.</td></tr>
+          <tr><td><code>get_http(url)</code></td><td>Run <code>curl 'url'</code>; return stdout on success or empty text on failure.</td></tr>
+          <tr><td><code>call_api(url, fields...)</code></td><td>Run a curl POST with each later argument as <code>-d</code> payload; return trimmed stdout or empty text on failure.</td></tr>
+          <tr><td><code>parse_json(text)</code></td><td>Intended to parse a limited JSON-like object into nested tables. The current implementation may fail to terminate even on a simple object and should not be used until repaired.</td></tr>
+          <tr><td><code>json_aux_append_value(...)</code></td><td>Internal helper used by <code>parse_json</code>; globally visible but not a stable public API.</td></tr>
+          <tr><td><code>json_aux_parse_list(...)</code></td><td>Internal helper used by <code>parse_json</code>; globally visible but not a stable public API.</td></tr>
+        </tbody>
+      </table>
+
+      <div class="callout warning"><strong>Shell helper safety.</strong> <code>get_http</code>, <code>call_api</code>, and <code>datetime</code> compose shell commands. They are platform-dependent; do not pass untrusted URL or payload text to the curl helpers.</div>
+      <div class="callout"><strong>JSON scope.</strong> The bundled parser does not fully implement JSON escaping, Unicode escapes, null, strict number grammar, or exhaustive malformed-input diagnostics. Use it for controlled simple payloads, not adversarial or standards-critical data.</div>
+      <a class="toplink" href="#top">Back to contents</a>
+    </section>
+
+    <section id="cli">
+      <h2><span class="number">16</span> Command-line reference</h2>
+      <pre><code>katalyn [options] &lt;script.kat&gt; [script arguments...]
+katalyn [options] -a &lt;source&gt; [script arguments...]
+katalyn [options] -s [script arguments...] &lt; source.kat</code></pre>
+      <table>
+        <thead><tr><th>Option</th><th>Meaning</th></tr></thead>
+        <tbody>
+          <tr><td><code>-a SOURCE</code></td><td>Compile and execute source supplied as the next command-line argument.</td></tr>
+          <tr><td><code>-s</code></td><td>Read source from standard input, then compile and execute it.</td></tr>
+          <tr><td><code>-i</code></td><td>Print generated Nambly VM instructions instead of executing the program. Works with file, argument, or standard-input source.</td></tr>
+          <tr><td><code>-n</code></td><td>Do not prepend the bundled standard library.</td></tr>
+          <tr><td><code>-h</code>, <code>--help</code></td><td>Show usage.</td></tr>
+          <tr><td><code>-v</code>, <code>--version</code></td><td>Show interpreter version information.</td></tr>
+        </tbody>
+      </table>
+      <p>Once a source file or argument-source mode has been selected, later tokens are program arguments—even if they begin with a dash. They become <code>$_args[1]</code>, <code>$_args[2]</code>, and so on. The CLI executes one program per process.</p>
+
+      <h3>Standard library loading</h3>
+      <p>Normally, <code>stdlib.kat</code> behaves as though its source appeared before the user program. Thus its globals and functions are visible and may be shadowed later. <code>-n</code> is useful for the smallest runtime surface, VM/compiler testing, or programs that provide their own library.</p>
+      <a class="toplink" href="#top">Back to contents</a>
+    </section>
+
+    <section id="errors">
+      <h2><span class="number">17</span> Errors and diagnostics</h2>
+      <p>The front end distinguishes tokenization, lexing, expression, and parse errors. Messages identify the source file and line. Runtime failures also include the instruction/program-counter location where possible.</p>
+      <table>
+        <thead><tr><th>Phase</th><th>Typical causes</th></tr></thead>
+        <tbody>
+          <tr><td>Tokenizer</td><td>Broken string syntax or invalid character structure.</td></tr>
+          <tr><td>Lexer</td><td>Malformed variable, number, glyph, or unrecognized token.</td></tr>
+          <tr><td>Expression compiler</td><td>Missing operand, unmatched grouping, unusable unary operator, or invalid call arguments.</td></tr>
+          <tr><td>Parser/compiler</td><td>Unknown command, wrong native arity, reading an undeclared variable, bad block structure, or missing import.</td></tr>
+          <tr><td>Runtime/VM</td><td>Invalid type conversion, arithmetic failure, unopened/unwritable file, invalid indexing, or external process trouble.</td></tr>
+        </tbody>
+      </table>
+      <p>The compiler’s declaration checks are intentionally strict enough to catch many misspellings. <code>unsafe</code> bypasses only that compile-time guard; it does not suppress runtime errors. Katalyn has no exception handling construct, so a fatal language/runtime error terminates the program.</p>
+
+      <h3>Debugging techniques</h3>
+      <ul>
+        <li>Use <code>is</code> around optional keys and function arguments.</li>
+        <li>Print table values directly to inspect their keys and contents.</li>
+        <li>Run with <code>-i</code> to inspect generated compiler/VM instructions.</li>
+        <li>Use <code>print("value=", $value, " len=", len($value));</code> for scalar diagnostics.</li>
+        <li>After <code>exec</code>, inspect all three process magic variables.</li>
+        <li>After opening a file, test <code>is_open</code> before reading or writing.</li>
+      </ul>
+      <a class="toplink" href="#top">Back to contents</a>
+    </section>
+
+    <section id="quirks">
+      <h2><span class="number">18</span> Nooks, crannies and limitations</h2>
+      <p>This section deliberately records behavior that is easy to miss. Some items are useful rules; others are current implementation defects preserved here so programs can avoid them.</p>
+
+      <h3>Language semantics</h3>
+      <ul>
+        <li>Semicolons, not line endings, terminate statements.</li>
+        <li>There is no nil literal, and nil does not equal itself. Use <code>is</code> for presence checks.</li>
+        <li>Nil is false in conditions and <code>!nil</code> is 1, but nil remains an absence sentinel: equality involving nil is always false and inequality involving nil is always true.</li>
+        <li><code>&amp;&amp;</code> and <code>||</code> short-circuit and normalize their result to numeric 0 or 1.</li>
+        <li>Operator precedence follows the conventional hierarchy documented above; parentheses remain useful when an expression’s intent is not immediately obvious.</li>
+        <li>Source numbers are stricter than runtime text-to-number conversion; runtime conversion currently accepts numeric prefixes.</li>
+        <li>Text length, indexing, substring positions, and iteration count Unicode code points—not bytes or grapheme clusters.</li>
+        <li>Index 0 aliases the first scalar code point; negative scalar indices count backward from the end.</li>
+        <li>Unicode normalization and full Unicode case conversion are not performed; case helpers transform ASCII letters only.</li>
+        <li>Tables compare reference identity. There is no built-in deep equality or deep copy.</li>
+        <li>Printing a cyclic table can recurse indefinitely.</li>
+      </ul>
+
+      <h3>Compilation and source order</h3>
+      <ul>
+        <li>Function calls should follow definitions. Forward calls are not reliable.</li>
+        <li>Redefining a function affects only calls compiled after the new definition.</li>
+        <li>Declaration tracking follows compilation paths, not runtime paths. A conditional declaration may be “known” but nil.</li>
+        <li><code>unset</code> has both runtime and compile-time consequences.</li>
+        <li>Imports are inline, not modules, and have no deduplication or cycle detection.</li>
+        <li>An unclosed multiline comment consumes to end-of-file without a diagnostic.</li>
+        <li>A trailing function-call comma happens to be accepted but should not be relied upon.</li>
+      </ul>
+
+      <h3>Current native/library defects and surprises</h3>
+      <ul>
+        <li>The case-conversion library is ASCII-only.</li>
+        <li>Custom-needle <code>rtrim</code>/<code>trim</code> currently produce incorrect results.</li>
+        <li>The JSON helper is incomplete and currently may not terminate on simple input.</li>
+        <li>The HTTP and date helpers depend on external Unix-style commands.</li>
+      </ul>
+
+      <h3>Portability and resource behavior</h3>
+      <ul>
+        <li>The interpreter requires a C++17 toolchain to build; the resulting CLI has no Python runtime dependency.</li>
+        <li>External process syntax, available commands, path syntax, and exit statuses vary by host platform.</li>
+        <li>Table keys are stored as strings. Diagnostic storage order is lexical, while <code>for</code> gives numeric keys numeric priority.</li>
+        <li>The VM’s global state persists if the host C++ API executes multiple programs inside one process; the shipped CLI runs only one, so normal CLI use is isolated.</li>
+      </ul>
+
+      <div class="callout tip"><strong>Robust Katalyn style.</strong> Define before use, keep arrays dense and one-based, probe optional data with <code>is</code>, use parentheses freely, use <code>substr</code> for end-relative text, verify files with <code>is_open</code>, and regard shell/JSON helpers as conveniences for trusted data.</div>
+      <a class="toplink" href="#top">Back to contents</a>
+    </section>
+
+    <section id="grammar">
+      <h2><span class="number">19</span> Grammar and cheat sheet</h2>
+      <p>This is a readable structural summary, not a byte-for-byte parser specification. Ellipses mean repetition; brackets mean optional syntax.</p>
+      <pre><code>program          := statement*
+
+statement        := ["in"] place ":" expression ";"
+                  | "global" place ":" expression ";"
+                  | function_call ";"
+                  | "if" expression ";" statement*
+                    ("elif" expression ";" statement*)*
+                    ["else" ";" statement*] "ok" ";"
+                  | "unless" expression ";" statement* "ok" ";"
+                  | ("while" | "whileis" | "until" | "for")
+                    expression ";" statement* "ok" ";"
+                  | "def" identifier ";" statement* "ok" ";"
+                  | "return" [expression] ";"
+                  | "break" [integer] ";"
+                  | "continue" ";"
+                  | "sleep" expression ";"
+                  | "import" string ";"
+
+place            := variable (index)*
+index            := "[" expression "]" | "{" literal-key-text "}"
+
+expression       := number | string | "table" | variable
+                  | place | function_call
+                  | "(" expression ")"
+                  | "-" expression | "!" expression
+                  | expression binary-operator expression
+
+function_call    := identifier "(" [expression ("," expression)*] ")"
+variable         := "$" (ASCII-letter | digit | "_")+
+identifier       := (ASCII-letter | "_")
+                    (ASCII-letter | digit | "_")*
+number           := digit+ ["." digit+]
+comment          := "#" text-to-newline
+                  | "(*" nested-comment-text "*)"</code></pre>
+
+      <h3>Complete miniature program</h3>
+      <pre><code># stats.kat
+def average;
+    $total: 0;
+    $count: 0;
+    for $_[1];
+        $total: $total + $_[1][$_r];
+        $count: $count + 1;
+    ok;
+    if $count = 0;
+        return 0;
+    ok;
+    return $total / $count;
+ok;
+
+$values: arr;
+for $_args;
+    if is_numeric($_args[$_r]);
+        append($values, to_num($_args[$_r]));
+    ok;
+ok;
+
+unless len($values);
+    halt("usage: katalyn stats.kat NUMBER ...");
+ok;
+
+sort($values);
+print("count: ", len($values));
+print("lowest: ", $values[1]);
+print("highest: ", $values[len($values)]);
+print("average: ", average($values));</code></pre>
+
+      <h3>Most-used forms</h3>
+      <div class="twocol">
+        <div>
+          <h4>Values and variables</h4>
+          <pre><code>$n: 12;
+$s: "text";
+$t: table;
+$t{key}: "value";
+$a: arr(1, 2, 3);</code></pre>
+        </div>
+        <div>
+          <h4>Conditions</h4>
+          <pre><code>if $condition;
+    # ...
+elif $other;
+    # ...
+else;
+    # ...
+ok;</code></pre>
+        </div>
+        <div>
+          <h4>Loops</h4>
+          <pre><code>while $condition;
+    # ...
+ok;
+
+for $table;
+    print($_r);
+ok;</code></pre>
+        </div>
+        <div>
+          <h4>Functions</h4>
+          <pre><code>def name;
+    return $_[1];
+ok;
+
+$x: name("value");</code></pre>
+        </div>
+        <div>
+          <h4>Files</h4>
+          <pre><code>$f: open_r("file.txt");
+$text: read($f);
+close($f);</code></pre>
+        </div>
+        <div>
+          <h4>Presence</h4>
+          <pre><code>if is($table{key});
+    print($table{key});
+ok;</code></pre>
+        </div>
+      </div>
+
+      <h3>Reserved command words and built-in names</h3>
+      <p>Structural commands are <code>in</code>, <code>global</code>, <code>if</code>, <code>elif</code>, <code>else</code>, <code>unless</code>, <code>while</code>, <code>whileis</code>, <code>until</code>, <code>for</code>, <code>def</code>, <code>return</code>, <code>break</code>, <code>continue</code>, <code>sleep</code>, <code>import</code>, and <code>ok</code>. The word <code>table</code> is a value constructor. Native function names are listed in chapter 14; standard-library names are ordinary user functions that may be shadowed.</p>
+      <a class="toplink" href="#top">Back to contents</a>
+    </section>
+
+    <footer>
+      <p><strong>Katalyn Complete Reference.</strong> Compiled from the project manual and the current C++ compiler, VM, CLI, examples, and standard library. This page is deliberately self-contained: save or copy this single file and it remains fully readable offline.</p>
+    </footer>
+  </main>
+</body>
+</html>

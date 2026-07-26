@@ -1,0 +1,3 @@
+def imported_value;
+    return "import-ok";
+ok;

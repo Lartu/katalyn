@@ -1,0 +1,37 @@
+import "assert.kat";
+
+# Power, prefix operators, and associativity.
+check(2 ^ 3 ^ 2 = 512, "power is right-associative");
+check(-2 ^ 2 = -4, "power binds tighter than unary minus");
+check(2 ^ -2 = 0.25, "unary minus is accepted as a power operand");
+check(-(2 + 3) = -5, "unary minus accepts a grouped expression");
+check(!0 = 1, "logical not binds before equality");
+
+# Multiplicative operators bind before additive operators.
+check(2 + 3 * 4 = 14, "multiplication before addition");
+check(20 - 6 / 3 = 18, "division before subtraction");
+check(2 + 7 // 3 = 4, "floor division before addition");
+check(10 - 7 % 4 = 7, "remainder before subtraction");
+check(8 / 4 * 2 = 4, "multiplicative operators are left-associative");
+check(10 - 3 + 1 = 8, "additive operators are left-associative");
+
+# Arithmetic binds before concatenation.
+check(1 + 2 & 3 = "33", "addition before concatenation");
+check("total=" & 1 + 2 = "total=3", "right arithmetic before concatenation");
+
+# Relational/membership operators bind before equality and logic.
+check(1 + 1 < 3, "arithmetic before relational comparison");
+check(("at" :: "Katalyn") = 1, "membership before equality");
+check(1 < 2 = 1, "relational comparison before equality");
+
+# Equality binds before AND; AND binds before OR.
+check(1 = 1 && 2 = 2, "equality before logical AND");
+check(1 || 0 && 0, "logical AND before logical OR");
+check(0 || 1 && 1, "mixed conventional logical precedence");
+check(!(1 = 2) && 3 > 2, "prefix, equality, comparison, and AND");
+
+# Parentheses still override every level.
+check((2 + 3) * 4 = 20, "parentheses override arithmetic precedence");
+check((1 || 0) && 0 = 0, "parentheses override logical precedence");
+
+finish("precedence-ok");
