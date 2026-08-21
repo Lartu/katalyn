@@ -15,6 +15,9 @@ OBJ_DIR := $(BUILD_DIR)/obj
 GEN_DIR := $(BUILD_DIR)/generated
 GEN_HEADER := $(GEN_DIR)/stdlib.hpp
 TARGET := $(BUILD_DIR)/katalyn
+TIGER_TARGET := $(BUILD_DIR)/katalyn-tiger-ppc
+TIGER_CXX ?= ppc-ld64-g++
+TIGER_CXXFLAGS ?= -std=c++17 -O2
 
 SOURCES := \
 	main.cpp \
@@ -30,9 +33,18 @@ CXXFLAGS ?= -O2
 CXXFLAGS += -std=c++17 -Wall -Wextra -Wpedantic
 LDLIBS += -pthread
 
-.PHONY: all test install clean run
+.PHONY: all test tiger-ppc install clean run
 
 all: $(TARGET)
+
+# Cross-compile for 32-bit PowerPC Mac OS X 10.4. This target must be run on
+# x86_64 Linux with the PPC Tiger GCC/ld64 toolchain in PATH.
+tiger-ppc: $(TIGER_TARGET)
+
+$(TIGER_TARGET): $(SOURCES) $(GEN_HEADER)
+	@mkdir -p $(dir $@)
+	$(TIGER_CXX) $(TIGER_CXXFLAGS) -I$(GEN_DIR) -Ilib/tiny-process-library \
+		$(SOURCES) -pthread -o $@
 
 $(TARGET): $(OBJECTS)
 	@mkdir -p $(dir $@)

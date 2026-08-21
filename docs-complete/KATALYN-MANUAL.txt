@@ -1,0 +1,1066 @@
+KATALYN PROGRAMMING LANGUAGE
+COMPLETE REFERENCE
+Plain-text edition - August 2026
+========================================
+
+This manual is designed for terminals, text editors, vintage systems, and
+offline use. On Unix-like systems, read it with:
+
+    less KATALYN-MANUAL.txt
+
+or:
+
+    more KATALYN-MANUAL.txt
+
+CONTENTS
+--------
+
+ 1. Introduction
+ 2. Build and run
+ 3. Source and lexical rules
+ 4. Values and conversion
+ 5. Variables and scope
+ 6. Expressions and operators
+ 7. Tables, arrays and indexing
+ 8. Functions
+ 9. Control flow
+10. Console input and output
+11. Files
+12. Processes and time
+13. Imports
+14. Native function reference
+15. Standard library reference
+16. Command-line reference
+17. Errors and diagnostics
+18. Nooks, crannies and limitations
+19. Grammar and cheat sheet
+
+01 Introduction
+
+   Katalyn is a small interpreted scripting language created by Lartu. It favors a compact
+   vocabulary, semicolon-terminated statements, dynamically typed values, one-based array
+   conventions, associative tables, and block endings written as ok;. The current interpreter
+   compiles source to Nambly VM instructions in memory and immediately executes them.
+
+   This manual documents the behavior of the current C++ implementation in this repository. It
+   combines the historical manual, both earlier HTML manuals, the compiler and VM source, the
+   command-line program, and the bundled stdlib.kat. Where an implementation detail differs
+   from an intuitive or documented intention, the difference is called out explicitly.
+
+  A first program
+
+# Every statement ends in a semicolon.
+$name: accept("Your name: ");
+
+if len($name);
+    print("Hello, ", title($name), "!");
+else;
+    print("Hello, mysterious stranger!");
+ok;
+
+  The language at a glance
+
+     * Values are numbers, text, tables, or the internal nil value.
+     * Variables begin with $; assignments use :.
+     * Tables serve as dictionaries, arrays, sets, records, and lightweight objects.
+     * Functions are declared with def; all arguments arrive in the table $_.
+     * Blocks end with ok;, not braces.
+     * The standard library is written in Katalyn and embedded into the executable at build
+       time.
+     * There are no classes, modules, exceptions, booleans as a distinct type, or a
+       source-level nil literal.
+
+
+02 Build and run
+
+  Build
+
+   A C++17 compiler and make are required. From the repository root:
+make
+./build/katalyn examples/disan_count.kat
+
+   The executable is build/katalyn. Useful maintenance targets are:
+
+   Command Effect
+   make Compile the interpreter and embed the current standard library.
+   make test Build and run the language, standard-library, CLI, import, and file-I/O
+   regression suites.
+   make run SCRIPT=file.kat Build if necessary, then run one script.
+   make clean Remove the generated build directory.
+   make install Install katalyn in /usr/local/bin by default. Override with PREFIX or DESTDIR.
+
+  Run source
+
+katalyn program.kat one two three
+katalyn -a 'print("Hello from an argument!");'
+printf 'print("Hello from standard input!");' | katalyn -s
+katalyn -n program.kat
+
+   The normal form loads the bundled standard library before the program. -n omits it. -a runs
+   the next argument as source text; -s reads source from standard input. Arguments after the
+   selected source are available to Katalyn as $_args.
+
+   Portable scripts. A Unix script may begin with #!/usr/bin/env katalyn. The line is harmless
+   to Katalyn because it begins with #.
+
+
+03 Source and lexical rules
+
+  Statements and whitespace
+
+   Every command and assignment ends with a semicolon. A newline is ordinary whitespace, so a
+   statement can span lines and several statements can share one line. Function argument lists
+   and expressions do not use semicolons internally.
+$message:
+    "one statement over several lines";
+print($message); print("second statement");
+
+  Comments
+
+# A single-line comment runs to the newline.
+
+(* A multiline comment.
+   It may contain (* another comment *) inside it. *)
+
+(** This historical documentation style is simply a nested comment. **)
+
+   Multiline comments nest. In the current tokenizer, an unterminated multiline comment
+   silently consumes the rest of the file instead of reporting an error.
+
+  Identifiers and variables
+
+     * A command or function identifier begins with an ASCII letter or underscore, followed by
+       ASCII letters, digits, or underscores.
+     * A variable is $ followed by one or more ASCII letters, digits, or underscores. Unlike
+       ordinary identifiers, the first character after $ may be a digit.
+     * Names are case-sensitive: $name, $Name, and $NAME differ.
+
+  Number literals
+
+   Source number literals are unsigned decimal integers or decimal numbers with digits on both
+   sides of the point: 0, 42, 3.14. Negative values use the unary minus operator. Forms such
+   as .5, 1., hexadecimal, and scientific notation are not source literals.
+
+  Text literals and escapes
+
+   Text is delimited by double quotes and may physically span lines. The recognized source
+   escapes are:
+
+   Source Value
+   \n Newline
+   \t Horizontal tab
+   \" A double quote
+   \ followed by whitespace Consumes that run of whitespace; useful as source line
+   continuation.
+   Any other \x Produces x; the backslash is discarded.
+
+   Backslashes. There is no dedicated \\ escape. An unknown escape loses its backslash, so
+   represent paths with forward slashes where possible.
+
+  Tokens and punctuation
+
+   The language recognizes parentheses, square brackets, braces, commas, assignment colon,
+   arithmetic and logical glyphs. The two-character glyphs are >=, <=, ::, <>, !=, //, &&, and
+   ||.
+
+   Brace access is shorthand for a quoted key: $person{name} means $person["name"]. The
+   contents are static text, not a variable or expression. $table{} addresses the empty-text
+   key.
+
+04 Values and conversion
+
+  The four user-visible kinds
+
+   Kind Examples and origin False when
+   Number 12, -4, 3.5; internally a floating-point value. It is zero.
+   Text "Katalyn", input, file and process output. It is empty.
+   Table table, arrays, records, function argument lists. It has no entries.
+   Nil Missing variables or keys, exhausted reads, and functions without an explicit value.
+   Always.
+
+   There is no separate Boolean kind. The bundled library declares $true as 1 and $false as 0.
+   With -n, those names are absent unless the program declares them.
+
+  Nil and existence
+
+   There is no nil literal. Use is(expression) to ask whether a value is non-nil and
+   unsafe($name) when probing a variable that the compiler cannot prove exists.
+if is($record{optional});
+    print($record{optional});
+ok;
+
+unless is(unsafe($possibly_undeclared));
+    print("No value");
+ok;
+
+  Implicit conversion
+
+   Context Behavior
+   Number to text Integers print without a decimal point. Fractional formatting uses the
+   runtime’s trimmed decimal representation, with roughly six fractional digits.
+   Text to number Arithmetic and numeric comparison invoke C++ numeric parsing. A numeric
+   prefix is accepted, so current behavior converts "12abc" to 12; text without a numeric
+   beginning raises a runtime error.
+   Table to number The number of entries in the table.
+   Table to text A diagnostic map representation such as ['a':1, 'b':"two"].
+   Nil to number/text Not convertible; attempts generally raise a runtime error.
+
+  Equality
+
+     * Two text values compare exactly as text.
+     * Otherwise, scalar values compare numerically where conversion is possible.
+     * Numeric equality uses a very small floating-point tolerance.
+     * Tables compare identity, not contents. Two variables are equal only when they refer to
+       the same table object.
+     * Nil is unusual: any equality involving nil is false, even nil against nil. Any
+       inequality involving nil is true.
+
+  Nil truth table
+
+   Nil represents absence rather than an ordinary comparable value. A missing table key is
+   used below to produce it because Katalyn has no nil literal.
+
+          Operation        Result
+   Nil used as a condition False
+   !nil                    1
+   nil = nil               0
+   nil != nil              1
+
+$source: table;
+if !$source{missing};
+    print("The value is absent");
+ok;
+
+
+05 Variables and scope
+
+  Declaration and reassignment
+
+# `in` is optional.
+in $answer: 42;
+$name: "Ada";
+
+# The same syntax reassigns an existing variable.
+$answer: $answer + 1;
+
+# Assignment is a command, not an expression.
+set($answer, 99);  # `set` provides expression-like assignment.
+
+   The compiler tracks declarations in source order. Reading an unknown variable is a parse
+   error, even if a similarly named value might exist at runtime. A declaration encountered
+   inside a conditional branch is considered known after that point at compile time, although
+   the branch may not execute and the runtime value may therefore be nil.
+
+  Scopes
+
+   Top-level variables are global. A function call creates one local variable scope.
+   Control-flow blocks do not create scopes. A read inside a function checks the current local
+   scope, then globals. An ordinary assignment inside a function creates or updates a local
+   variable; use global to write the global instead.
+$counter: 0;
+
+def tick;
+    global $counter: $counter + 1;
+    $temporary: "local";
+    return $counter;
+ok;
+
+  Unset
+
+   unset($a, $b) removes variables. At runtime each name is removed from the current scope if
+   present, otherwise from globals. The compiler also forgets those names, so a later ordinary
+   read requires redeclaration or unsafe.
+
+  Magic variables
+
+   Name Meaning
+   $_ Inside a user function, a one-based table containing every argument.
+   $_r The current key/index for loops; also the most recently evaluated condition result in
+   relevant flow constructs.
+   $_args One-based table of command-line arguments that follow the selected script/source.
+   $_caller Name of the calling function/context.
+   $_context Name of the currently executing function/context.
+   $_stdout Standard output captured by the latest exec.
+   $_stderr Standard error captured by the latest exec.
+   $_exitcode Exit status of the latest exec.
+
+   $swap is used internally while compiling some native operations. Avoid relying on it in
+   application code.
+
+06 Expressions and operators
+
+  Operator reference
+
+   Operator Meaning Notes
+   + Addition Numeric conversion.
+   - Subtraction; unary negation Numeric conversion. Unary negation accepts literals, calls,
+   variables, and grouped expressions.
+   * Multiplication Numeric conversion.
+   / Division Floating-point result.
+   // Floor division Floors the quotient.
+   % Remainder Floors both operands, then applies integer remainder.
+   ^ Power Numeric exponentiation.
+   & Concatenation Converts both operands to text.
+   = Equality Not assignment; assignment uses :.
+   <>, != Inequality Synonyms.
+   <, >, <=, >= Ordering Numeric comparison.
+   ! Logical not Returns 1 for a false value, including nil, and 0 for a true value.
+   && Logical and Short-circuits when the left operand is false; returns numeric 0 or 1.
+   || Logical or Short-circuits when the left operand is true; returns numeric 0 or 1.
+   :: Membership Tests whether the left value is a key of the right table, or whether the left
+   text occurs within the right scalar text.
+   [ ] Index/key access Dynamic expression inside brackets.
+   { } Literal key access $x{name} is $x["name"].
+
+  Precedence
+
+   Katalyn follows the conventional mathematical/programming hierarchy below, from tightest to
+   loosest:
+    1. ^
+    2. Prefix ! and unary -
+    3. *, /, //, %
+    4. +, binary -
+    5. &
+    6. ::, <, >, <=, >=
+    7. =, <>, !=
+    8. &&
+    9. ||
+
+   Examples. 2 + 3 * 4 is 14, 1 || 0 && 0 is 1, and -2 ^ 2 is -4. Parentheses always override
+   precedence.
+
+   Power is right-associative, so 2 ^ 3 ^ 2 means 2 ^ (3 ^ 2). Other binary operators at the
+   same level are left-associative. Power binds more tightly than unary negation, following
+   mathematical and Python convention; a negative exponent such as 2 ^ -2 is accepted.
+   Function calls, indexing, and parenthesized expressions bind as units. There is no unary
+   plus and no ternary operator.
+
+  Short-circuit evaluation
+
+   && evaluates its right operand only when the left operand is true. || evaluates its right
+   operand only when the left operand is false. The result is always the normalized number 0
+   or 1, rather than one of the original operands.
+# Safe guard:
+if is($config{path}) && len($config{path}) > 0;
+    print($config{path});
+ok;
+
+   Because the skipped operand is not evaluated, it produces no function calls, assignments,
+   process activity, file activity, or runtime errors. Compilation still parses and validates
+   both operands.
+
+07 Tables, arrays and indexing
+
+  Tables are the universal collection
+
+$person: table;
+$person{name}: "Katalyn";
+$person["year"]: 2026;
+
+$numbers: arr(10, 20, 30);
+append($numbers, 40);
+
+$seen: dataset("red", "green", "blue");
+if "green" :: $seen;
+    print("present");
+ok;
+
+   Keys are converted to text. Braces contain a literal key; brackets evaluate an expression.
+   Reading a missing key yields nil. Nested assignment is supported when intermediate values
+   are tables.
+
+  Array convention
+
+   An “array” is simply a table with consecutive text keys "1", "2", and so on. Function
+   arguments, command-line arguments, arr, array, split, and explode follow this convention.
+   Nothing prevents sparse, zero, negative, or named keys, but many library functions assume a
+   dense one-based sequence.
+
+  References and mutation
+
+   Tables have reference semantics. Assigning a table to another variable does not copy it;
+   both variables point to the same object. Mutation through either name is visible through
+   the other. prototype makes a shallow copy: the outer table is new, but nested tables are
+   still shared.
+$a: arr(1, 2);
+$b: $a;
+$b[1]: 99;
+print($a[1]);          # 99
+
+$c: prototype($a);    # new outer table
+
+  Scalar indexing and substrings
+
+   Text and numbers can be indexed as their text representation. Text uses Unicode code-point
+   semantics: positive indices are one-based and return one complete UTF-8 code point. Index 0
+   also returns the first code point. Negative indices count backward from the end, so
+   "á猫🙂"[-1] is "🙂". Any index beyond either end returns empty text.
+
+  Unicode semantics
+
+   Katalyn stores text as UTF-8 and lazily caches code-point boundaries. Consequently, len,
+   indexing, substr, and for operate efficiently in Unicode code points rather than bytes. The
+   cache is built once per text value and shared by copies.
+$text: "á猫🙂";
+print(len($text));           # 3
+print($text[2]);             # 猫
+print(substr($text, 2, 2));  # 猫🙂
+
+   A code point is not necessarily one user-perceived character. A decomposed e followed by a
+   combining accent has length 2, and the joined family emoji 👨‍👩‍👧‍👦 has length 7. Katalyn
+   does not normalize canonically equivalent spellings. Malformed UTF-8 is tolerated: each
+   invalid byte is treated as one independently indexable unit so file and process data cannot
+   crash text operations.
+
+  Iteration order
+
+   for iterates keys. Numeric-looking keys come first in numeric order; other keys follow in
+   lexical order. Iterating text or a number’s text representation yields indices 1 through
+   its Unicode code-point length. During each iteration, $_r is the current key/index.
+
+  Rendering
+
+   Printing a table shows a map-like diagnostic representation. Storage uses ordered keys, so
+   display order is lexical rather than array-numeric order; for example, key "10" may display
+   before "2". Cyclic tables should not be printed because recursive rendering has no cycle
+   detector.
+
+  Collection operations
+
+     * len($table) returns entry count, not highest numeric key.
+     * $key :: $table tests key presence, even if the stored value is false.
+     * keys($table) returns a new dense one-based array of key text in lexical storage order.
+     * del($table, $key) removes an entry in place and returns the table.
+     * set($table[$key], $value) assigns a place and returns its new value.
+     * A table literal constructed from function arguments cannot contain an internal
+       nil/iterator value.
+
+
+08 Functions
+
+  Declaration and calling
+
+def greet;
+    $name: "world";
+    if is($_[1]);
+        $name: $_[1];
+    ok;
+    print("Hello, ", $name);
+    return len($name);
+ok;
+
+$length: greet("Katalyn");
+
+   A definition has no parameter list. All arguments are placed into the local one-based table
+   $_, making every function naturally variadic. There are no formal arity declarations or
+   default-parameter syntax; test optional arguments with is($_[n]).
+
+  Return
+
+   return expression; exits with a value. Bare return;, or reaching ok; at the end, returns
+   nil. A return may appear inside nested flow blocks and exits the function immediately.
+
+  Local state and context
+
+   Each call receives a fresh local scope containing $_, $_caller, and $_context. Ordinary
+   assignments are local. Explicit global assignments update shared state. Recursion is
+   supported by the VM’s call frames, subject to memory and stack limits.
+
+  Definition order and shadowing
+
+   Define a function before calling it. Forward calls are not reliable in the current
+   compiler. Redefinition is source-position-sensitive: calls compiled before a later
+   definition keep targeting the older body, while later calls target the new definition. This
+   permits deliberate shadowing but can be surprising.
+
+  Calls are expressions
+
+   Native and user calls can be nested and used wherever a value is expected. Arguments are
+   comma-separated. A trailing comma is currently accepted, but leading or doubled empty
+   arguments are errors; portable code should omit trailing commas.
+
+09 Control flow
+
+  Conditional blocks
+
+if $score >= 90;
+    print("excellent");
+elif $score >= 60;
+    print("pass");
+else;
+    print("try again");
+ok;
+
+unless is($optional);
+    print("missing");
+ok;
+
+   if and elif execute on a truthy condition. else has no condition. unless executes when its
+   condition is false. An if chain has one final ok;. A stand-alone unless also ends with ok;.
+
+  Loops
+
+   Form Behavior
+   while expression; Repeat while the expression is truthy.
+   whileis expression; Repeat while the expression is non-nil; unlike while, zero and empty
+   text still count as present.
+   until expression; Repeat while the expression is false.
+   for expression; Iterate the expression’s keys or scalar Unicode code-point indices, placing
+   the current key in $_r.
+
+$i: 1;
+while $i <= 3;
+    print($i);
+    $i: $i + 1;
+ok;
+
+for $person;
+    print($_r, ": ", $person[$_r]);
+ok;
+
+whileis read_line($file);
+    print($_r);  # the condition result is available here
+ok;
+
+  Loop control
+
+     * continue; skips to the next iteration of the nearest loop.
+     * break; exits the nearest loop.
+     * break 2; exits two nested loops; the depth is a source number, not a runtime
+       expression.
+     * ok; closes the current function or control block according to the compiler’s block
+       stack.
+
+   Conditions and iteration update $_r. Because it is shared magic state within the scope,
+   nested conditions and loops overwrite its previous value; copy it to a named variable when
+   it must survive nested work.
+
+10 Console input and output
+
+   Call Behavior
+   print(values...) Writes every value with no separator, then a newline. Returns the
+   concatenated text.
+   printc(values...) Writes every value with no separator and no newline. Returns the
+   concatenated text.
+   accept() Reads an interactive line with an empty prompt.
+   accept(prompt) Displays a prompt, then reads a line. Interactive history holds up to 20
+   entries.
+
+print("A", 1, "B");       # A1B, then newline
+printcs("A", 1, "B");     # A, 1, B, then newline
+$answer: accept("> ");
+
+   print is not comma-formatting: commas separate arguments but insert no spaces. Use literal
+   separators, printcs, join_with, or arrjoin.
+
+11 Files
+
+  Opening and closing
+
+   Call Mode Return
+   open_r(path) Read only. The path text.
+   open_rw(path) Read/write. An existing file is truncated on the first write; a missing file
+   is created. The path text.
+   open_ra(path) Read/append. The path text.
+   is_open(path) Tests whether the runtime has an open handle for the path. Numeric truth
+   value.
+   close(path) Close the path’s handle. The path text.
+
+   File handles are represented by their path strings. Opening the same path again closes its
+   previous handle. The open calls return the path even if opening fails, so use is_open to
+   verify success.
+
+  Reading and writing
+
+   Call Behavior
+   read(path) Seek to the beginning and read the whole file. Lines are rejoined with \n; a
+   final newline is not preserved. Returns nil if the path is not open.
+   read_line(path) Read from the current position through the next line ending. Returns nil at
+   EOF or when not open.
+   write(path, value) Write at the end. In open_rw, the first write to a pre-existing file
+   truncates first; later writes append. Returns the written value.
+
+$file: open_r("input.txt");
+if is_open($file);
+    whileis read_line($file);
+        print($_r);
+    ok;
+    close($file);
+ok;
+
+$out: open_rw("result.txt");
+write($out, "first line\n");
+write($out, "second line\n");
+close($out);
+
+   Read position. read always resets to the beginning. read_line advances the current stream.
+   A whole-file read therefore changes the position used by later line reads.
+
+
+12 Processes and time
+
+  External commands
+
+$status: exec("printf 'hello'");
+print("status: ", $status);
+print("out: ", $_stdout);
+print("err: ", $_stderr);
+
+   exec is synchronous: Katalyn waits for the child process. It captures exact standard output
+   and standard error, updates $_stdout, $_stderr, and $_exitcode, and returns the numeric
+   exit code. Multiple arguments are concatenated with no inserted separator, so these two
+   forms differ:
+exec("printf ", "'hello'");  # compiler joins to: printf 'hello'
+exec("printf", "'hello'");   # compiler joins to: printf'hello'
+
+   The command is interpreted according to the process library and host platform. Treat
+   untrusted text as dangerous: Katalyn does not provide structured argument escaping.
+
+  Sleeping
+
+   sleep seconds; pauses the current process. Fractions are supported; the runtime converts
+   seconds to an integer number of microseconds.
+printc("waiting...");
+sleep 0.25;
+print("done");
+
+  Clock and network helpers
+
+   The standard-library datetime function invokes the POSIX date command. get_http and
+   call_api invoke curl. These are conveniences, not native protocols, and depend on those
+   host commands being installed.
+
+13 Imports
+
+import "helpers.kat";
+import "models/person.kat";
+
+   An import path must be static quoted text. It is resolved relative to the file containing
+   the import, not necessarily the process working directory. Imported source is compiled
+   inline at the import location and shares global variables and function names with the
+   importer.
+     * There are no namespaces, export lists, or private declarations.
+     * Imports are source-position-sensitive; imported definitions become available after the
+       import.
+     * There is no automatic deduplication. Importing a file twice compiles it twice.
+     * There is no cycle detector; cyclic imports eventually fail or exhaust resources.
+     * Because code is inline, name collisions and function shadowing follow normal
+       source-order rules.
+
+
+14 Native function reference
+
+   These facilities are recognized directly by the compiler and work with -n. “Returns”
+   describes the value left by the current compiled call.
+
+  Output, input, inspection and control
+
+   Signature Description
+   print(...) Print all arguments without separators and add a newline; returns the
+   concatenated text. Zero arguments prints a blank line.
+   printc(...) Print all arguments without separators or final newline; returns the
+   concatenated text.
+   accept([prompt]) Read one interactive input line, optionally after a prompt.
+   is(value) Return 1 when value is not nil, otherwise 0. It tests presence, not truthiness.
+   unsafe(expression) Compile an expression without the normal compile-time variable-existence
+   check. Runtime semantics are otherwise unchanged.
+   exit(status) Terminate the interpreter with the numeric status.
+
+  Values, variables and tables
+
+   Signature Description
+   len(value) Table entry count, or Unicode code-point length of the scalar’s text
+   representation.
+   floor(value) Convert to number and round downward.
+   keys(table) Return a new dense one-based array containing the table’s keys as text, in
+   lexical storage order. The input table is not modified.
+   del(table, key) Remove key from table in place; return the table.
+   set(place, value) Assign a variable or table place and return the newly assigned value.
+   place is syntax, not an arbitrary computed value.
+   unset(variables...) Remove each named variable and make the compiler forget it. Arguments
+   must be bare variable names. With no arguments it performs no work.
+
+  Text splitting and replacement
+
+   Signature Description
+   substr(text, start[, length]) Return a Unicode code-point substring. Positive starts are
+   one-based; zero starts at the first code point; negative starts count from the end. Omitted
+   length means the remainder. Negative length becomes zero; invalid ranges return empty text.
+   replace(text, needle, replacement) Replace all non-overlapping occurrences. An empty needle
+   leaves text unchanged.
+   split(text, delimiter[, max[, add_empties]]) Return a one-based token table split on one
+   delimiter. max defaults to -1 (unlimited). The fourth value defaults to 1; exactly 1
+   retains empty tokens, while 0 discards them.
+   explode(text, delimiters[, max[, add_empties]]) Like split, but delimiters is a table. At
+   each position, the earliest matching delimiter wins.
+
+  Files and processes
+
+   Signature Description
+   open_r(path) Open for reading; return path.
+   open_rw(path) Open for reading/writing, creating if needed; return path.
+   open_ra(path) Open for reading/appending; return path.
+   is_open(path) Return whether the path currently has an open stream.
+   close(path) Close and return path.
+   read(path) Read the complete open file from its beginning.
+   read_line(path) Read the next line or return nil.
+   write(path, value) Write/append and return value.
+   exec(parts...) Concatenate at least one argument into a command, run synchronously, capture
+   output, and return exit status.
+
+
+15 Standard library reference
+
+   The following Katalyn functions are prepended to ordinary programs. They are unavailable
+   under -n. Since the library is embedded during make, editing stdlib.kat requires rebuilding
+   the executable.
+
+  Constants and collections
+
+   Symbol Behavior
+   $true, $false Numeric constants 1 and 0.
+   arr(values...) Return all arguments as the one-based table $_.
+   array(values...) Alias of arr.
+   tuple(values...) Return a table mapping each supplied value, converted to a key, to 1.
+   Useful with ::.
+   dataset(values...) Return a set-like table mapping each argument to $true.
+   arrdataset(array) Set-like table whose keys are the values in a dense one-based array.
+   init_table(key, value, ...) Build a table from alternating key/value arguments. A final key
+   without a value is ignored.
+   append(array, value) Mutate array at key len(array)+1 and return it.
+   prototype(table) Return a shallow copy.
+   in_array(needle, array) Search dense values from key 1 until the first nil; return the
+   first index or 0.
+   arrcount(array, value) Count equal values across all iterated keys.
+   sort(array[, ascending]) Naive in-place comparison sort of a dense array, returning it.
+   Defaults to ascending; false selects descending. Complexity is quadratic.
+   shift_arr(array, count) Rotate a dense array left, in place, by count % len(array), and
+   return the same array. Empty arrays are returned unchanged.
+   last(array) Return the final value of a dense one-based array. Return nil when the array is
+   empty.
+
+  Text construction and search
+
+   Function Behavior
+   join(values...) Concatenate all arguments with no separator.
+   arrjoin(array[, separator]) Join dense array values; separator defaults to empty text.
+   join_with(separator, values...) Join the remaining arguments with the first argument.
+   index(haystack, needle) Return the one-based Unicode code-point position of the first
+   occurrence or 0.
+   replace_slow(text, needle, replacement) Katalyn-level all-occurrences replacement retained
+   for compatibility; native replace is preferred.
+   starts_with(text, prefix) Numeric truth value for a prefix match.
+   ends_with(text, suffix) Numeric truth value for a suffix match.
+   is_whitespace(text) True when every code point is ASCII space, tab, or newline. Empty text
+   is considered whitespace.
+   ltrim(text[, needle]) Remove leading whitespace, or repeated leading needle when supplied.
+   rtrim(text[, needle]) Remove trailing whitespace. The custom-needle path is intended to
+   remove repeated trailing needle values, but currently returns an incorrect result in simple
+   cases such as rtrim("x--", "--").
+   trim(text[, needle]) Apply both trims. Whitespace trimming works; custom-needle trimming
+   inherits the current rtrim defect.
+   wssplit(text[, max[, ignore_empties]]) Split on space, newline, or tab. Empty tokens are
+   retained by default; pass true as the third argument to discard them.
+   plural(number[, singular[, plural]]) If number equals 1, return singular or empty text;
+   otherwise return plural or "s".
+
+  ASCII letter case
+
+   Function Behavior
+   ucasec(value) Uppercase one ASCII a–z code point; other input is unchanged.
+   lcasec(value) Lowercase one ASCII A–Z code point; other input is unchanged.
+   ucase(text) ASCII case conversion over Unicode code points; non-ASCII code points are
+   preserved.
+   lcase(text) ASCII case conversion over Unicode code points; non-ASCII code points are
+   preserved.
+   ucasefirst(text) Uppercase the first code point and lowercase the rest using ASCII-only
+   case mappings.
+   title(text) ASCII title case, treating space, tab, and newline as word boundaries and
+   lowercasing non-initial letters.
+
+  Numbers
+
+   Function Behavior
+   ceil(value) Return the least integer greater than or equal to the numeric value. Exact
+   integers remain unchanged.
+   is_numeric(value) Validate a trimmed decimal spelling with optional sign and optional
+   internal decimal point. Rejects .5, 1., exponents, and empty text.
+   to_num(value) Return numeric conversion if is_numeric succeeds, otherwise 0.
+   abs(value) Apply to_num and return the non-negative result.
+   in_range(min, value, max) Return whether both inclusive bounds hold.
+
+  Display, termination, system and data
+
+   Function Behavior
+   print_arr(array) Print values in table iteration order using the historical form (<one>,
+   <two>). Empty tables print (); sparse and named keys are supported.
+   arrprint(array) Alias wrapper for print_arr.
+   printcs(values...) Print arguments separated by comma-space and end with newline.
+   halt(values...) Concatenate and print all arguments, then exit(1).
+   datetime() Invoke POSIX date and return a table with dow, date/day, month, year, hour, h12,
+   ampm, min, and sec.
+   get_http(url) Run curl 'url'; return stdout on success or empty text on failure.
+   call_api(url, fields...) Run a curl POST with each later argument as -d payload; return
+   trimmed stdout or empty text on failure.
+   parse_json(text) Intended to parse a limited JSON-like object into nested tables. The
+   current implementation may fail to terminate even on a simple object and should not be used
+   until repaired.
+   json_aux_append_value(...) Internal helper used by parse_json; globally visible but not a
+   stable public API.
+   json_aux_parse_list(...) Internal helper used by parse_json; globally visible but not a
+   stable public API.
+
+   Shell helper safety. get_http, call_api, and datetime compose shell commands. They are
+   platform-dependent; do not pass untrusted URL or payload text to the curl helpers.
+
+   JSON scope. The bundled parser does not fully implement JSON escaping, Unicode escapes,
+   null, strict number grammar, or exhaustive malformed-input diagnostics. Use it for
+   controlled simple payloads, not adversarial or standards-critical data.
+
+
+16 Command-line reference
+
+katalyn [options] <script.kat> [script arguments...]
+katalyn [options] -a <source> [script arguments...]
+katalyn [options] -s [script arguments...] < source.kat
+
+   Option Meaning
+   -a SOURCE Compile and execute source supplied as the next command-line argument.
+   -s Read source from standard input, then compile and execute it.
+   -i Print generated Nambly VM instructions instead of executing the program. Works with
+   file, argument, or standard-input source.
+   -n Do not prepend the bundled standard library.
+   -h, --help Show usage.
+   -v, --version Show interpreter version information.
+
+   Once a source file or argument-source mode has been selected, later tokens are program
+   arguments—even if they begin with a dash. They become $_args[1], $_args[2], and so on. The
+   CLI executes one program per process.
+
+  Standard library loading
+
+   Normally, stdlib.kat behaves as though its source appeared before the user program. Thus
+   its globals and functions are visible and may be shadowed later. -n is useful for the
+   smallest runtime surface, VM/compiler testing, or programs that provide their own library.
+
+17 Errors and diagnostics
+
+   The front end distinguishes tokenization, lexing, expression, and parse errors. Messages
+   identify the source file and line. Runtime failures also include the
+   instruction/program-counter location where possible.
+
+   Phase Typical causes
+   Tokenizer Broken string syntax or invalid character structure.
+   Lexer Malformed variable, number, glyph, or unrecognized token.
+   Expression compiler Missing operand, unmatched grouping, unusable unary operator, or
+   invalid call arguments.
+   Parser/compiler Unknown command, wrong native arity, reading an undeclared variable, bad
+   block structure, or missing import.
+   Runtime/VM Invalid type conversion, arithmetic failure, unopened/unwritable file, invalid
+   indexing, or external process trouble.
+
+   The compiler’s declaration checks are intentionally strict enough to catch many
+   misspellings. unsafe bypasses only that compile-time guard; it does not suppress runtime
+   errors. Katalyn has no exception handling construct, so a fatal language/runtime error
+   terminates the program.
+
+  Debugging techniques
+
+     * Use is around optional keys and function arguments.
+     * Print table values directly to inspect their keys and contents.
+     * Run with -i to inspect generated compiler/VM instructions.
+     * Use print("value=", $value, " len=", len($value)); for scalar diagnostics.
+     * After exec, inspect all three process magic variables.
+     * After opening a file, test is_open before reading or writing.
+
+
+18 Nooks, crannies and limitations
+
+   This section deliberately records behavior that is easy to miss. Some items are useful
+   rules; others are current implementation defects preserved here so programs can avoid them.
+
+  Language semantics
+
+     * Semicolons, not line endings, terminate statements.
+     * There is no nil literal, and nil does not equal itself. Use is for presence checks.
+     * Nil is false in conditions and !nil is 1, but nil remains an absence sentinel: equality
+       involving nil is always false and inequality involving nil is always true.
+     * && and || short-circuit and normalize their result to numeric 0 or 1.
+     * Operator precedence follows the conventional hierarchy documented above; parentheses
+       remain useful when an expression’s intent is not immediately obvious.
+     * Source numbers are stricter than runtime text-to-number conversion; runtime conversion
+       currently accepts numeric prefixes.
+     * Text length, indexing, substring positions, and iteration count Unicode code points—not
+       bytes or grapheme clusters.
+     * Index 0 aliases the first scalar code point; negative scalar indices count backward
+       from the end.
+     * Unicode normalization and full Unicode case conversion are not performed; case helpers
+       transform ASCII letters only.
+     * Tables compare reference identity. There is no built-in deep equality or deep copy.
+     * Printing a cyclic table can recurse indefinitely.
+
+  Compilation and source order
+
+     * Function calls should follow definitions. Forward calls are not reliable.
+     * Redefining a function affects only calls compiled after the new definition.
+     * Declaration tracking follows compilation paths, not runtime paths. A conditional
+       declaration may be “known” but nil.
+     * unset has both runtime and compile-time consequences.
+     * Imports are inline, not modules, and have no deduplication or cycle detection.
+     * An unclosed multiline comment consumes to end-of-file without a diagnostic.
+     * A trailing function-call comma happens to be accepted but should not be relied upon.
+
+  Current native/library defects and surprises
+
+     * The case-conversion library is ASCII-only.
+     * Custom-needle rtrim/trim currently produce incorrect results.
+     * The JSON helper is incomplete and currently may not terminate on simple input.
+     * The HTTP and date helpers depend on external Unix-style commands.
+
+  Portability and resource behavior
+
+     * The interpreter requires a C++17 toolchain to build; the resulting CLI has no Python
+       runtime dependency.
+     * External process syntax, available commands, path syntax, and exit statuses vary by
+       host platform.
+     * Table keys are stored as strings. Diagnostic storage order is lexical, while for gives
+       numeric keys numeric priority.
+     * The VM’s global state persists if the host C++ API executes multiple programs inside
+       one process; the shipped CLI runs only one, so normal CLI use is isolated.
+
+   Robust Katalyn style. Define before use, keep arrays dense and one-based, probe optional
+   data with is, use parentheses freely, use substr for end-relative text, verify files with
+   is_open, and regard shell/JSON helpers as conveniences for trusted data.
+
+
+19 Grammar and cheat sheet
+
+   This is a readable structural summary, not a byte-for-byte parser specification. Ellipses
+   mean repetition; brackets mean optional syntax.
+program          := statement*
+
+statement        := ["in"] place ":" expression ";"
+                  | "global" place ":" expression ";"
+                  | function_call ";"
+                  | "if" expression ";" statement*
+                    ("elif" expression ";" statement*)*
+                    ["else" ";" statement*] "ok" ";"
+                  | "unless" expression ";" statement* "ok" ";"
+                  | ("while" | "whileis" | "until" | "for")
+                    expression ";" statement* "ok" ";"
+                  | "def" identifier ";" statement* "ok" ";"
+                  | "return" [expression] ";"
+                  | "break" [integer] ";"
+                  | "continue" ";"
+                  | "sleep" expression ";"
+                  | "import" string ";"
+
+place            := variable (index)*
+index            := "[" expression "]" | "{" literal-key-text "}"
+
+expression       := number | string | "table" | variable
+                  | place | function_call
+                  | "(" expression ")"
+                  | "-" expression | "!" expression
+                  | expression binary-operator expression
+
+function_call    := identifier "(" [expression ("," expression)*] ")"
+variable         := "$" (ASCII-letter | digit | "_")+
+identifier       := (ASCII-letter | "_")
+                    (ASCII-letter | digit | "_")*
+number           := digit+ ["." digit+]
+comment          := "#" text-to-newline
+                  | "(*" nested-comment-text "*)"
+
+  Complete miniature program
+
+# stats.kat
+def average;
+    $total: 0;
+    $count: 0;
+    for $_[1];
+        $total: $total + $_[1][$_r];
+        $count: $count + 1;
+    ok;
+    if $count = 0;
+        return 0;
+    ok;
+    return $total / $count;
+ok;
+
+$values: arr;
+for $_args;
+    if is_numeric($_args[$_r]);
+        append($values, to_num($_args[$_r]));
+    ok;
+ok;
+
+unless len($values);
+    halt("usage: katalyn stats.kat NUMBER ...");
+ok;
+
+sort($values);
+print("count: ", len($values));
+print("lowest: ", $values[1]);
+print("highest: ", $values[len($values)]);
+print("average: ", average($values));
+
+  Most-used forms
+
+Values and variables
+
+$n: 12;
+$s: "text";
+$t: table;
+$t{key}: "value";
+$a: arr(1, 2, 3);
+
+Conditions
+
+if $condition;
+    # ...
+elif $other;
+    # ...
+else;
+    # ...
+ok;
+
+Loops
+
+while $condition;
+    # ...
+ok;
+
+for $table;
+    print($_r);
+ok;
+
+Functions
+
+def name;
+    return $_[1];
+ok;
+
+$x: name("value");
+
+Files
+
+$f: open_r("file.txt");
+$text: read($f);
+close($f);
+
+Presence
+
+if is($table{key});
+    print($table{key});
+ok;
+
+  Reserved command words and built-in names
+
+   Structural commands are in, global, if, elif, else, unless, while, whileis, until, for,
+   def, return, break, continue, sleep, import, and ok. The word table is a value constructor.
+   Native function names are listed in chapter 14; standard-library names are ordinary user
+   functions that may be shadowed.
+
+   Katalyn Complete Reference. Compiled from the project manual and the current C++ compiler,
+   VM, CLI, examples, and standard library. This plain-text edition is fully readable offline.
