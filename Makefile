@@ -23,7 +23,6 @@ SOURCES := \
 	main.cpp \
 	compiler.cpp \
 	narivm.cpp \
-	mysql_runtime.cpp \
 	lib/tiny-process-library/process.cpp \
 	lib/tiny-process-library/process_unix.cpp
 OBJECTS := $(SOURCES:%.cpp=$(OBJ_DIR)/%.o)
@@ -33,9 +32,6 @@ CPPFLAGS += -I$(GEN_DIR) -Ilib/tiny-process-library -MMD -MP
 CXXFLAGS ?= -O2
 CXXFLAGS += -std=c++17 -Wall -Wextra -Wpedantic
 LDLIBS += -pthread
-ifeq ($(shell uname -s),Linux)
-LDLIBS += -ldl
-endif
 
 .PHONY: all test tiger-ppc install clean run
 

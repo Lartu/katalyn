@@ -22,7 +22,6 @@
 #include <sys/stat.h>
 #include "lib/tiny-process-library/process.hpp"
 #include "lib/linenoise.hpp"
-#include "mysql_runtime.hpp"
 
 using namespace std;
 using namespace TinyProcessLib;
@@ -130,14 +129,6 @@ enum Opcode : uint8_t
     JENC, // JSON encode
     CGIR, // Build CGI request
     CGIO, // Write CGI response
-    MAVL, // MySQL client available
-    MINF, // MySQL client information
-    MCNT, // MySQL connect
-    MCLS, // MySQL close
-    MFMT, // MySQL parameter formatting
-    MQRY, // MySQL query
-    MERR, // MySQL error text
-    MERN, // MySQL error number
     DEBUG,
 };
 
@@ -215,14 +206,6 @@ Opcode opcode_from_string(string_view str)
         {"JENC", Opcode::JENC},
         {"CGIR", Opcode::CGIR},
         {"CGIO", Opcode::CGIO},
-        {"MAVL", Opcode::MAVL},
-        {"MINF", Opcode::MINF},
-        {"MCNT", Opcode::MCNT},
-        {"MCLS", Opcode::MCLS},
-        {"MFMT", Opcode::MFMT},
-        {"MQRY", Opcode::MQRY},
-        {"MERR", Opcode::MERR},
-        {"MERN", Opcode::MERN},
         {"DBUG", Opcode::DEBUG},
     };
     return str_to_opcode[str];
@@ -408,22 +391,6 @@ string_view opcode_as_string(Opcode opcode)
         return "CGIR";
     case Opcode::CGIO:
         return "CGIO";
-    case Opcode::MAVL:
-        return "MAVL";
-    case Opcode::MINF:
-        return "MINF";
-    case Opcode::MCNT:
-        return "MCNT";
-    case Opcode::MCLS:
-        return "MCLS";
-    case Opcode::MFMT:
-        return "MFMT";
-    case Opcode::MQRY:
-        return "MQRY";
-    case Opcode::MERR:
-        return "MERR";
-    case Opcode::MERN:
-        return "MERN";
     case Opcode::DEBUG:
         return "DBUG";
     default:
@@ -1420,188 +1387,6 @@ void write_cgi_response(int status, const string &content_type, const string &bo
     cout << "\r\n";
     cout.write(body.data(), static_cast<streamsize>(body.size()));
     cout.flush();
-}
-
-long long mysql_connection_handle(Value value, bool allow_zero = false)
-{
-    double number = value.get_as_number();
-    if (!isfinite(number) || number != floor(number) ||
-        number < (allow_zero ? 0 : 1) || number > 9007199254740991.0)
-        raise_nvm_error("MySQL connection handle must be a positive integer.");
-    return static_cast<long long>(number);
-}
-
-string mysql_sql_literal(Value value)
-{
-    if (value.get_type() == NIL)
-        return "NULL";
-    if (value.get_type() == NUMB)
-    {
-        double number = value.get_as_number();
-        if (!isfinite(number))
-            raise_nvm_error("Cannot use a non-finite number as a MySQL parameter.");
-        return double_to_string(number);
-    }
-    if (value.get_type() != TEXT)
-        raise_nvm_error("MySQL parameters must be text, numbers, or nil.");
-
-    static const char hex[] = "0123456789ABCDEF";
-    const string &text = value.get_as_string();
-    string literal;
-    literal.reserve(text.size() * 2 + 3);
-    literal += "X'";
-    for (unsigned char byte : text)
-    {
-        literal += hex[byte >> 4];
-        literal += hex[byte & 0x0F];
-    }
-    literal += '\'';
-    return literal;
-}
-
-vector<Value> mysql_parameters(Value parameters)
-{
-    if (parameters.get_type() != TABLE)
-        raise_nvm_error("MySQL query parameters must be a dense one-based table.");
-    vector<Value> result;
-    result.reserve(parameters.get_table()->size());
-    for (size_t i = 1; i <= parameters.get_table()->size(); ++i)
-    {
-        string key = double_to_string(i);
-        auto found = parameters.get_table()->find(key);
-        if (found == parameters.get_table()->end())
-            raise_nvm_error("MySQL query parameters must be a dense one-based table.");
-        result.push_back(found->second);
-    }
-    return result;
-}
-
-string mysql_format_sql(const string &sql, Value parameters)
-{
-    enum class State
-    {
-        Normal,
-        SingleQuote,
-        DoubleQuote,
-        Backtick,
-        LineComment,
-        BlockComment
-    };
-
-    vector<Value> values = mysql_parameters(parameters);
-    size_t parameter = 0;
-    State state = State::Normal;
-    string output;
-    output.reserve(sql.size() + values.size() * 8);
-    for (size_t i = 0; i < sql.size(); ++i)
-    {
-        char ch = sql[i];
-        if (state == State::Normal)
-        {
-            if (ch == '?')
-            {
-                if (parameter >= values.size())
-                    raise_nvm_error("MySQL query has more placeholders than parameters.");
-                output += mysql_sql_literal(values[parameter++]);
-                continue;
-            }
-            if (ch == '\'')
-                state = State::SingleQuote;
-            else if (ch == '"')
-                state = State::DoubleQuote;
-            else if (ch == '`')
-                state = State::Backtick;
-            else if (ch == '#')
-                state = State::LineComment;
-            else if (ch == '-' && i + 2 < sql.size() && sql[i + 1] == '-' &&
-                     isspace(static_cast<unsigned char>(sql[i + 2])))
-            {
-                output += ch;
-                output += sql[++i];
-                state = State::LineComment;
-                continue;
-            }
-            else if (ch == '/' && i + 1 < sql.size() && sql[i + 1] == '*')
-            {
-                output += ch;
-                output += sql[++i];
-                state = State::BlockComment;
-                continue;
-            }
-            output += ch;
-            continue;
-        }
-
-        output += ch;
-        if (state == State::LineComment)
-        {
-            if (ch == '\n' || ch == '\r')
-                state = State::Normal;
-            continue;
-        }
-        if (state == State::BlockComment)
-        {
-            if (ch == '*' && i + 1 < sql.size() && sql[i + 1] == '/')
-            {
-                output += sql[++i];
-                state = State::Normal;
-            }
-            continue;
-        }
-
-        const char delimiter = state == State::SingleQuote ? '\'' :
-                               state == State::DoubleQuote ? '"' : '`';
-        if (ch == '\\' && i + 1 < sql.size())
-        {
-            output += sql[++i];
-            continue;
-        }
-        if (ch == delimiter)
-        {
-            if (i + 1 < sql.size() && sql[i + 1] == delimiter)
-                output += sql[++i];
-            else
-                state = State::Normal;
-        }
-    }
-    if (parameter != values.size())
-        raise_nvm_error("MySQL query has more parameters than placeholders.");
-    return output;
-}
-
-Value mysql_result_value(const katalyn_mysql::QueryResult &query)
-{
-    Value result = table_value();
-    (*result.get_table())["ok"] = number_value(1);
-    (*result.get_table())["affected_rows"] = number_value(static_cast<double>(query.affected_rows));
-    (*result.get_table())["insert_id"] = number_value(static_cast<double>(query.insert_id));
-    (*result.get_table())["row_count"] = number_value(static_cast<double>(query.rows.size()));
-
-    Value columns = table_value();
-    for (size_t i = 0; i < query.columns.size(); ++i)
-        (*columns.get_table())[double_to_string(i + 1)] = text_value(query.columns[i]);
-    (*result.get_table())["columns"] = columns;
-
-    Value rows = table_value();
-    for (size_t row_index = 0; row_index < query.rows.size(); ++row_index)
-    {
-        Value row = table_value();
-        for (size_t field = 0; field < query.columns.size(); ++field)
-        {
-            if (query.rows[row_index][field].is_null)
-            {
-                Value nil;
-                nil.set_nil_value();
-                (*row.get_table())[query.columns[field]] = nil;
-            }
-            else
-                (*row.get_table())[query.columns[field]] =
-                    text_value(query.rows[row_index][field].text);
-        }
-        (*rows.get_table())[double_to_string(row_index + 1)] = row;
-    }
-    (*result.get_table())["rows"] = rows;
-    return result;
 }
 
 class Command
