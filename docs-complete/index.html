@@ -872,6 +872,23 @@ import "models/person.kat";</code></pre>
           <tr><td><code>exec(parts...)</code></td><td>Concatenate at least one argument into a command, run synchronously, capture output, and return exit status.</td></tr>
         </tbody>
       </table>
+
+      <h3>Environment, CGI, URL data and JSON</h3>
+      <table>
+        <thead><tr><th>Signature</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td><code>env()</code></td><td>Return the complete process environment as a table.</td></tr>
+          <tr><td><code>env(name[, fallback])</code></td><td>Return an environment value, nil when absent, or the optional fallback.</td></tr>
+          <tr><td><code>read_stdin([length])</code></td><td>Read raw standard input through EOF or up to a byte length. A length of -1 also means EOF.</td></tr>
+          <tr><td><code>url_decode(text[, plus_as_space])</code></td><td>Decode percent escapes; optionally decode plus as space for query/form data.</td></tr>
+          <tr><td><code>parse_query(text)</code></td><td>Parse a URL query or form string into a decoded table. The last repeated value wins.</td></tr>
+          <tr><td><code>json_decode(text)</code></td><td>Strictly decode one complete JSON value, including escapes, surrogate pairs, booleans and null.</td></tr>
+          <tr><td><code>json_encode(value)</code></td><td>Encode compact JSON. Dense nonempty tables become arrays; other tables become objects.</td></tr>
+          <tr><td><code>cgi_request([maximum_body_bytes])</code></td><td>Read and normalize a CGI request, enforcing CONTENT_LENGTH and a body limit of 16 MiB by default.</td></tr>
+          <tr><td><code>cgi_response(status, type, body[, headers])</code></td><td>Validate and write a complete CGI response, rejecting header newline injection.</td></tr>
+        </tbody>
+      </table>
+      <div class="callout"><strong>Apache CGI.</strong> The request table contains method, query, form, body, normalized headers, path and environment data. See <code>docs-complete/KATALYN-CGI.txt</code> and <code>examples/apache_cgi.kat</code>.</div>
       <a class="toplink" href="#top">Back to contents</a>
     </section>
 
@@ -956,14 +973,14 @@ import "models/person.kat";</code></pre>
           <tr><td><code>datetime()</code></td><td>Invoke POSIX <code>date</code> and return a table with <code>dow</code>, <code>date</code>/<code>day</code>, <code>month</code>, <code>year</code>, <code>hour</code>, <code>h12</code>, <code>ampm</code>, <code>min</code>, and <code>sec</code>.</td></tr>
           <tr><td><code>get_http(url)</code></td><td>Run <code>curl 'url'</code>; return stdout on success or empty text on failure.</td></tr>
           <tr><td><code>call_api(url, fields...)</code></td><td>Run a curl POST with each later argument as <code>-d</code> payload; return trimmed stdout or empty text on failure.</td></tr>
-          <tr><td><code>parse_json(text)</code></td><td>Intended to parse a limited JSON-like object into nested tables. The current implementation may fail to terminate even on a simple object and should not be used until repaired.</td></tr>
-          <tr><td><code>json_aux_append_value(...)</code></td><td>Internal helper used by <code>parse_json</code>; globally visible but not a stable public API.</td></tr>
-          <tr><td><code>json_aux_parse_list(...)</code></td><td>Internal helper used by <code>parse_json</code>; globally visible but not a stable public API.</td></tr>
+          <tr><td><code>parse_json(text)</code></td><td>Historical compatibility alias for native <code>json_decode(text)</code>.</td></tr>
+          <tr><td><code>json_aux_append_value(...)</code></td><td>Obsolete helper retained temporarily for source compatibility; not a stable public API.</td></tr>
+          <tr><td><code>json_aux_parse_list(...)</code></td><td>Obsolete helper retained temporarily for source compatibility; not a stable public API.</td></tr>
         </tbody>
       </table>
 
       <div class="callout warning"><strong>Shell helper safety.</strong> <code>get_http</code>, <code>call_api</code>, and <code>datetime</code> compose shell commands. They are platform-dependent; do not pass untrusted URL or payload text to the curl helpers.</div>
-      <div class="callout"><strong>JSON scope.</strong> The bundled parser does not fully implement JSON escaping, Unicode escapes, null, strict number grammar, or exhaustive malformed-input diagnostics. Use it for controlled simple payloads, not adversarial or standards-critical data.</div>
+      <div class="callout"><strong>Native JSON.</strong> JSON objects, arrays, strict numbers, escapes, surrogate pairs, booleans and null are supported. Because Katalyn has no distinct boolean type, decoded booleans become numeric 1 and 0.</div>
       <a class="toplink" href="#top">Back to contents</a>
     </section>
 
@@ -1051,7 +1068,6 @@ katalyn [options] -s [script arguments...] &lt; source.kat</code></pre>
       <ul>
         <li>The case-conversion library is ASCII-only.</li>
         <li>Custom-needle <code>rtrim</code>/<code>trim</code> currently produce incorrect results.</li>
-        <li>The JSON helper is incomplete and currently may not terminate on simple input.</li>
         <li>The HTTP and date helpers depend on external Unix-style commands.</li>
       </ul>
 
@@ -1063,7 +1079,7 @@ katalyn [options] -s [script arguments...] &lt; source.kat</code></pre>
         <li>The VM’s global state persists if the host C++ API executes multiple programs inside one process; the shipped CLI runs only one, so normal CLI use is isolated.</li>
       </ul>
 
-      <div class="callout tip"><strong>Robust Katalyn style.</strong> Define before use, keep arrays dense and one-based, probe optional data with <code>is</code>, use parentheses freely, use <code>substr</code> for end-relative text, verify files with <code>is_open</code>, and regard shell/JSON helpers as conveniences for trusted data.</div>
+      <div class="callout tip"><strong>Robust Katalyn style.</strong> Define before use, keep arrays dense and one-based, probe optional data with <code>is</code>, use parentheses freely, use <code>substr</code> for end-relative text, verify files with <code>is_open</code>, treat shell input as trusted-only, and use the native JSON functions for strict parsing and correct escaping.</div>
       <a class="toplink" href="#top">Back to contents</a>
     </section>
 

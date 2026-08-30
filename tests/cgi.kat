@@ -1,0 +1,24 @@
+$environment: env();
+$request: cgi_request(1024);
+
+$ok: 1;
+$ok: $ok && env("KATALYN_CGI_TEST") = "present";
+$ok: $ok && env("KATALYN_NOT_SET", "fallback") = "fallback";
+$ok: $ok && !is(env("KATALYN_NOT_SET"));
+$ok: $ok && $environment["KATALYN_CGI_TEST"] = "present";
+$ok: $ok && $request{method} = "POST";
+$ok: $ok && $request{query}{page} = "2";
+$ok: $ok && $request{query}{search} = "Katalyn CGI";
+$ok: $ok && $request{form}{color} = "purple";
+$ok: $ok && $request{form}{message} = "Hello CGI";
+$ok: $ok && $request{headers}{accept} = "application/json";
+$ok: $ok && $request{path_info} = "/demo";
+$ok: $ok && $request{content_length} = 30;
+$ok: $ok && url_decode("a%2Fb+c", 0) = "a/b+c";
+$ok: $ok && url_decode("a%2Fb+c", 1) = "a/b c";
+
+if $ok;
+    print("cgi-ok");
+else;
+    print("cgi-failed");
+ok;

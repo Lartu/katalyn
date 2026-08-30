@@ -23,6 +23,7 @@ SOURCES := \
 	main.cpp \
 	compiler.cpp \
 	narivm.cpp \
+	mysql_runtime.cpp \
 	lib/tiny-process-library/process.cpp \
 	lib/tiny-process-library/process_unix.cpp
 OBJECTS := $(SOURCES:%.cpp=$(OBJ_DIR)/%.o)
@@ -32,6 +33,9 @@ CPPFLAGS += -I$(GEN_DIR) -Ilib/tiny-process-library -MMD -MP
 CXXFLAGS ?= -O2
 CXXFLAGS += -std=c++17 -Wall -Wextra -Wpedantic
 LDLIBS += -pthread
+ifeq ($(shell uname -s),Linux)
+LDLIBS += -ldl
+endif
 
 .PHONY: all test tiger-ppc install clean run
 
@@ -77,6 +81,24 @@ test: $(TARGET)
 	@$(TARGET) -n tests/control_flow.kat | grep -qx 'control-flow-ok'
 	@$(TARGET) -n tests/functions_scope.kat | grep -qx 'functions-scope-ok'
 	@$(TARGET) tests/stdlib.kat | grep -qx 'stdlib-ok'
+	@$(TARGET) -a '$$j: parse_json("{\"x\":1}"); print($$j{x});' | grep -qx '1'
+	@$(TARGET) -n tests/json.kat | grep -qx 'json-ok'
+	@printf 'abcdef' | $(TARGET) -n tests/stdin.kat | grep -qx 'abc|def'
+	@printf 'color=purple&message=Hello+CGI' | env \
+		KATALYN_CGI_TEST=present REQUEST_METHOD=POST \
+		QUERY_STRING='page=2&search=Katalyn+CGI' \
+		CONTENT_TYPE='application/x-www-form-urlencoded; charset=UTF-8' \
+		CONTENT_LENGTH=30 HTTP_ACCEPT=application/json PATH_INFO=/demo \
+		$(TARGET) -n tests/cgi.kat | grep -qx 'cgi-ok'
+	@$(TARGET) -n tests/cgi_response.kat | tr -d '\r' | \
+		diff -u tests/expected/cgi_response.txt -
+	@! $(TARGET) -n -a 'json_decode("[1,");' >/dev/null 2>&1
+	@! printf '"\377"' | $(TARGET) -n -a 'json_decode(read_stdin());' >/dev/null 2>&1
+	@! printf '\377' | $(TARGET) -n -a 'json_encode(read_stdin());' >/dev/null 2>&1
+	@! printf 'short' | env REQUEST_METHOD=POST CONTENT_LENGTH=6 \
+		$(TARGET) -n -a 'cgi_request(10);' >/dev/null 2>&1
+	@! printf '12345' | env REQUEST_METHOD=POST CONTENT_LENGTH=5 \
+		$(TARGET) -n -a 'cgi_request(4);' >/dev/null 2>&1
 	@$(TARGET) tests/print_arr.kat | diff -u tests/expected/print_arr.txt -
 	@$(TARGET) -n tests/io_import.kat alpha beta | grep -qx 'io-import-ok'
 	@$(RM) $(BUILD_DIR)/katalyn-test-output.txt

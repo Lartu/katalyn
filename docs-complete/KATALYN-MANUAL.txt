@@ -708,6 +708,31 @@ import "models/person.kat";
    exec(parts...) Concatenate at least one argument into a command, run synchronously, capture
    output, and return exit status.
 
+  Environment, CGI, URL data and JSON
+
+   Signature Description
+   env() Return a table containing the complete process environment.
+   env(name) Return one environment value as text, or nil when absent.
+   env(name, fallback) Return fallback when the environment value is absent.
+   read_stdin([length]) Read raw standard input. With no length, read through EOF. A supplied
+   length reads at most that many bytes; -1 also means EOF, and smaller values fail.
+   url_decode(text[, plus_as_space]) Decode %HH bytes. Plus remains literal by default; a
+   truthy second argument converts plus to space for query/form data.
+   parse_query(text) Parse an ampersand-separated query/form string into a table. Names and
+   values are URL-decoded; a repeated key's last value wins.
+   json_decode(text) Strictly decode one complete JSON value. Objects become tables, arrays
+   become dense one-based tables, booleans become 1/0, and null becomes nil.
+   json_encode(value) Produce compact JSON. Dense nonempty tables become arrays; other tables
+   become objects. Cycles and non-finite numbers are rejected.
+   cgi_request([maximum_body_bytes]) Build a normalized CGI request table and read exactly
+   CONTENT_LENGTH bytes. The default body limit is 16777216 bytes (16 MiB).
+   cgi_response(status, content_type, body[, headers]) Validate and write a complete CGI
+   response. Header newline injection and duplicate Status/Content-Type fields are rejected.
+
+   cgi_request returns method, query_string, query, content_type, content_length, body, form,
+   path_info, script_name, remote_addr, request_uri, headers, and environment fields. See
+   docs-complete/KATALYN-CGI.txt and examples/apache_cgi.kat for the complete CGI reference.
+
 
 15 Standard library reference
 
@@ -802,20 +827,18 @@ import "models/person.kat";
    get_http(url) Run curl 'url'; return stdout on success or empty text on failure.
    call_api(url, fields...) Run a curl POST with each later argument as -d payload; return
    trimmed stdout or empty text on failure.
-   parse_json(text) Intended to parse a limited JSON-like object into nested tables. The
-   current implementation may fail to terminate even on a simple object and should not be used
-   until repaired.
-   json_aux_append_value(...) Internal helper used by parse_json; globally visible but not a
-   stable public API.
-   json_aux_parse_list(...) Internal helper used by parse_json; globally visible but not a
-   stable public API.
+   parse_json(text) Historical compatibility alias for the native json_decode(text).
+   json_aux_append_value(...) Obsolete helper retained temporarily for source compatibility;
+   not a stable public API.
+   json_aux_parse_list(...) Obsolete helper retained temporarily for source compatibility;
+   not a stable public API.
 
    Shell helper safety. get_http, call_api, and datetime compose shell commands. They are
    platform-dependent; do not pass untrusted URL or payload text to the curl helpers.
 
-   JSON scope. The bundled parser does not fully implement JSON escaping, Unicode escapes,
-   null, strict number grammar, or exhaustive malformed-input diagnostics. Use it for
-   controlled simple payloads, not adversarial or standards-critical data.
+   Native JSON implements objects, arrays, strict number grammar, strings and escapes,
+   surrogate pairs, booleans, and null. Katalyn has no distinct boolean type, so decoded JSON
+   booleans become numeric 1 and 0 and re-encode as those numbers.
 
 
 16 Command-line reference
@@ -914,7 +937,6 @@ katalyn [options] -s [script arguments...] < source.kat
 
      * The case-conversion library is ASCII-only.
      * Custom-needle rtrim/trim currently produce incorrect results.
-     * The JSON helper is incomplete and currently may not terminate on simple input.
      * The HTTP and date helpers depend on external Unix-style commands.
 
   Portability and resource behavior
@@ -930,7 +952,8 @@ katalyn [options] -s [script arguments...] < source.kat
 
    Robust Katalyn style. Define before use, keep arrays dense and one-based, probe optional
    data with is, use parentheses freely, use substr for end-relative text, verify files with
-   is_open, and regard shell/JSON helpers as conveniences for trusted data.
+   is_open, treat shell input as trusted-only, and use the native JSON functions
+   for strict parsing and correct escaping.
 
 
 19 Grammar and cheat sheet

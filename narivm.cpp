@@ -14,12 +14,15 @@
 #include <memory>
 #include <thread>
 #include <chrono>
+#include <cstdlib>
+#include <iomanip>
 #include <queue>
 #include <fstream>
 #include <set>
 #include <sys/stat.h>
 #include "lib/tiny-process-library/process.hpp"
 #include "lib/linenoise.hpp"
+#include "mysql_runtime.hpp"
 
 using namespace std;
 using namespace TinyProcessLib;
@@ -119,6 +122,22 @@ enum Opcode : uint8_t
     FORE, // File Open for REad
     ISOP, // IS file OPen?
     ISNIL,
+    ENVV, // Environment value/table
+    RSTD, // Raw standard input
+    URLD, // URL decode
+    QPRS, // Query-string parse
+    JDEC, // JSON decode
+    JENC, // JSON encode
+    CGIR, // Build CGI request
+    CGIO, // Write CGI response
+    MAVL, // MySQL client available
+    MINF, // MySQL client information
+    MCNT, // MySQL connect
+    MCLS, // MySQL close
+    MFMT, // MySQL parameter formatting
+    MQRY, // MySQL query
+    MERR, // MySQL error text
+    MERN, // MySQL error number
     DEBUG,
 };
 
@@ -188,6 +207,22 @@ Opcode opcode_from_string(string_view str)
         {"FORE", Opcode::FORE},
         {"ISOP", Opcode::ISOP},
         {"NIL?", Opcode::ISNIL},
+        {"ENVV", Opcode::ENVV},
+        {"RSTD", Opcode::RSTD},
+        {"URLD", Opcode::URLD},
+        {"QPRS", Opcode::QPRS},
+        {"JDEC", Opcode::JDEC},
+        {"JENC", Opcode::JENC},
+        {"CGIR", Opcode::CGIR},
+        {"CGIO", Opcode::CGIO},
+        {"MAVL", Opcode::MAVL},
+        {"MINF", Opcode::MINF},
+        {"MCNT", Opcode::MCNT},
+        {"MCLS", Opcode::MCLS},
+        {"MFMT", Opcode::MFMT},
+        {"MQRY", Opcode::MQRY},
+        {"MERR", Opcode::MERR},
+        {"MERN", Opcode::MERN},
         {"DBUG", Opcode::DEBUG},
     };
     return str_to_opcode[str];
@@ -357,6 +392,38 @@ string_view opcode_as_string(Opcode opcode)
         return "ISOP";
     case Opcode::ISNIL:
         return "NIL?";
+    case Opcode::ENVV:
+        return "ENVV";
+    case Opcode::RSTD:
+        return "RSTD";
+    case Opcode::URLD:
+        return "URLD";
+    case Opcode::QPRS:
+        return "QPRS";
+    case Opcode::JDEC:
+        return "JDEC";
+    case Opcode::JENC:
+        return "JENC";
+    case Opcode::CGIR:
+        return "CGIR";
+    case Opcode::CGIO:
+        return "CGIO";
+    case Opcode::MAVL:
+        return "MAVL";
+    case Opcode::MINF:
+        return "MINF";
+    case Opcode::MCNT:
+        return "MCNT";
+    case Opcode::MCLS:
+        return "MCLS";
+    case Opcode::MFMT:
+        return "MFMT";
+    case Opcode::MQRY:
+        return "MQRY";
+    case Opcode::MERR:
+        return "MERR";
+    case Opcode::MERN:
+        return "MERN";
     case Opcode::DEBUG:
         return "DBUG";
     default:
@@ -463,6 +530,63 @@ vector<size_t> build_utf8_offsets(const string &text)
         offsets.push_back(i);
     }
     return offsets;
+}
+
+bool is_valid_utf8(const string &text)
+{
+    size_t i = 0;
+    while (i < text.size())
+    {
+        const unsigned char first = static_cast<unsigned char>(text[i]);
+        if (first <= 0x7F)
+        {
+            ++i;
+            continue;
+        }
+
+        size_t width = 0;
+        if (first >= 0xC2 && first <= 0xDF && i + 1 < text.size() &&
+            is_utf8_continuation(static_cast<unsigned char>(text[i + 1])))
+            width = 2;
+        else if (first == 0xE0 && i + 2 < text.size() &&
+                 static_cast<unsigned char>(text[i + 1]) >= 0xA0 &&
+                 static_cast<unsigned char>(text[i + 1]) <= 0xBF &&
+                 is_utf8_continuation(static_cast<unsigned char>(text[i + 2])))
+            width = 3;
+        else if (((first >= 0xE1 && first <= 0xEC) ||
+                  (first >= 0xEE && first <= 0xEF)) &&
+                 i + 2 < text.size() &&
+                 is_utf8_continuation(static_cast<unsigned char>(text[i + 1])) &&
+                 is_utf8_continuation(static_cast<unsigned char>(text[i + 2])))
+            width = 3;
+        else if (first == 0xED && i + 2 < text.size() &&
+                 static_cast<unsigned char>(text[i + 1]) >= 0x80 &&
+                 static_cast<unsigned char>(text[i + 1]) <= 0x9F &&
+                 is_utf8_continuation(static_cast<unsigned char>(text[i + 2])))
+            width = 3;
+        else if (first == 0xF0 && i + 3 < text.size() &&
+                 static_cast<unsigned char>(text[i + 1]) >= 0x90 &&
+                 static_cast<unsigned char>(text[i + 1]) <= 0xBF &&
+                 is_utf8_continuation(static_cast<unsigned char>(text[i + 2])) &&
+                 is_utf8_continuation(static_cast<unsigned char>(text[i + 3])))
+            width = 4;
+        else if (first >= 0xF1 && first <= 0xF3 && i + 3 < text.size() &&
+                 is_utf8_continuation(static_cast<unsigned char>(text[i + 1])) &&
+                 is_utf8_continuation(static_cast<unsigned char>(text[i + 2])) &&
+                 is_utf8_continuation(static_cast<unsigned char>(text[i + 3])))
+            width = 4;
+        else if (first == 0xF4 && i + 3 < text.size() &&
+                 static_cast<unsigned char>(text[i + 1]) >= 0x80 &&
+                 static_cast<unsigned char>(text[i + 1]) <= 0x8F &&
+                 is_utf8_continuation(static_cast<unsigned char>(text[i + 2])) &&
+                 is_utf8_continuation(static_cast<unsigned char>(text[i + 3])))
+            width = 4;
+
+        if (width == 0)
+            return false;
+        i += width;
+    }
+    return true;
 }
 
 class Value
@@ -665,6 +789,820 @@ public:
         }
     }
 };
+
+Value text_value(const string &text)
+{
+    Value value;
+    value.set_string_value(text);
+    return value;
+}
+
+Value number_value(double number)
+{
+    Value value;
+    value.set_number_value(number);
+    return value;
+}
+
+Value table_value()
+{
+    Value value;
+    value.set_table_value();
+    return value;
+}
+
+char **process_environment()
+{
+#if defined(_WIN32)
+    return _environ;
+#else
+    extern char **environ;
+    return environ;
+#endif
+}
+
+Value environment_table()
+{
+    Value result = table_value();
+    char **entries = process_environment();
+    if (!entries)
+        return result;
+    for (; *entries; ++entries)
+    {
+        string entry(*entries);
+        size_t separator = entry.find('=');
+        if (separator != string::npos)
+            (*result.get_table())[entry.substr(0, separator)] = text_value(entry.substr(separator + 1));
+    }
+    return result;
+}
+
+string environment_text(const string &name)
+{
+    const char *value = getenv(name.c_str());
+    return value ? string(value) : string();
+}
+
+int hex_digit(char ch)
+{
+    if (ch >= '0' && ch <= '9')
+        return ch - '0';
+    if (ch >= 'a' && ch <= 'f')
+        return ch - 'a' + 10;
+    if (ch >= 'A' && ch <= 'F')
+        return ch - 'A' + 10;
+    return -1;
+}
+
+string url_decode_text(const string &input, bool plus_as_space)
+{
+    string result;
+    result.reserve(input.size());
+    for (size_t i = 0; i < input.size(); ++i)
+    {
+        if (plus_as_space && input[i] == '+')
+        {
+            result += ' ';
+        }
+        else if (input[i] == '%' && i + 2 < input.size())
+        {
+            int high = hex_digit(input[i + 1]);
+            int low = hex_digit(input[i + 2]);
+            if (high >= 0 && low >= 0)
+            {
+                result += static_cast<char>((high << 4) | low);
+                i += 2;
+            }
+            else
+            {
+                result += input[i];
+            }
+        }
+        else
+        {
+            result += input[i];
+        }
+    }
+    return result;
+}
+
+Value parse_query_text(const string &query)
+{
+    Value result = table_value();
+    size_t start = 0;
+    while (start < query.size())
+    {
+        size_t end = query.find('&', start);
+        if (end == string::npos)
+            end = query.size();
+        string field = query.substr(start, end - start);
+        size_t equal = field.find('=');
+        string key = url_decode_text(field.substr(0, equal), true);
+        string value = equal == string::npos ? string() : url_decode_text(field.substr(equal + 1), true);
+        (*result.get_table())[key] = text_value(value);
+        if (end == query.size())
+            break;
+        start = end + 1;
+    }
+    return result;
+}
+
+void append_utf8(string &output, unsigned int codepoint)
+{
+    if (codepoint <= 0x7F)
+        output += static_cast<char>(codepoint);
+    else if (codepoint <= 0x7FF)
+    {
+        output += static_cast<char>(0xC0 | (codepoint >> 6));
+        output += static_cast<char>(0x80 | (codepoint & 0x3F));
+    }
+    else if (codepoint <= 0xFFFF)
+    {
+        output += static_cast<char>(0xE0 | (codepoint >> 12));
+        output += static_cast<char>(0x80 | ((codepoint >> 6) & 0x3F));
+        output += static_cast<char>(0x80 | (codepoint & 0x3F));
+    }
+    else
+    {
+        output += static_cast<char>(0xF0 | (codepoint >> 18));
+        output += static_cast<char>(0x80 | ((codepoint >> 12) & 0x3F));
+        output += static_cast<char>(0x80 | ((codepoint >> 6) & 0x3F));
+        output += static_cast<char>(0x80 | (codepoint & 0x3F));
+    }
+}
+
+class JsonParser
+{
+private:
+    const string &input;
+    size_t position = 0;
+
+    [[noreturn]] void fail(const string &message)
+    {
+        raise_nvm_error("Invalid JSON at byte " + to_string(position + 1) + ": " + message);
+        std::abort();
+    }
+
+    void whitespace()
+    {
+        while (position < input.size() &&
+               (input[position] == ' ' || input[position] == '\t' ||
+                input[position] == '\r' || input[position] == '\n'))
+            ++position;
+    }
+
+    bool take(char expected)
+    {
+        whitespace();
+        if (position < input.size() && input[position] == expected)
+        {
+            ++position;
+            return true;
+        }
+        return false;
+    }
+
+    unsigned int unicode_escape()
+    {
+        if (position + 4 > input.size())
+            fail("incomplete Unicode escape");
+        unsigned int codepoint = 0;
+        for (int i = 0; i < 4; ++i)
+        {
+            int digit = hex_digit(input[position++]);
+            if (digit < 0)
+                fail("invalid Unicode escape");
+            codepoint = (codepoint << 4) | static_cast<unsigned int>(digit);
+        }
+        return codepoint;
+    }
+
+    string string_value()
+    {
+        whitespace();
+        if (position >= input.size() || input[position++] != '"')
+            fail("expected a string");
+        string result;
+        while (position < input.size())
+        {
+            unsigned char ch = static_cast<unsigned char>(input[position++]);
+            if (ch == '"')
+            {
+                if (!is_valid_utf8(result))
+                    fail("string is not valid UTF-8");
+                return result;
+            }
+            if (ch < 0x20)
+                fail("unescaped control character in string");
+            if (ch != '\\')
+            {
+                result += static_cast<char>(ch);
+                continue;
+            }
+            if (position >= input.size())
+                fail("incomplete escape sequence");
+            char escaped = input[position++];
+            switch (escaped)
+            {
+            case '"': result += '"'; break;
+            case '\\': result += '\\'; break;
+            case '/': result += '/'; break;
+            case 'b': result += '\b'; break;
+            case 'f': result += '\f'; break;
+            case 'n': result += '\n'; break;
+            case 'r': result += '\r'; break;
+            case 't': result += '\t'; break;
+            case 'u':
+            {
+                unsigned int codepoint = unicode_escape();
+                if (codepoint >= 0xD800 && codepoint <= 0xDBFF)
+                {
+                    if (position + 2 > input.size() || input[position] != '\\' || input[position + 1] != 'u')
+                        fail("high surrogate without a low surrogate");
+                    position += 2;
+                    unsigned int low = unicode_escape();
+                    if (low < 0xDC00 || low > 0xDFFF)
+                        fail("invalid low surrogate");
+                    codepoint = 0x10000 + ((codepoint - 0xD800) << 10) + (low - 0xDC00);
+                }
+                else if (codepoint >= 0xDC00 && codepoint <= 0xDFFF)
+                {
+                    fail("unexpected low surrogate");
+                }
+                append_utf8(result, codepoint);
+                break;
+            }
+            default:
+                fail("unknown escape sequence");
+            }
+        }
+        fail("unterminated string");
+    }
+
+    Value number()
+    {
+        size_t start = position;
+        if (position < input.size() && input[position] == '-')
+            ++position;
+        if (position >= input.size())
+            fail("incomplete number");
+        if (input[position] == '0')
+            ++position;
+        else if (input[position] >= '1' && input[position] <= '9')
+        {
+            while (position < input.size() && isdigit(static_cast<unsigned char>(input[position])))
+                ++position;
+        }
+        else
+            fail("invalid number");
+        if (position < input.size() && input[position] == '.')
+        {
+            ++position;
+            size_t fraction = position;
+            while (position < input.size() && isdigit(static_cast<unsigned char>(input[position])))
+                ++position;
+            if (fraction == position)
+                fail("fraction has no digits");
+        }
+        if (position < input.size() && (input[position] == 'e' || input[position] == 'E'))
+        {
+            ++position;
+            if (position < input.size() && (input[position] == '+' || input[position] == '-'))
+                ++position;
+            size_t exponent = position;
+            while (position < input.size() && isdigit(static_cast<unsigned char>(input[position])))
+                ++position;
+            if (exponent == position)
+                fail("exponent has no digits");
+        }
+        double parsed = 0;
+        try
+        {
+            parsed = stod(input.substr(start, position - start));
+        }
+        catch (...)
+        {
+            fail("number is outside the supported range");
+        }
+        if (!isfinite(parsed))
+            fail("number is outside the supported range");
+        return number_value(parsed);
+    }
+
+    Value array()
+    {
+        Value result = table_value();
+        if (take(']'))
+            return result;
+        size_t index = 1;
+        while (true)
+        {
+            (*result.get_table())[double_to_string(index++)] = value();
+            if (take(']'))
+                return result;
+            if (!take(','))
+                fail("expected ',' or ']' in array");
+        }
+    }
+
+    Value object()
+    {
+        Value result = table_value();
+        if (take('}'))
+            return result;
+        while (true)
+        {
+            string key = string_value();
+            if (!take(':'))
+                fail("expected ':' after object key");
+            (*result.get_table())[key] = value();
+            if (take('}'))
+                return result;
+            if (!take(','))
+                fail("expected ',' or '}' in object");
+        }
+    }
+
+    Value value()
+    {
+        whitespace();
+        if (position >= input.size())
+            fail("expected a value");
+        char ch = input[position];
+        if (ch == '"')
+            return text_value(string_value());
+        if (ch == '{')
+        {
+            ++position;
+            return object();
+        }
+        if (ch == '[')
+        {
+            ++position;
+            return array();
+        }
+        if (ch == '-' || isdigit(static_cast<unsigned char>(ch)))
+            return number();
+        if (input.compare(position, 4, "true") == 0)
+        {
+            position += 4;
+            return number_value(1);
+        }
+        if (input.compare(position, 5, "false") == 0)
+        {
+            position += 5;
+            return number_value(0);
+        }
+        if (input.compare(position, 4, "null") == 0)
+        {
+            position += 4;
+            Value nil;
+            nil.set_nil_value();
+            return nil;
+        }
+        fail("unexpected token");
+    }
+
+public:
+    explicit JsonParser(const string &text) : input(text) {}
+
+    Value parse()
+    {
+        Value result = value();
+        whitespace();
+        if (position != input.size())
+            fail("unexpected text after the value");
+        return result;
+    }
+};
+
+string json_escape(const string &text)
+{
+    if (!is_valid_utf8(text))
+        raise_nvm_error("Cannot encode invalid UTF-8 text as JSON.");
+    ostringstream output;
+    output << '"';
+    for (unsigned char ch : text)
+    {
+        switch (ch)
+        {
+        case '"': output << "\\\""; break;
+        case '\\': output << "\\\\"; break;
+        case '\b': output << "\\b"; break;
+        case '\f': output << "\\f"; break;
+        case '\n': output << "\\n"; break;
+        case '\r': output << "\\r"; break;
+        case '\t': output << "\\t"; break;
+        default:
+            if (ch < 0x20)
+                output << "\\u" << hex << setw(4) << setfill('0') << static_cast<int>(ch) << dec;
+            else
+                output << static_cast<char>(ch);
+        }
+    }
+    output << '"';
+    return output.str();
+}
+
+string json_encode_value(Value value, set<const map<string, Value> *> &active)
+{
+    if (value.get_type() == NIL)
+        return "null";
+    if (value.get_type() == TEXT)
+        return json_escape(value.get_as_string());
+    if (value.get_type() == NUMB)
+    {
+        double number = value.get_as_number();
+        if (!isfinite(number))
+            raise_nvm_error("Cannot encode a non-finite number as JSON.");
+        return double_to_string(number);
+    }
+    if (value.get_type() != TABLE)
+        raise_nvm_error("Cannot encode " + get_type_name(value.get_type()) + " as JSON.");
+
+    map<string, Value> *table = value.get_table();
+    if (active.count(table))
+        raise_nvm_error("Cannot encode a cyclic table as JSON.");
+    active.insert(table);
+
+    bool array = !table->empty();
+    for (size_t i = 1; array && i <= table->size(); ++i)
+        array = table->count(double_to_string(i)) != 0;
+
+    string result = array ? "[" : "{";
+    if (array)
+    {
+        for (size_t i = 1; i <= table->size(); ++i)
+        {
+            if (i > 1)
+                result += ',';
+            result += json_encode_value(table->at(double_to_string(i)), active);
+        }
+        result += ']';
+    }
+    else
+    {
+        bool first = true;
+        for (auto &entry : *table)
+        {
+            if (!first)
+                result += ',';
+            first = false;
+            result += json_escape(entry.first) + ':' + json_encode_value(entry.second, active);
+        }
+        result += '}';
+    }
+    active.erase(table);
+    return result;
+}
+
+string read_standard_input(long long requested)
+{
+    if (requested < 0)
+    {
+        ostringstream input;
+        input << cin.rdbuf();
+        return input.str();
+    }
+    if (static_cast<unsigned long long>(requested) >
+        static_cast<unsigned long long>(numeric_limits<streamsize>::max()))
+        raise_nvm_error("Requested standard-input length is too large.");
+    string result(static_cast<size_t>(requested), '\0');
+    cin.read(result.data(), static_cast<streamsize>(requested));
+    result.resize(static_cast<size_t>(cin.gcount()));
+    return result;
+}
+
+Value cgi_request_value(long long maximum_body)
+{
+    if (maximum_body < 0)
+        raise_nvm_error("CGI maximum body size cannot be negative.");
+
+    string length_text = environment_text("CONTENT_LENGTH");
+    long long content_length = 0;
+    if (!length_text.empty())
+    {
+        try
+        {
+            size_t consumed = 0;
+            content_length = stoll(length_text, &consumed);
+            if (consumed != length_text.size() || content_length < 0)
+                throw invalid_argument("content length");
+        }
+        catch (...)
+        {
+            raise_nvm_error("Invalid CGI CONTENT_LENGTH value.");
+        }
+    }
+    if (content_length > maximum_body)
+        raise_nvm_error("CGI request body exceeds the configured limit of " +
+                        to_string(maximum_body) + " bytes.");
+
+    string body = read_standard_input(content_length);
+    if (static_cast<long long>(body.size()) != content_length)
+        raise_nvm_error("CGI request body ended before CONTENT_LENGTH bytes were read.");
+
+    string query_string = environment_text("QUERY_STRING");
+    string content_type = environment_text("CONTENT_TYPE");
+    Value environment = environment_table();
+    Value headers = table_value();
+    for (auto &entry : *environment.get_table())
+    {
+        string name;
+        if (entry.first.rfind("HTTP_", 0) == 0)
+            name = entry.first.substr(5);
+        else if (entry.first == "CONTENT_TYPE" || entry.first == "CONTENT_LENGTH")
+            name = entry.first;
+        else
+            continue;
+        transform(name.begin(), name.end(), name.begin(), [](unsigned char ch) {
+            return ch == '_' ? '-' : static_cast<char>(tolower(ch));
+        });
+        (*headers.get_table())[name] = entry.second;
+    }
+
+    Value request = table_value();
+    (*request.get_table())["method"] = text_value(environment_text("REQUEST_METHOD"));
+    (*request.get_table())["query_string"] = text_value(query_string);
+    (*request.get_table())["query"] = parse_query_text(query_string);
+    (*request.get_table())["content_type"] = text_value(content_type);
+    (*request.get_table())["content_length"] = number_value(content_length);
+    (*request.get_table())["body"] = text_value(body);
+    (*request.get_table())["path_info"] = text_value(environment_text("PATH_INFO"));
+    (*request.get_table())["script_name"] = text_value(environment_text("SCRIPT_NAME"));
+    (*request.get_table())["remote_addr"] = text_value(environment_text("REMOTE_ADDR"));
+    (*request.get_table())["request_uri"] = text_value(environment_text("REQUEST_URI"));
+    (*request.get_table())["headers"] = headers;
+    (*request.get_table())["environment"] = environment;
+
+    Value form = table_value();
+    string lowered = content_type;
+    transform(lowered.begin(), lowered.end(), lowered.begin(), [](unsigned char ch) {
+        return static_cast<char>(tolower(ch));
+    });
+    size_t parameter = lowered.find(';');
+    string media_type = lowered.substr(0, parameter);
+    size_t media_start = 0;
+    while (media_start < media_type.size() &&
+           isspace(static_cast<unsigned char>(media_type[media_start])))
+        ++media_start;
+    size_t media_end = media_type.size();
+    while (media_end > media_start &&
+           isspace(static_cast<unsigned char>(media_type[media_end - 1])))
+        --media_end;
+    media_type = media_type.substr(media_start, media_end - media_start);
+    if (media_type == "application/x-www-form-urlencoded")
+        form = parse_query_text(body);
+    (*request.get_table())["form"] = form;
+    return request;
+}
+
+string lower_ascii(string text)
+{
+    transform(text.begin(), text.end(), text.begin(), [](unsigned char ch) {
+        return static_cast<char>(tolower(ch));
+    });
+    return text;
+}
+
+bool valid_header_name(const string &name)
+{
+    if (name.empty())
+        return false;
+    for (unsigned char ch : name)
+        if (!(isalnum(ch) || ch == '-'))
+            return false;
+    return true;
+}
+
+string status_reason(int status)
+{
+    static const map<int, string> reasons = {
+        {200, "OK"}, {201, "Created"}, {202, "Accepted"}, {204, "No Content"},
+        {301, "Moved Permanently"}, {302, "Found"}, {304, "Not Modified"},
+        {400, "Bad Request"}, {401, "Unauthorized"}, {403, "Forbidden"},
+        {404, "Not Found"}, {405, "Method Not Allowed"}, {409, "Conflict"},
+        {413, "Content Too Large"}, {415, "Unsupported Media Type"},
+        {422, "Unprocessable Content"}, {429, "Too Many Requests"},
+        {500, "Internal Server Error"}, {501, "Not Implemented"},
+        {502, "Bad Gateway"}, {503, "Service Unavailable"}};
+    auto found = reasons.find(status);
+    return found == reasons.end() ? "Status" : found->second;
+}
+
+void write_cgi_response(int status, const string &content_type, const string &body, Value headers)
+{
+    if (status < 100 || status > 999)
+        raise_nvm_error("CGI response status must be between 100 and 999.");
+    if (content_type.empty() || content_type.find('\r') != string::npos ||
+        content_type.find('\n') != string::npos)
+        raise_nvm_error("Invalid CGI response content type.");
+    if (headers.get_type() != TABLE)
+        raise_nvm_error("CGI response headers must be a table.");
+
+    vector<pair<string, string>> validated_headers;
+    for (auto &entry : *headers.get_table())
+    {
+        string lowered = lower_ascii(entry.first);
+        string value = entry.second.get_as_string();
+        if (!valid_header_name(entry.first) || value.find('\r') != string::npos ||
+            value.find('\n') != string::npos)
+            raise_nvm_error("Invalid CGI response header.");
+        if (lowered == "status" || lowered == "content-type")
+            raise_nvm_error("Pass Status and Content-Type through their dedicated CGI response arguments.");
+        validated_headers.emplace_back(entry.first, std::move(value));
+    }
+
+    cout << "Status: " << status << ' ' << status_reason(status) << "\r\n";
+    cout << "Content-Type: " << content_type << "\r\n";
+    for (const auto &entry : validated_headers)
+        cout << entry.first << ": " << entry.second << "\r\n";
+    cout << "\r\n";
+    cout.write(body.data(), static_cast<streamsize>(body.size()));
+    cout.flush();
+}
+
+long long mysql_connection_handle(Value value, bool allow_zero = false)
+{
+    double number = value.get_as_number();
+    if (!isfinite(number) || number != floor(number) ||
+        number < (allow_zero ? 0 : 1) || number > 9007199254740991.0)
+        raise_nvm_error("MySQL connection handle must be a positive integer.");
+    return static_cast<long long>(number);
+}
+
+string mysql_sql_literal(Value value)
+{
+    if (value.get_type() == NIL)
+        return "NULL";
+    if (value.get_type() == NUMB)
+    {
+        double number = value.get_as_number();
+        if (!isfinite(number))
+            raise_nvm_error("Cannot use a non-finite number as a MySQL parameter.");
+        return double_to_string(number);
+    }
+    if (value.get_type() != TEXT)
+        raise_nvm_error("MySQL parameters must be text, numbers, or nil.");
+
+    static const char hex[] = "0123456789ABCDEF";
+    const string &text = value.get_as_string();
+    string literal;
+    literal.reserve(text.size() * 2 + 3);
+    literal += "X'";
+    for (unsigned char byte : text)
+    {
+        literal += hex[byte >> 4];
+        literal += hex[byte & 0x0F];
+    }
+    literal += '\'';
+    return literal;
+}
+
+vector<Value> mysql_parameters(Value parameters)
+{
+    if (parameters.get_type() != TABLE)
+        raise_nvm_error("MySQL query parameters must be a dense one-based table.");
+    vector<Value> result;
+    result.reserve(parameters.get_table()->size());
+    for (size_t i = 1; i <= parameters.get_table()->size(); ++i)
+    {
+        string key = double_to_string(i);
+        auto found = parameters.get_table()->find(key);
+        if (found == parameters.get_table()->end())
+            raise_nvm_error("MySQL query parameters must be a dense one-based table.");
+        result.push_back(found->second);
+    }
+    return result;
+}
+
+string mysql_format_sql(const string &sql, Value parameters)
+{
+    enum class State
+    {
+        Normal,
+        SingleQuote,
+        DoubleQuote,
+        Backtick,
+        LineComment,
+        BlockComment
+    };
+
+    vector<Value> values = mysql_parameters(parameters);
+    size_t parameter = 0;
+    State state = State::Normal;
+    string output;
+    output.reserve(sql.size() + values.size() * 8);
+    for (size_t i = 0; i < sql.size(); ++i)
+    {
+        char ch = sql[i];
+        if (state == State::Normal)
+        {
+            if (ch == '?')
+            {
+                if (parameter >= values.size())
+                    raise_nvm_error("MySQL query has more placeholders than parameters.");
+                output += mysql_sql_literal(values[parameter++]);
+                continue;
+            }
+            if (ch == '\'')
+                state = State::SingleQuote;
+            else if (ch == '"')
+                state = State::DoubleQuote;
+            else if (ch == '`')
+                state = State::Backtick;
+            else if (ch == '#')
+                state = State::LineComment;
+            else if (ch == '-' && i + 2 < sql.size() && sql[i + 1] == '-' &&
+                     isspace(static_cast<unsigned char>(sql[i + 2])))
+            {
+                output += ch;
+                output += sql[++i];
+                state = State::LineComment;
+                continue;
+            }
+            else if (ch == '/' && i + 1 < sql.size() && sql[i + 1] == '*')
+            {
+                output += ch;
+                output += sql[++i];
+                state = State::BlockComment;
+                continue;
+            }
+            output += ch;
+            continue;
+        }
+
+        output += ch;
+        if (state == State::LineComment)
+        {
+            if (ch == '\n' || ch == '\r')
+                state = State::Normal;
+            continue;
+        }
+        if (state == State::BlockComment)
+        {
+            if (ch == '*' && i + 1 < sql.size() && sql[i + 1] == '/')
+            {
+                output += sql[++i];
+                state = State::Normal;
+            }
+            continue;
+        }
+
+        const char delimiter = state == State::SingleQuote ? '\'' :
+                               state == State::DoubleQuote ? '"' : '`';
+        if (ch == '\\' && i + 1 < sql.size())
+        {
+            output += sql[++i];
+            continue;
+        }
+        if (ch == delimiter)
+        {
+            if (i + 1 < sql.size() && sql[i + 1] == delimiter)
+                output += sql[++i];
+            else
+                state = State::Normal;
+        }
+    }
+    if (parameter != values.size())
+        raise_nvm_error("MySQL query has more parameters than placeholders.");
+    return output;
+}
+
+Value mysql_result_value(const katalyn_mysql::QueryResult &query)
+{
+    Value result = table_value();
+    (*result.get_table())["ok"] = number_value(1);
+    (*result.get_table())["affected_rows"] = number_value(static_cast<double>(query.affected_rows));
+    (*result.get_table())["insert_id"] = number_value(static_cast<double>(query.insert_id));
+    (*result.get_table())["row_count"] = number_value(static_cast<double>(query.rows.size()));
+
+    Value columns = table_value();
+    for (size_t i = 0; i < query.columns.size(); ++i)
+        (*columns.get_table())[double_to_string(i + 1)] = text_value(query.columns[i]);
+    (*result.get_table())["columns"] = columns;
+
+    Value rows = table_value();
+    for (size_t row_index = 0; row_index < query.rows.size(); ++row_index)
+    {
+        Value row = table_value();
+        for (size_t field = 0; field < query.columns.size(); ++field)
+        {
+            if (query.rows[row_index][field].is_null)
+            {
+                Value nil;
+                nil.set_nil_value();
+                (*row.get_table())[query.columns[field]] = nil;
+            }
+            else
+                (*row.get_table())[query.columns[field]] =
+                    text_value(query.rows[row_index][field].text);
+        }
+        (*rows.get_table())[double_to_string(row_index + 1)] = row;
+    }
+    (*result.get_table())["rows"] = rows;
+    return result;
+}
 
 class Command
 {
@@ -1789,6 +2727,81 @@ void execute_code_listing(vector<Command> &code_listing)
             Value result;
             result.set_number_value(v1.get_type() == NIL ? 1 : 0);
             push(std::move(result));
+            break;
+        }
+        case Opcode::ENVV:
+        {
+            Value fallback = pop(command);
+            Value name = pop(command);
+            if (name.get_type() == NIL)
+            {
+                push(environment_table());
+                break;
+            }
+            string variable = name.get_as_string();
+            const char *found = getenv(variable.c_str());
+            if (found)
+                push(text_value(found));
+            else
+                push(std::move(fallback));
+            break;
+        }
+        case Opcode::RSTD:
+        {
+            double requested_number = pop(command).get_as_number();
+            if (!isfinite(requested_number) || requested_number != floor(requested_number) ||
+                requested_number < -1 ||
+                requested_number > 9007199254740991.0)
+                raise_nvm_error("read_stdin length must be -1 or a non-negative integer.");
+            push(text_value(read_standard_input(static_cast<long long>(requested_number))));
+            break;
+        }
+        case Opcode::URLD:
+        {
+            Value plus = pop(command);
+            string encoded = pop(command).get_as_string();
+            push(text_value(url_decode_text(encoded, is_true(plus))));
+            break;
+        }
+        case Opcode::QPRS:
+        {
+            push(parse_query_text(pop(command).get_as_string()));
+            break;
+        }
+        case Opcode::JDEC:
+        {
+            string json = pop(command).get_as_string();
+            push(JsonParser(json).parse());
+            break;
+        }
+        case Opcode::JENC:
+        {
+            Value value = pop(command);
+            set<const map<string, Value> *> active;
+            push(text_value(json_encode_value(value, active)));
+            break;
+        }
+        case Opcode::CGIR:
+        {
+            double maximum_number = pop(command).get_as_number();
+            if (!isfinite(maximum_number) || maximum_number != floor(maximum_number) ||
+                maximum_number < 0 ||
+                maximum_number > 9007199254740991.0)
+                raise_nvm_error("cgi_request body limit must be a non-negative integer.");
+            push(cgi_request_value(static_cast<long long>(maximum_number)));
+            break;
+        }
+        case Opcode::CGIO:
+        {
+            Value headers = pop(command);
+            string body = pop(command).get_as_string();
+            string content_type = pop(command).get_as_string();
+            double status_number = pop(command).get_as_number();
+            if (!isfinite(status_number) || status_number != floor(status_number) ||
+                status_number < 100 || status_number > 999)
+                raise_nvm_error("CGI response status must be an integer between 100 and 999.");
+            write_cgi_response(static_cast<int>(status_number), content_type, body, headers);
+            push(number_value(1));
             break;
         }
         case Opcode::DISP:

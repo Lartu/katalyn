@@ -1,0 +1,37 @@
+#!/usr/local/bin/katalyn
+#
+# Install katalyn at /usr/local/bin/katalyn, place this executable script in
+# Apache's cgi-bin directory, and run: chmod +x apache_cgi.kat
+
+$request: cgi_request(1048576);
+$response: table;
+$response["ok"]: 1;
+$response["method"]: $request{method};
+$response["path"]: $request{path_info};
+
+if $request{method} = "GET";
+    $name: "world";
+    if is($request{query}{name}) && len($request{query}{name});
+        $name: $request{query}{name};
+    ok;
+    $response["message"]: "Hello, " & $name & "!";
+
+elif $request{method} = "POST";
+    if starts_with(lcase($request{content_type}), "application/json");
+        $response["received"]: json_decode($request{body});
+    else;
+        $response["received"]: $request{form};
+    ok;
+
+else;
+    $response["ok"]: 0;
+    $response["error"]: "Method not allowed";
+    $headers: table;
+    $headers["Allow"]: "GET, POST";
+    cgi_response(405, "application/json; charset=utf-8", json_encode($response), $headers);
+    exit(0);
+ok;
+
+$headers: table;
+$headers["Cache-Control"]: "no-store";
+cgi_response(200, "application/json; charset=utf-8", json_encode($response), $headers);

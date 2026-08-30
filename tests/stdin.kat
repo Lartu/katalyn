@@ -1,0 +1,3 @@
+$first: read_stdin(3);
+$rest: read_stdin();
+print($first, "|", $rest);

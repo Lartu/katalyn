@@ -1,0 +1,377 @@
+KATALYN CGI PROGRAMMING
+APACHE AND NATIVE JSON REFERENCE
+August 2026
+================================
+
+Katalyn can run as a CGI interpreter under Apache HTTP Server. Apache handles
+HTTP, TLS, process management, and routing. It starts a fresh Katalyn process
+for each request; Katalyn reads the CGI environment and request body, executes
+the script, and writes a CGI response to standard output.
+
+Katalyn remains experimental software and has not received a production
+security audit. Use body limits, validate all input, avoid shell commands built
+from request data, and begin with personal or low-risk services.
+
+
+CONTENTS
+--------
+
+ 1. Build and install
+ 2. Configure Apache
+ 3. First CGI script
+ 4. The request table
+ 5. Sending responses
+ 6. Low-level functions
+ 7. Query strings and forms
+ 8. JSON
+ 9. Complete API example
+10. Security and deployment
+11. Function summary
+
+
+01 Build and install
+--------------------
+
+Build, test, and install Katalyn:
+
+    make
+    make test
+    sudo make install
+
+The default installation path is:
+
+    /usr/local/bin/katalyn
+
+The first line of each CGI script must name the actual absolute interpreter
+path:
+
+    #!/usr/local/bin/katalyn
+
+Katalyn treats that shebang as a line comment when it reads the source.
+
+
+02 Configure Apache
+-------------------
+
+Apache must have mod_cgi enabled with the prefork MPM, or mod_cgid with a
+threaded MPM. A typical configuration reserves one directory for CGI scripts:
+
+    ScriptAlias "/cgi-bin/" "/usr/local/apache2/cgi-bin/"
+
+    <Directory "/usr/local/apache2/cgi-bin">
+        Options +ExecCGI
+        Require all granted
+    </Directory>
+
+Copy the script there and make it executable:
+
+    cp examples/apache_cgi.kat /usr/local/apache2/cgi-bin/
+    chmod 755 /usr/local/apache2/cgi-bin/apache_cgi.kat
+
+The exact Apache configuration and directories vary by operating system and
+package. The web-server user must be allowed to execute both the script and the
+Katalyn interpreter. Files accessed by the script need appropriate permissions.
+
+Test the script itself before involving Apache:
+
+    REQUEST_METHOD=GET QUERY_STRING='name=Lartu' \
+        /usr/local/apache2/cgi-bin/apache_cgi.kat
+
+The output must begin with CGI headers, followed by an empty line and the body.
+
+
+03 First CGI script
+-------------------
+
+    #!/usr/local/bin/katalyn
+
+    $request: cgi_request();
+    $name: "world";
+    if is($request{query}{name}) && len($request{query}{name});
+        $name: $request{query}{name};
+    ok;
+
+    $response: table;
+    $response["message"]: "Hello, " & $name & "!";
+
+    cgi_response(200,
+                 "application/json; charset=utf-8",
+                 json_encode($response));
+
+A request for:
+
+    /cgi-bin/hello.kat?name=Katalyn
+
+returns JSON equivalent to:
+
+    {"message":"Hello, Katalyn!"}
+
+
+04 The request table
+--------------------
+
+cgi_request()
+cgi_request(maximum_body_bytes)
+
+    Reads Apache's CGI environment and consumes exactly CONTENT_LENGTH bytes
+    from standard input. The default maximum body size is 16 MiB (16777216
+    bytes). A request exceeding the limit terminates with a runtime error before
+    its body is allocated or read.
+
+    Specify a smaller application limit whenever possible:
+
+        $request: cgi_request(1048576);  # 1 MiB
+
+The returned table contains:
+
+    method          REQUEST_METHOD, such as "GET" or "POST"
+    query_string    Raw QUERY_STRING
+    query           Decoded query parameters
+    content_type    Raw CONTENT_TYPE
+    content_length  Numeric CONTENT_LENGTH
+    body            Exact request body bytes
+    form            Decoded URL-encoded form parameters, or an empty table
+    path_info       PATH_INFO
+    script_name     SCRIPT_NAME
+    remote_addr     REMOTE_ADDR
+    request_uri     REQUEST_URI when supplied by the server
+    headers         Normalized request headers
+    environment     Complete CGI/process environment
+
+Header names are lowercase and use hyphens:
+
+    $request{headers}{accept}
+    $request{headers}{user-agent}
+    $request{headers}{content-type}
+
+Apache exposes ordinary request headers as HTTP_* environment variables.
+Katalyn strips HTTP_, lowercases the name, and converts underscores to hyphens.
+CONTENT_TYPE and CONTENT_LENGTH are included as headers too.
+
+The body is read only once. Calling read_stdin() after cgi_request() normally
+returns no additional data.
+
+If CONTENT_LENGTH is invalid, negative, larger than the configured maximum, or
+larger than the body Apache actually supplies, cgi_request() terminates with a
+diagnostic. This prevents silently accepting truncated requests.
+
+
+05 Sending responses
+--------------------
+
+cgi_response(status, content_type, body)
+cgi_response(status, content_type, body, headers)
+
+    Writes a complete CGI response and returns 1. status must be an integer from
+    100 through 999. content_type must be nonempty. body is written exactly,
+    without an automatically added newline.
+
+Example with additional headers:
+
+    $headers: table;
+    $headers["Cache-Control"]: "no-store";
+    $headers["X-Application"]: "Katalyn";
+
+    cgi_response(201,
+                 "application/json; charset=utf-8",
+                 "{\"created\":true}",
+                 $headers);
+
+Katalyn writes Status and Content-Type itself. Do not put those names in the
+headers table. Header names may contain ASCII letters, digits, and hyphens.
+Header names, values, and content_type containing carriage returns or newlines
+are rejected to prevent response-header injection.
+
+cgi_response() validates every header before writing anything. A rejected
+response therefore does not leave a partial header block on standard output.
+
+After cgi_response(), normally call exit(0) or allow the script to finish.
+Never print debugging information before the response headers. Runtime errors
+are written to standard error and should appear in Apache's error log.
+
+
+06 Low-level functions
+----------------------
+
+env()
+
+    Return a table containing the complete process environment.
+
+env(name)
+
+    Return the environment variable as text, or nil when it is absent. An
+    existing variable whose value is empty returns empty text rather than nil.
+
+env(name, fallback)
+
+    Return fallback when the variable is absent.
+
+Examples:
+
+    $method: env("REQUEST_METHOD", "GET");
+    $all: env();
+    print($all["SERVER_SOFTWARE"]);
+
+read_stdin()
+
+    Read all remaining bytes from standard input through EOF.
+
+read_stdin(length)
+
+    Read at most length bytes. The result may be shorter at EOF. A length of -1
+    is also accepted and means read through EOF; other negative values fail.
+
+    cgi_request() is safer for CGI because it verifies that the number of bytes
+    read exactly matches CONTENT_LENGTH.
+
+url_decode(text)
+url_decode(text, plus_as_space)
+
+    Decode valid %HH byte escapes. Invalid percent escapes are preserved. By
+    default, + remains +. Pass a truthy second argument to decode + as a space,
+    as required by query strings and application/x-www-form-urlencoded forms.
+
+parse_query(text)
+
+    Parse an ampersand-separated query or form string into a table. Names and
+    values are percent-decoded, and + becomes a space. A field without = has an
+    empty value. When a key occurs more than once, the last value wins.
+
+
+07 Query strings and forms
+--------------------------
+
+For a URL ending in:
+
+    ?search=Katalyn+CGI&page=2&empty=
+
+cgi_request() produces:
+
+    $request{query}{search}  # "Katalyn CGI"
+    $request{query}{page}    # "2"
+    $request{query}{empty}   # ""
+
+All parameter values remain text. Convert and validate numbers explicitly.
+
+For a POST whose Content-Type media type is:
+
+    application/x-www-form-urlencoded
+
+the decoded body is also available as $request{form}. For other content types,
+form is an empty table and the unmodified bytes remain in $request{body}.
+
+Multipart file uploads are not parsed by this release. The raw multipart body
+is available, but applications should reject that media type unless they
+implement a careful bounded parser.
+
+
+08 JSON
+-------
+
+json_decode(text)
+
+    Parse one complete JSON value. Objects become Katalyn tables. Arrays become
+    dense one-based tables. Strings decode all JSON escapes, including Unicode
+    surrogate pairs. Numbers support JSON fractions and exponents. true and
+    false become Katalyn numbers 1 and 0. null becomes nil.
+
+    Trailing non-whitespace text, malformed numbers, malformed escapes,
+    unpaired surrogates, and incomplete structures produce a runtime error.
+
+json_encode(value)
+
+    Encode a Katalyn value as compact JSON. Text becomes a JSON string, numbers
+    become JSON numbers, nil becomes null, and tables become arrays or objects.
+
+    A nonempty table is encoded as an array only when its keys are exactly the
+    dense sequence 1 through len(table). Other tables, including empty tables,
+    are encoded as objects. Object keys are emitted in Katalyn's lexical table
+    order. Cyclic tables and non-finite numbers are rejected.
+
+    Because Katalyn has one table type, an empty decoded JSON array and an empty
+    decoded JSON object are indistinguishable and both encode as {}. Likewise,
+    an object whose only keys form the dense sequence "1", "2", and so on will
+    encode as an array. Avoid decode-and-reencode as an identity operation when
+    those distinctions matter.
+
+Katalyn does not have a separate boolean type. Consequently decoded true and
+false are 1 and 0, and encoding them again emits 1 and 0. null remains nil when
+stored in a table produced by json_decode().
+
+The historical standard-library parse_json(text) name now delegates to the
+native json_decode(text) implementation. New programs should use json_decode.
+
+Example:
+
+    $input: json_decode($request{body});
+    $output: table;
+    $output["name"]: $input{name};
+    $output["accepted"]: 1;
+    cgi_response(200, "application/json", json_encode($output));
+
+
+09 Complete API example
+-----------------------
+
+See examples/apache_cgi.kat. It demonstrates:
+
+  * a directly executable Katalyn shebang;
+  * a 1 MiB request-body limit;
+  * GET query parameters;
+  * POST JSON bodies;
+  * POST URL-encoded form bodies;
+  * 405 Method Not Allowed responses;
+  * custom response headers; and
+  * JSON responses.
+
+
+10 Security and deployment
+--------------------------
+
+  * Treat every request field, header, cookie, path, and body byte as untrusted.
+
+  * Choose the smallest practical cgi_request() body limit. Apache-level request
+    limits should also be configured.
+
+  * Do not construct exec(), get_http(), or call_api() shell commands from
+    request data. Shell escaping is not automatic.
+
+  * Never reflect input into a response header. cgi_response() rejects newline
+    injection, but an application must still choose appropriate header values.
+
+  * Encode JSON with json_encode(). Escape HTML according to HTML rules before
+    placing untrusted text in an HTML response; JSON escaping is not HTML
+    escaping.
+
+  * Restrict filesystem permissions for the Apache account. Keep secrets and
+    writable files outside publicly served directories.
+
+  * CGI starts and compiles a new Katalyn process for every request. This gives
+    strong request isolation but is slower than a persistent application server.
+    It is appropriate first for personal and low-traffic applications.
+
+  * Katalyn currently has no exception-handling construct. Invalid JSON and
+    other runtime errors terminate the request. Validate media type and empty
+    bodies before decoding, and monitor Apache's error log.
+
+  * Use Apache or a reverse proxy for TLS, authentication policy, request
+    timeouts, logging, and rate limiting.
+
+
+11 Function summary
+-------------------
+
+    env()                                  complete environment table
+    env(name)                              text or nil
+    env(name, fallback)                    text or fallback
+    read_stdin()                           remaining standard input
+    read_stdin(length)                     up to length raw bytes
+    url_decode(text[, plus_as_space])      decoded text
+    parse_query(text)                      decoded parameter table
+    json_decode(text)                      decoded Katalyn value
+    json_encode(value)                     compact JSON text
+    cgi_request([maximum_body_bytes])      normalized request table
+    cgi_response(status, type, body[, h])  write response; return 1
+
+
+END OF KATALYN CGI REFERENCE

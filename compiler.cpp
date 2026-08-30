@@ -728,6 +728,50 @@ namespace katalyn
                 arity(command, args.size(), 1, 1);
                 return arg(0) + "\nSLEN";
             }
+            if (name == "env")
+            {
+                arity(command, args.size(), 0, 2);
+                std::string code = args.empty() ? "\nPNIL" : arg(0);
+                code += args.size() < 2 ? "\nPNIL" : arg(1);
+                return code + "\nENVV";
+            }
+            if (name == "read_stdin")
+            {
+                arity(command, args.size(), 0, 1);
+                return (args.empty() ? "\nPUSH -1" : arg(0)) + "\nRSTD";
+            }
+            if (name == "url_decode")
+            {
+                arity(command, args.size(), 1, 2);
+                return arg(0) + (args.size() == 2 ? arg(1) : "\nPUSH 0") + "\nURLD";
+            }
+            if (name == "parse_query")
+            {
+                arity(command, args.size(), 1, 1);
+                return arg(0) + "\nQPRS";
+            }
+            if (name == "json_decode")
+            {
+                arity(command, args.size(), 1, 1);
+                return arg(0) + "\nJDEC";
+            }
+            if (name == "json_encode")
+            {
+                arity(command, args.size(), 1, 1);
+                return arg(0) + "\nJENC";
+            }
+            if (name == "cgi_request")
+            {
+                arity(command, args.size(), 0, 1);
+                return (args.empty() ? "\nPUSH 16777216" : arg(0)) + "\nCGIR";
+            }
+            if (name == "cgi_response")
+            {
+                arity(command, args.size(), 3, 4);
+                std::string code = arg(0) + arg(1) + arg(2);
+                code += args.size() == 4 ? arg(3) : "\nTABL";
+                return code + "\nCGIO";
+            }
             if (name == "floor")
             {
                 arity(command, args.size(), 1, 1);

@@ -430,6 +430,12 @@ def halt;
 ok;
 
 def parse_json;
+    # Historical name retained for compatibility. JSON parsing is now native,
+    # complete, terminating, and exposed directly as json_decode().
+    return json_decode($_[1]);
+
+    # The original Katalyn implementation below is unreachable and retained
+    # temporarily so older source references to its helper names still compile.
     $json: trim($_[1]);
     $json: substr($json, 2, len($json) - 2);
     $in_key_part: $true;
