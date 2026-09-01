@@ -1,5 +1,5 @@
-$file: open_r("quijote.txt");
-$result_file: open_rw("quijote_invertido.txt");
+$file: open_r("benchmarks/quijote.txt");
+$result_file: open_rw("benchmarks/quijote_invertido.txt");
 $file_contents: read($file);
 $words: explode($file_contents, arr(" ", "\n"), -1, $false);
 $index: len($words);
@@ -8,4 +8,3 @@ while $index > 0;
     $index: $index - 1;
 ok;
 print("Listo el pollo (", len(read($result_file)), " bytes written)");
-

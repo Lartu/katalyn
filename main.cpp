@@ -25,7 +25,16 @@ void version() {
     if (build_date.size() > 4 && build_date[4] == ' ')
         build_date.erase(4, 1);
 
-    std::cout << "\nThis is LSPL version " << lspl::version()
+    std::cout << R"(
+  _      ____  ____  _
+ | |    / ___||  _ \| |
+ | |    \___ \| |_) | |
+ | |___  ___) |  __/| |___
+ |_____||____/|_|   |_____|
+             Programming Language
+
+)"
+              << "This is LSPL version " << lspl::version()
               << ", running on the NariVM.\n"
               << "Built on " << build_date << " at " << __TIME__ << ".\n"
               << "Copyright 2024, Lartu (www.lartu.net).\n\n";

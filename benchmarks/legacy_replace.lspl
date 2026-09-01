@@ -1,4 +1,4 @@
-$file: open_rw("quijote.txt");
+$file: open_rw("benchmarks/quijote.txt");
 exec("date"); printc($_stdout);
 printc("Loading... ");
 $contents: substr(read($file), 1, 100000);
