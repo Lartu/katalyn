@@ -809,6 +809,11 @@ namespace katalyn
                 arity(command, args.size(), 1, 1);
                 return arg(0) + "\nFLOR";
             }
+            if (name == "datetime")
+            {
+                arity(command, args.size(), 0, 0);
+                return "\nDTIM";
+            }
             if (name == "keys")
             {
                 arity(command, args.size(), 1, 1);

@@ -14,6 +14,7 @@
 #include <memory>
 #include <thread>
 #include <chrono>
+#include <ctime>
 #include <cstdlib>
 #include <iomanip>
 #include <queue>
@@ -170,6 +171,7 @@ enum Opcode : uint8_t
     MVFL, // Move file
     RMFL, // Remove file
     RMDR, // Remove empty directory
+    DTIM, // Local date and time
     DEBUG,
 };
 
@@ -265,6 +267,7 @@ Opcode opcode_from_string(string_view str)
         {"LDIR", Opcode::LDIR}, {"MDIR", Opcode::MDIR},
         {"CPFL", Opcode::CPFL}, {"MVFL", Opcode::MVFL},
         {"RMFL", Opcode::RMFL}, {"RMDR", Opcode::RMDR},
+        {"DTIM", Opcode::DTIM},
         {"DBUG", Opcode::DEBUG},
     };
     auto found = str_to_opcode.find(str);
@@ -489,6 +492,7 @@ string_view opcode_as_string(Opcode opcode)
     case Opcode::MVFL: return "MVFL";
     case Opcode::RMFL: return "RMFL";
     case Opcode::RMDR: return "RMDR";
+    case Opcode::DTIM: return "DTIM";
     case Opcode::DEBUG:
         return "DBUG";
     default:
@@ -3861,6 +3865,42 @@ void execute_code_listing(vector<Command> &code_listing)
         case Opcode::WAIT:
         {
             this_thread::sleep_for(chrono::microseconds((int)floor(pop(command).get_as_number() * 1000000)));
+            break;
+        }
+        case Opcode::DTIM:
+        {
+            time_t current = time(nullptr);
+            if (current == static_cast<time_t>(-1))
+                raise_nvm_error("Could not read the system clock.");
+
+            tm local{};
+#if defined(_WIN32)
+            if (localtime_s(&local, &current) != 0)
+                raise_nvm_error("Could not convert the system clock to local time.");
+#else
+            if (localtime_r(&current, &local) == nullptr)
+                raise_nvm_error("Could not convert the system clock to local time.");
+#endif
+
+            auto padded = [](int value, int width) {
+                ostringstream output;
+                output << setw(width) << setfill('0') << value;
+                return text_value(output.str());
+            };
+
+            Value result = table_value();
+            auto &fields = *result.get_table();
+            fields["dow"] = padded(local.tm_wday == 0 ? 7 : local.tm_wday, 1);
+            fields["date"] = padded(local.tm_mday, 2);
+            fields["day"] = fields["date"];
+            fields["month"] = padded(local.tm_mon + 1, 2);
+            fields["year"] = padded(local.tm_year + 1900, 4);
+            fields["hour"] = padded(local.tm_hour, 2);
+            fields["h12"] = padded(local.tm_hour % 12 == 0 ? 12 : local.tm_hour % 12, 2);
+            fields["ampm"] = text_value(local.tm_hour < 12 ? "AM" : "PM");
+            fields["min"] = padded(local.tm_min, 2);
+            fields["sec"] = padded(local.tm_sec, 2);
+            push(std::move(result));
             break;
         }
         case Opcode::KEYS:

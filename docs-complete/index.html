@@ -836,7 +836,7 @@ sleep 0.25;
 print("done");</code></pre>
 
       <h3>Clock and network helpers</h3>
-      <p>The standard-library <code>datetime</code> function invokes the POSIX <code>date</code> command. <code>get_http</code> and <code>call_api</code> invoke <code>curl</code>. These are conveniences, not native protocols, and depend on those host commands being installed.</p>
+      <p><code>datetime()</code> reads the host’s local clock natively and has no shell-command dependency. The standard-library <code>get_http</code> and <code>call_api</code> helpers still invoke <code>curl</code> and depend on that command being installed.</p>
       <a class="toplink" href="#top">Back to contents</a>
     </section>
 
@@ -931,6 +931,7 @@ import "models/person.kat";</code></pre>
           <tr><td><code>path_exists</code>, <code>is_file</code>, <code>is_directory</code>, <code>file_size</code>, <code>list_directory</code></td><td>Inspect filesystem paths.</td></tr>
           <tr><td><code>make_directory</code>, <code>copy_file</code>, <code>move_file</code>, <code>remove_file</code>, <code>remove_directory</code></td><td>Perform the filesystem mutations detailed in chapter 11.</td></tr>
           <tr><td><code>exec(parts...)</code></td><td>Concatenate at least one argument into a command, run synchronously, capture output, and return exit status.</td></tr>
+          <tr><td><code>datetime()</code></td><td>Return the current local time as zero-padded TEXT fields: <code>dow</code> (Monday 1 through Sunday 7), <code>date</code>/<code>day</code>, <code>month</code>, <code>year</code>, <code>hour</code>, <code>h12</code>, <code>ampm</code>, <code>min</code>, and <code>sec</code>.</td></tr>
         </tbody>
       </table>
 
@@ -1031,7 +1032,6 @@ import "models/person.kat";</code></pre>
           <tr><td><code>arrprint(array)</code></td><td>Alias wrapper for <code>print_arr</code>.</td></tr>
           <tr><td><code>printcs(values...)</code></td><td>Print arguments separated by comma-space and end with newline.</td></tr>
           <tr><td><code>halt(values...)</code></td><td>Concatenate and print all arguments, then <code>exit(1)</code>.</td></tr>
-          <tr><td><code>datetime()</code></td><td>Invoke POSIX <code>date</code> and return a table with <code>dow</code>, <code>date</code>/<code>day</code>, <code>month</code>, <code>year</code>, <code>hour</code>, <code>h12</code>, <code>ampm</code>, <code>min</code>, and <code>sec</code>.</td></tr>
           <tr><td><code>get_http(url)</code></td><td>Run <code>curl 'url'</code>; return stdout on success or empty text on failure.</td></tr>
           <tr><td><code>call_api(url, fields...)</code></td><td>Run a curl POST with each later argument as <code>-d</code> payload; return trimmed stdout or empty text on failure.</td></tr>
           <tr><td><code>parse_json(text)</code></td><td>Historical compatibility alias for native <code>json_decode(text)</code>.</td></tr>
@@ -1040,7 +1040,7 @@ import "models/person.kat";</code></pre>
         </tbody>
       </table>
 
-      <div class="callout warning"><strong>Shell helper safety.</strong> <code>get_http</code>, <code>call_api</code>, and <code>datetime</code> compose shell commands. They are platform-dependent; do not pass untrusted URL or payload text to the curl helpers.</div>
+      <div class="callout warning"><strong>Shell helper safety.</strong> <code>get_http</code> and <code>call_api</code> compose shell commands. They are platform-dependent; do not pass untrusted URL or payload text to them. <code>datetime</code> is native and does not use the shell.</div>
       <div class="callout"><strong>Native JSON.</strong> JSON objects, arrays, strict numbers, escapes, surrogate pairs, booleans and null are supported. Because Katalyn has no distinct boolean type, decoded booleans become numeric 1 and 0.</div>
       <a class="toplink" href="#top">Back to contents</a>
     </section>

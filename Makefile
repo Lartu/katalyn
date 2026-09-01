@@ -91,6 +91,8 @@ test: $(TARGET) $(RUNTIME_TEST)
 	@$(TARGET) tests/errors.kat | grep -qx 'errors-ok'
 	@$(TARGET) tests/bytes.kat | grep -qx 'bytes-ok'
 	@$(TARGET) tests/filesystem.kat | grep -qx 'filesystem-ok'
+	@$(TARGET) tests/datetime.kat | grep -qx 'datetime-ok'
+	@$(TARGET) -n -a '$$t: datetime(); print(len($$t) = 10);' | grep -qx '1'
 	@$(TARGET) -n tests/functions_scope.kat | grep -qx 'functions-scope-ok'
 	@$(TARGET) tests/stdlib.kat | grep -qx 'stdlib-ok'
 	@$(TARGET) -a '$$j: parse_json("{\"x\":1}"); print($$j{x});' | grep -qx '1'

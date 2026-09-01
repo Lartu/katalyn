@@ -677,33 +677,6 @@ def wssplit;
     return explode($_[1], arr(" ", "\n", "\t"), $max, !$ignore);
 ok;
 
-def datetime;
-    # Returns a table containing:
-    # {dow}: day of week (1-7)
-    # {date}: current date (1-31)
-    # {month}: current month (1-12)
-    # {year}: current year (XXXX)
-    # {hour}: current hour (24 hour format)
-    # {h12}: current hour (12 hour format)
-    # {ampm}: "AM" or "PM"
-    # {min}: current minutes (0-59)
-    # {sec}: current seconds (0-59)
-    exec("date +\"%u %d %m %Y %H %I %p %M %S\"");
-    $time: table;
-    $tokens: wssplit($_stdout, -1, $true);
-    $time{dow}: $tokens[1];
-    $time{date}: $tokens[2];
-    $time{day}: $time{date};
-    $time{month}: $tokens[3];
-    $time{year}: $tokens[4];
-    $time{hour}: $tokens[5];
-    $time{h12}: $tokens[6];
-    $time{ampm}: $tokens[7];
-    $time{min}: $tokens[8];
-    $time{sec}: $tokens[9];
-    return $time;
-ok;
-
 def dataset;
     # Creates a table with its keys being every element in $_ and each with a value of $true.
     $set: table;

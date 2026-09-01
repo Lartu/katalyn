@@ -1,0 +1,20 @@
+import "assert.kat";
+
+$time: datetime();
+check(len($time) = 10, "datetime field count");
+check($time{day} = $time{date}, "day alias");
+check($time{dow} >= 1 && $time{dow} <= 7, "ISO weekday range");
+check($time{date} >= 1 && $time{date} <= 31, "day of month range");
+check($time{month} >= 1 && $time{month} <= 12, "month range");
+check($time{year} >= 1970 && len($time{year}) = 4, "year");
+check($time{hour} >= 0 && $time{hour} <= 23 && len($time{hour}) = 2,
+      "24-hour clock");
+check($time{h12} >= 1 && $time{h12} <= 12 && len($time{h12}) = 2,
+      "12-hour clock");
+check($time{ampm} = "AM" || $time{ampm} = "PM", "AM/PM marker");
+check($time{min} >= 0 && $time{min} <= 59 && len($time{min}) = 2,
+      "minute");
+check($time{sec} >= 0 && $time{sec} <= 60 && len($time{sec}) = 2,
+      "second including possible leap second");
+
+finish("datetime-ok");
