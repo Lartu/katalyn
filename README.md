@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://github.com/Lartu/katalyn/blob/lspl-rebrand/images/lspl_logo_small.png">
+  <img src="https://github.com/Lartu/katalyn/blob/lspl-rebrand/images/lspl_logo_micro.png">
   <br><br>
   <img src="https://img.shields.io/badge/last_release-0.1.0-green.svg">
   <img src="https://img.shields.io/badge/license-Apache_2.0-orange">
