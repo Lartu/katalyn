@@ -226,72 +226,59 @@ ok;
 def ltrim;
 (** Left-trims the string $_[1]. If $_[2] is set, it trims the value in $_[2]. Otherwise it trims whitespace. **)
     in $string: $_[1];
-    in $trim_ws: $true;
     if is($_[2]);
-        in $trim_ws: $false;
         in $needle: $_[2];
-    ok;
-    (* If trimming whitespace *)
-    if $trim_ws;
-        in $i: 1;
-        while $i <= len($string);
-            if !is_whitespace(substr($string, $i, 1));
-                break;
-            ok;
-            in $i: $i + 1;
-        ok;
-        return substr($string, $i);
-    ok;
-    (* If trimming text *)
-    unless $_r;
-        if len($needle) > len($string);
+        in $needle_length: len($needle);
+        if !$needle_length;
             return $string;
         ok;
         in $i: 1;
-        while $i + len($needle) - 1 <= len($string);
-            if substr($string, $i, len($needle)) <> $needle;
+        while $i + $needle_length - 1 <= len($string);
+            if substr($string, $i, $needle_length) <> $needle;
                 break;
             ok;
-            in $i: $i + len($needle);
+            in $i: $i + $needle_length;
         ok;
         return substr($string, $i);
     ok;
+
+    in $i: 1;
+    while $i <= len($string);
+        if !is_whitespace(substr($string, $i, 1));
+            break;
+        ok;
+        in $i: $i + 1;
+    ok;
+    return substr($string, $i);
 ok;
 
 def rtrim;
 (** Right-trims the string $_[1]. If $_[2] is set, it trims the value in $_[2]. Otherwise it trims whitespace. **)
     in $string: $_[1];
-    in $trim_ws: $true;
     if is($_[2]);
-        in $trim_ws: $false;
         in $needle: $_[2];
-    ok;
-    (* If trimming whitespace *)
-    if $trim_ws;
+        in $needle_length: len($needle);
+        if !$needle_length;
+            return $string;
+        ok;
         in $i: len($string);
-        while $i >= 1;
-            if !is_whitespace(substr($string, $i, 1));
+        while $i >= $needle_length;
+            if substr($string, $i - $needle_length + 1, $needle_length) <> $needle;
                 break;
             ok;
-            in $i: $i - 1;
+            in $i: $i - $needle_length;
         ok;
         return substr($string, 0, $i);
     ok;
-    (* If trimming text *)
-    unless $_r;
-        if len($needle) > len($string);
-            return $string;
+
+    in $i: len($string);
+    while $i >= 1;
+        if !is_whitespace(substr($string, $i, 1));
+            break;
         ok;
-        in $i: (len($string) - len($needle)) + 1;
-        while $i >= 1;
-            if substr($string, $i, len($needle)) <> $needle;
-                in $i: $i + len($needle) - 1;
-                break;
-            ok;
-            in $i: $i - len($needle);
-        ok;
-        return substr($string, 1, $i);
+        in $i: $i - 1;
     ok;
+    return substr($string, 0, $i);
 ok;
 
 def trim;

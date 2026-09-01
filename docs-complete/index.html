@@ -992,8 +992,8 @@ import "models/person.kat";</code></pre>
           <tr><td><code>ends_with(text, suffix)</code></td><td>Numeric truth value for a suffix match.</td></tr>
           <tr><td><code>is_whitespace(text)</code></td><td>True when every code point is ASCII space, tab, or newline. Empty text is considered whitespace.</td></tr>
           <tr><td><code>ltrim(text[, needle])</code></td><td>Remove leading whitespace, or repeated leading <code>needle</code> when supplied.</td></tr>
-          <tr><td><code>rtrim(text[, needle])</code></td><td>Remove trailing whitespace. The custom-needle path is intended to remove repeated trailing <code>needle</code> values, but currently returns an incorrect result in simple cases such as <code>rtrim("x--", "--")</code>.</td></tr>
-          <tr><td><code>trim(text[, needle])</code></td><td>Apply both trims. Whitespace trimming works; custom-needle trimming inherits the current <code>rtrim</code> defect.</td></tr>
+          <tr><td><code>rtrim(text[, needle])</code></td><td>Remove trailing whitespace, or repeated complete trailing <code>needle</code> values when supplied.</td></tr>
+          <tr><td><code>trim(text[, needle])</code></td><td>Apply both trims. An empty custom needle is a no-op.</td></tr>
           <tr><td><code>wssplit(text[, max[, ignore_empties]])</code></td><td>Split on space, newline, or tab. Empty tokens are retained by default; pass true as the third argument to discard them.</td></tr>
           <tr><td><code>plural(number[, singular[, plural]])</code></td><td>If number equals 1, return <code>singular</code> or empty text; otherwise return <code>plural</code> or <code>"s"</code>.</td></tr>
         </tbody>
@@ -1129,7 +1129,6 @@ kat [options] -s [script arguments...] &lt; source.kat</code></pre>
       <h3>Current native/library defects and surprises</h3>
       <ul>
         <li>The case-conversion library is ASCII-only.</li>
-        <li>Custom-needle <code>rtrim</code>/<code>trim</code> currently produce incorrect results.</li>
         <li>The HTTP and date helpers depend on external Unix-style commands.</li>
       </ul>
 

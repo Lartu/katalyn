@@ -864,11 +864,9 @@ import "models/person.kat";
    is_whitespace(text) True when every code point is ASCII space, tab, or newline. Empty text
    is considered whitespace.
    ltrim(text[, needle]) Remove leading whitespace, or repeated leading needle when supplied.
-   rtrim(text[, needle]) Remove trailing whitespace. The custom-needle path is intended to
-   remove repeated trailing needle values, but currently returns an incorrect result in simple
-   cases such as rtrim("x--", "--").
-   trim(text[, needle]) Apply both trims. Whitespace trimming works; custom-needle trimming
-   inherits the current rtrim defect.
+   rtrim(text[, needle]) Remove trailing whitespace, or repeated complete trailing needle
+   values when supplied.
+   trim(text[, needle]) Apply both trims. An empty custom needle is a no-op.
    wssplit(text[, max[, ignore_empties]]) Split on space, newline, or tab. Empty tokens are
    retained by default; pass true as the third argument to discard them.
    plural(number[, singular[, plural]]) If number equals 1, return singular or empty text;
@@ -1027,7 +1025,6 @@ kat [options] -s [script arguments...] < source.kat
   Current native/library defects and surprises
 
      * The case-conversion library is ASCII-only.
-     * Custom-needle rtrim/trim currently produce incorrect results.
      * The HTTP and date helpers depend on external Unix-style commands.
 
   Portability and resource behavior

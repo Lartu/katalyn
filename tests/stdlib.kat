@@ -33,6 +33,15 @@ check(is_whitespace(" \n\t"), "is_whitespace");
 check(ltrim("  x") = "x", "ltrim whitespace");
 check(rtrim("x  ") = "x", "rtrim whitespace");
 check(trim("  x \n") = "x", "trim whitespace");
+check(ltrim("----x", "--") = "x", "ltrim repeated custom needle");
+check(rtrim("x----", "--") = "x", "rtrim repeated custom needle");
+check(rtrim("x--", "--") = "x", "rtrim single custom needle regression");
+check(trim("----x----", "--") = "x", "trim custom needle on both sides");
+check(trim("----", "--") = "", "trim string made entirely of custom needle");
+check(trim("x-y-", "--") = "x-y-", "trim ignores partial custom needle");
+check(trim("short", "longer") = "short", "trim needle longer than text");
+check(trim("unchanged", "") = "unchanged", "trim empty needle is a no-op");
+check(trim("😀😀hello😀😀", "😀") = "hello", "trim Unicode custom needle");
 
 check(ucase("Katalyn 2") = "KATALYN 2", "ucase");
 check(lcase("KATALYN 2") = "katalyn 2", "lcase");
