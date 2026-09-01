@@ -1,0 +1,10 @@
+# Function calls, argument construction, return values, and local scopes.
+def add_one;
+    return $_[1] + 1;
+ok;
+
+$i: 0;
+while $i < 1500000;
+    $i: add_one($i);
+ok;
+print($i);

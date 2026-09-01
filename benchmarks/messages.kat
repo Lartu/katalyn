@@ -1,0 +1,20 @@
+# Actor scheduling and two FIFO message operations per round trip.
+def echo_worker;
+    $i: 0;
+    while $i < $_[1];
+        $envelope: receive();
+        send($envelope{from}, $envelope{message});
+        $i: $i + 1;
+    ok;
+    return $i;
+ok;
+
+$rounds: 100000;
+$worker: spawn(echo_worker, $rounds);
+$i: 0;
+while $i < $rounds;
+    send($worker, $i);
+    $reply: receive();
+    $i: $reply{message} + 1;
+ok;
+print(wait($worker){value});

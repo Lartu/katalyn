@@ -1,0 +1,15 @@
+# Numeric-key table insertion and lookup.
+$values: table;
+$i: 1;
+while $i <= 1500000;
+    $values[$i]: $i;
+    $i: $i + 1;
+ok;
+
+$i: 1;
+$sum: 0;
+while $i <= 1500000;
+    $sum: $sum + $values[$i];
+    $i: $i + 1;
+ok;
+print($sum);

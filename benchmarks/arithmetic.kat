@@ -1,0 +1,8 @@
+# Core VM dispatch, arithmetic, comparisons, and variable access.
+$i: 0;
+$sum: 0;
+while $i < 10000000;
+    $sum: $sum + $i;
+    $i: $i + 1;
+ok;
+print($sum);

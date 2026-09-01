@@ -17,6 +17,11 @@ make test
 
 The executable is created at `build/kat`.
 
+The normal build is a release build using `-O2`, link-time optimization, and
+disabled C++ assertions. This combination benchmarks better for the interpreter
+than `-O3`, whose larger VM dispatch loop can be slower. If a compiler does not
+support link-time optimization, build with `make LTOFLAGS=`.
+
 ```sh
 ./build/kat examples/disan_count.kat
 ./build/kat -a 'print("Hello from Katalyn!");'
@@ -26,6 +31,12 @@ Install it under `/usr/local/bin` with:
 
 ```sh
 sudo make install
+```
+
+Run the bundled VM, function-call, table, and actor microbenchmarks with:
+
+```sh
+make benchmark
 ```
 
 ## Command line

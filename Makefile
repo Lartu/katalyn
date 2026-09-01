@@ -30,11 +30,14 @@ OBJECTS := $(SOURCES:%.cpp=$(OBJ_DIR)/%.o)
 DEPFILES := $(OBJECTS:.o=.d)
 
 CPPFLAGS += -I. -I$(GEN_DIR) -Ilib/tiny-process-library -MMD -MP
-CXXFLAGS ?= -O2
-CXXFLAGS += -std=c++17 -Wall -Wextra -Wpedantic
+OPTFLAGS ?= -O2 -DNDEBUG
+LTOFLAGS ?= -flto
+CXXFLAGS ?= $(OPTFLAGS)
+CXXFLAGS += $(LTOFLAGS) -std=c++17 -Wall -Wextra -Wpedantic
+LDFLAGS += $(LTOFLAGS)
 LDLIBS += -pthread
 
-.PHONY: all test tiger-ppc install clean run
+.PHONY: all test benchmark tiger-ppc install clean run
 
 all: $(TARGET)
 
@@ -68,7 +71,7 @@ $(GEN_HEADER): stdlib.kat Makefile
 $(RUNTIME_TEST): tests/runtime_isolation.cpp $(OBJ_DIR)/narivm.o \
 	$(OBJ_DIR)/lib/tiny-process-library/process.o \
 	$(OBJ_DIR)/lib/tiny-process-library/process_unix.o
-	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $^ $(LDLIBS) -o $@
+	$(CXX) $(LDFLAGS) $(CPPFLAGS) $(CXXFLAGS) $^ $(LDLIBS) -o $@
 
 test: $(TARGET) $(RUNTIME_TEST)
 	@echo "Running Katalyn compatibility tests"
@@ -125,6 +128,16 @@ test: $(TARGET) $(RUNTIME_TEST)
 	@$(RM) $(BUILD_DIR)/katalyn-test-output.txt
 	@$(TARGET) -a 'print(ceil(2.2));' | grep -qx '3'
 	@echo "All tests passed."
+
+benchmark: $(TARGET)
+	@echo "Arithmetic and variable access"
+	@/usr/bin/time -p $(TARGET) -n benchmarks/arithmetic.kat >/dev/null
+	@echo "Function calls"
+	@/usr/bin/time -p $(TARGET) -n benchmarks/functions.kat >/dev/null
+	@echo "Table reads and writes"
+	@/usr/bin/time -p $(TARGET) -n benchmarks/tables.kat >/dev/null
+	@echo "Actor message round trips"
+	@/usr/bin/time -p $(TARGET) -n benchmarks/messages.kat >/dev/null
 
 install: $(TARGET)
 	install -d "$(DESTDIR)$(PREFIX)/bin"

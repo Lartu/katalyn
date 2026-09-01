@@ -3,12 +3,13 @@
 #include <iostream>
 #include <map>
 #include <unordered_map>
-#include <stack>
+#include <array>
 #include <string>
 #include <vector>
 #include <sstream>
 #include <algorithm>
 #include <cctype>
+#include <charconv>
 #include <cmath>
 #include <limits>
 #include <memory>
@@ -536,7 +537,9 @@ string double_to_string(double value)
     // Check if the value is effectively an integer
     if (num_eq(value, floor(value)))
     {
-        return to_string(static_cast<long long>(value)); // Convert to integer string
+        char buffer[32];
+        auto converted = to_chars(begin(buffer), end(buffer), static_cast<long long>(value));
+        return string(buffer, converted.ptr);
     }
     else
     {
@@ -544,7 +547,7 @@ string double_to_string(double value)
         string str_rep = to_string(value);
         while (str_rep[str_rep.size() - 1] == '0' || str_rep[str_rep.size() - 1] == '.')
         {
-            str_rep = str_rep.substr(0, str_rep.size() - 1);
+            str_rep.pop_back();
         }
         return str_rep;
     }
@@ -692,17 +695,17 @@ private:
     string str_rep;
     double num_rep;
     uint64_t pid_rep = 0;
-    shared_ptr<map<string, Value>> table_rep;
-    shared_ptr<vector<unsigned char>> bytes_rep;
-    shared_ptr<queue<string> /**/> iterator_elements;
+    // TABLE, BYTES, and ITER are mutually exclusive, so one type-erased owner
+    // avoids carrying and updating three separate shared_ptr instances in every
+    // scalar Value. The concrete type is always determined by `type`.
+    shared_ptr<void> object_rep;
     shared_ptr<vector<size_t>> utf8_offsets;
 
     void reset_values()
     {
         has_num_rep = false;
         has_str_rep = false;
-        table_rep = nullptr;
-        bytes_rep = nullptr;
+        object_rep = nullptr;
         utf8_offsets = nullptr;
         pid_rep = 0;
     }
@@ -716,7 +719,6 @@ public:
         this->str_rep = value;
         this->type = TEXT;
         has_str_rep = true;
-        utf8_offsets = make_shared<vector<size_t>>();
     }
 
     void set_number_value(double value)
@@ -725,27 +727,26 @@ public:
         this->num_rep = value;
         this->type = NUMB;
         has_num_rep = true;
-        utf8_offsets = make_shared<vector<size_t>>();
     }
 
     void set_table_value()
     {
         reset_values();
-        this->table_rep = std::make_shared<map<string, Value>>();
+        object_rep = std::make_shared<map<string, Value>>();
         this->type = TABLE;
     }
 
     void set_bytes_value(const vector<unsigned char> &value)
     {
         reset_values();
-        bytes_rep = make_shared<vector<unsigned char>>(value);
+        object_rep = make_shared<vector<unsigned char>>(value);
         type = BYTES;
     }
 
     void set_bytes_value(vector<unsigned char> &&value)
     {
         reset_values();
-        bytes_rep = make_shared<vector<unsigned char>>(std::move(value));
+        object_rep = make_shared<vector<unsigned char>>(std::move(value));
         type = BYTES;
     }
 
@@ -764,7 +765,7 @@ public:
     void set_iterator_value()
     {
         reset_values();
-        this->iterator_elements = std::make_shared<queue<string>>();
+        object_rep = std::make_shared<queue<string>>();
         this->type = ITER;
     }
 
@@ -787,27 +788,27 @@ public:
 
     map<string, Value> *get_table()
     {
-        return table_rep.get();
+        return static_cast<map<string, Value> *>(object_rep.get());
     }
 
     const map<string, Value> *get_table() const
     {
-        return table_rep.get();
+        return static_cast<const map<string, Value> *>(object_rep.get());
     }
 
     vector<unsigned char> *get_bytes()
     {
-        return bytes_rep.get();
+        return static_cast<vector<unsigned char> *>(object_rep.get());
     }
 
     const vector<unsigned char> *get_bytes() const
     {
-        return bytes_rep.get();
+        return static_cast<const vector<unsigned char> *>(object_rep.get());
     }
 
     queue<string> *get_iterator_queue()
     {
-        return iterator_elements.get();
+        return static_cast<queue<string> *>(object_rep.get());
     }
 
     const string &get_raw_string_value() const
@@ -871,10 +872,12 @@ public:
             else if (type == PID)
             {
                 str_rep = "<pid:" + to_string(pid_rep) + ">";
+                has_str_rep = true;
             }
             else if (type == NUMB)
             {
                 str_rep = double_to_string(get_as_number());
+                has_str_rep = true;
             }
             return str_rep;
         }
@@ -921,7 +924,7 @@ public:
             }
             else if (type == TABLE)
             {
-                num_rep = table_rep != nullptr ? num_rep = table_rep->size() : 0;
+                num_rep = object_rep != nullptr ? get_table()->size() : 0;
             }
             else if (type == BYTES)
             {
@@ -936,6 +939,7 @@ public:
                 try
                 {
                     num_rep = stod(str_rep);
+                    has_num_rep = true;
                 }
                 catch (const invalid_argument &ia)
                 {
@@ -987,6 +991,18 @@ Value pid_value(uint64_t pid)
     Value value;
     value.set_pid_value(pid);
     return value;
+}
+
+string array_index_key(size_t index)
+{
+    constexpr size_t cached_count = 64;
+    static const array<string, cached_count + 1> cache = [] {
+        array<string, cached_count + 1> values;
+        for (size_t i = 0; i <= cached_count; ++i)
+            values[i] = to_string(i);
+        return values;
+    }();
+    return index <= cached_count ? cache[index] : to_string(index);
 }
 
 char **process_environment()
@@ -1708,16 +1724,25 @@ class ActorSystem;
 
 struct RuntimeState
 {
+    struct VariableCacheEntry
+    {
+        size_t epoch = 0;
+        Value *value = nullptr;
+    };
+
     size_t pc = 0;
     Command *last_command = nullptr;
     vector<unordered_map<string, Value>> variable_tables;
+    vector<unordered_map<string, Value>> recycled_scopes;
+    vector<VariableCacheEntry> variable_cache;
+    size_t variable_epoch = 1;
     map<string, size_t> label_to_pc;
     map<size_t, string> pc_to_label;
-    stack<Value> execution_stack;
+    vector<Value> execution_stack;
     map<string, fstream *> open_files;
     set<string> untruncated_files;
     set<string> read_only_files;
-    stack<size_t> return_stack;
+    vector<size_t> return_stack;
     vector<ErrorHandler> error_handlers;
     ControlKind pending_control = ControlKind::None;
     size_t pending_jump = 0;
@@ -1726,9 +1751,18 @@ struct RuntimeState
     shared_ptr<ActorSystem> actor_system;
     uint64_t worker_id = 0;
 
+    RuntimeState()
+    {
+        variable_tables.reserve(16);
+        recycled_scopes.reserve(8);
+        execution_stack.reserve(256);
+        return_stack.reserve(64);
+    }
+
     map<string, size_t> &labels() { return label_to_pc; }
     map<size_t, string> &reverse_labels() { return pc_to_label; }
     vector<unordered_map<string, Value>> &scopes() { return variable_tables; }
+    vector<Value> &operands() { return execution_stack; }
 
     ~RuntimeState()
     {
@@ -2003,6 +2037,10 @@ Command split_command_arguments(const string &line, const size_t full_line_numbe
         else if (token_type == NUMB)
         {
             value.set_number_value(stod(tokens[i]));
+            // Numeric literals are immutable. Cache their canonical text once
+            // while loading the program instead of formatting them on every
+            // execution (notably for repeated table indexes).
+            value.get_as_string();
         }
         new_command.add_argument(value);
     }
@@ -2087,20 +2125,20 @@ vector<Command> generate_label_map_and_code_listing(const string &code)
 // The VM implementation below intentionally reads its state through the active
 // RuntimeState. These aliases keep the instruction implementations compact while
 // ensuring separate and nested interpreter instances do not share mutable state.
-#define pc (runtime_state().pc)
-#define last_command (runtime_state().last_command)
-#define variable_tables (runtime_state().variable_tables)
-#define label_to_pc (runtime_state().label_to_pc)
-#define pc_to_label (runtime_state().pc_to_label)
-#define execution_stack (runtime_state().execution_stack)
-#define open_files (runtime_state().open_files)
-#define untruncated_files (runtime_state().untruncated_files)
-#define read_only_files (runtime_state().read_only_files)
-#define return_stack (runtime_state().return_stack)
+#define pc (active_runtime->pc)
+#define last_command (active_runtime->last_command)
+#define variable_tables (active_runtime->variable_tables)
+#define label_to_pc (active_runtime->label_to_pc)
+#define pc_to_label (active_runtime->pc_to_label)
+#define execution_stack (active_runtime->execution_stack)
+#define open_files (active_runtime->open_files)
+#define untruncated_files (active_runtime->untruncated_files)
+#define read_only_files (active_runtime->read_only_files)
+#define return_stack (active_runtime->return_stack)
 
 void push(Value v)
 {
-    execution_stack.push(std::move(v));
+    execution_stack.push_back(std::move(v));
 }
 
 Value pop(Command &command)
@@ -2109,14 +2147,36 @@ Value pop(Command &command)
     {
         raise_nvm_error("Execution stack empty for command: " + command.get_debug_string());
     }
-    auto v = std::move(execution_stack.top());
-    execution_stack.pop();
+    auto v = std::move(execution_stack.back());
+    execution_stack.pop_back();
     return v;
 }
 
 void add_scope()
 {
-    variable_tables.push_back(unordered_map<string, Value>());
+    auto &state = runtime_state();
+    if (state.recycled_scopes.empty())
+    {
+        unordered_map<string, Value> scope;
+        scope.reserve(8);
+        variable_tables.push_back(std::move(scope));
+    }
+    else
+    {
+        variable_tables.push_back(std::move(state.recycled_scopes.back()));
+        state.recycled_scopes.pop_back();
+    }
+    ++runtime_state().variable_epoch;
+}
+
+void remove_scope()
+{
+    auto &state = runtime_state();
+    auto scope = std::move(variable_tables.back());
+    variable_tables.pop_back();
+    scope.clear();
+    state.recycled_scopes.push_back(std::move(scope));
+    ++state.variable_epoch;
 }
 
 void set_variable(const string &var_name, Value value)
@@ -2125,7 +2185,42 @@ void set_variable(const string &var_name, Value value)
     {
         add_scope();
     }
-    variable_tables[variable_tables.size() - 1][var_name] = std::move(value);
+    auto &scope = variable_tables.back();
+    auto found = scope.find(var_name);
+    if (found == scope.end())
+    {
+        scope.emplace(var_name, std::move(value));
+        ++runtime_state().variable_epoch;
+    }
+    else
+    {
+        found->second = std::move(value);
+    }
+}
+
+void set_variable_cached(const string &var_name, Value value, size_t cache_index)
+{
+    if (variable_tables.empty())
+        add_scope();
+    auto &state = runtime_state();
+    auto &cache = state.variable_cache[cache_index];
+    if (cache.epoch == state.variable_epoch && cache.value)
+    {
+        *cache.value = std::move(value);
+        return;
+    }
+    auto &scope = variable_tables.back();
+    auto found = scope.find(var_name);
+    if (found == scope.end())
+    {
+        found = scope.emplace(var_name, std::move(value)).first;
+        ++state.variable_epoch;
+    }
+    else
+    {
+        found->second = std::move(value);
+    }
+    cache = {state.variable_epoch, &found->second};
 }
 
 void delete_variable(const string &name)
@@ -2140,6 +2235,7 @@ void delete_variable(const string &name)
     if (current_scope.find(name) != current_scope.end())
     {
         current_scope.erase(name); // Delete the variable from the current scope
+        ++runtime_state().variable_epoch;
         return;
     }
 
@@ -2148,6 +2244,7 @@ void delete_variable(const string &name)
     if (global_scope.find(name) != global_scope.end())
     {
         global_scope.erase(name); // Delete the variable from the global scope
+        ++runtime_state().variable_epoch;
         return;
     }
 }
@@ -2158,7 +2255,42 @@ void set_global_variable(const string &var_name, Value value)
     {
         add_scope();
     }
-    variable_tables[0][var_name] = value;
+    auto &scope = variable_tables.front();
+    auto found = scope.find(var_name);
+    if (found == scope.end())
+    {
+        scope.emplace(var_name, std::move(value));
+        ++runtime_state().variable_epoch;
+    }
+    else
+    {
+        found->second = std::move(value);
+    }
+}
+
+void set_global_variable_cached(const string &var_name, Value value, size_t cache_index)
+{
+    if (variable_tables.empty())
+        add_scope();
+    auto &state = runtime_state();
+    auto &cache = state.variable_cache[cache_index];
+    if (cache.epoch == state.variable_epoch && cache.value)
+    {
+        *cache.value = std::move(value);
+        return;
+    }
+    auto &scope = variable_tables.front();
+    auto found = scope.find(var_name);
+    if (found == scope.end())
+    {
+        found = scope.emplace(var_name, std::move(value)).first;
+        ++state.variable_epoch;
+    }
+    else
+    {
+        found->second = std::move(value);
+    }
+    cache = {state.variable_epoch, &found->second};
 }
 
 const Value &get_variable(const string &var_name)
@@ -2178,6 +2310,30 @@ const Value &get_variable(const string &var_name)
         }
     }
     return runtime_state().nil_value;
+}
+
+const Value &get_variable_cached(const string &var_name, size_t cache_index)
+{
+    auto &state = runtime_state();
+    auto &cache = state.variable_cache[cache_index];
+    if (cache.epoch == state.variable_epoch)
+        return cache.value ? *cache.value : state.nil_value;
+
+    Value *found_value = nullptr;
+    if (!variable_tables.empty())
+    {
+        auto found = variable_tables.back().find(var_name);
+        if (found != variable_tables.back().end())
+            found_value = &found->second;
+        else if (variable_tables.size() > 1)
+        {
+            found = variable_tables.front().find(var_name);
+            if (found != variable_tables.front().end())
+                found_value = &found->second;
+        }
+    }
+    cache = {state.variable_epoch, found_value};
+    return found_value ? *found_value : state.nil_value;
 }
 
 string substring(Value &value, long long from, long long count)
@@ -2558,19 +2714,19 @@ size_t label_pc(const Value &label)
 void trim_execution_stack(size_t depth)
 {
     while (execution_stack.size() > depth)
-        execution_stack.pop();
+        execution_stack.pop_back();
 }
 
 void trim_scopes(size_t depth)
 {
     while (variable_tables.size() > depth)
-        variable_tables.pop_back();
+        remove_scope();
 }
 
 void trim_returns(size_t depth)
 {
     while (return_stack.size() > depth)
-        return_stack.pop();
+        return_stack.pop_back();
 }
 
 void jump_to(size_t target)
@@ -2623,12 +2779,12 @@ void continue_pending_control()
         state.pending_control = ControlKind::None;
         if (execution_stack.empty())
             raise_nvm_error("Missing function return slot.");
-        execution_stack.pop();
+        execution_stack.pop_back();
         if (variable_tables.empty())
             raise_nvm_error("No function scope to return from.");
-        variable_tables.pop_back();
-        pc = return_stack.top();
-        return_stack.pop();
+        remove_scope();
+        pc = return_stack.back();
+        return_stack.pop_back();
         push(std::move(result));
     }
 }
@@ -2792,9 +2948,9 @@ uint64_t ActorSystem::spawn(size_t entry_pc, vector<Value> arguments,
             push(get_listlimit_value());
             for (auto &argument : arguments)
                 push(std::move(argument));
-            return_stack.push(system->code_listing->size());
+            return_stack.push_back(system->code_listing->size());
             execute_code_listing(*system->code_listing, entry_pc);
-            result = execution_stack.empty() ? get_nil_value() : clone_actor_value(execution_stack.top());
+            result = execution_stack.empty() ? get_nil_value() : clone_actor_value(execution_stack.back());
         }
         catch (const VmException &failure)
         {
@@ -2920,9 +3076,22 @@ void ActorSystem::wait_for_all()
 
 void execute_code_listing(vector<Command> &code_listing, size_t start_pc)
 {
+    RuntimeState &state = runtime_state();
+    if (state.variable_cache.size() != code_listing.size())
+        state.variable_cache.resize(code_listing.size());
+    auto &operand_stack = state.operands();
+    auto push = [&operand_stack](Value value) { operand_stack.push_back(std::move(value)); };
+    auto pop = [&operand_stack](Command &command) {
+        if (operand_stack.empty())
+            raise_nvm_error("Execution stack empty for command: " + command.get_debug_string());
+        Value value = std::move(operand_stack.back());
+        operand_stack.pop_back();
+        return value;
+    };
     pc = start_pc;
     while (pc < code_listing.size())
     {
+        const size_t instruction_pc = pc;
         Command &command = code_listing[pc];
         last_command = &command;
         try
@@ -3126,17 +3295,20 @@ void execute_code_listing(vector<Command> &code_listing, size_t start_pc)
         case Opcode::VSET:
         {
             Value value = pop(command);
-            set_variable(command.get_arguments()[0].get_raw_string_value(), value);
+            set_variable_cached(command.get_arguments()[0].get_raw_string_value(),
+                                std::move(value), instruction_pc);
             break;
         }
         case Opcode::GSET:
         {
-            set_global_variable(command.get_arguments()[0].get_raw_string_value(), pop(command));
+            set_global_variable_cached(command.get_arguments()[0].get_raw_string_value(),
+                                       pop(command), instruction_pc);
             break;
         }
         case Opcode::VGET:
         {
-            push(get_variable(command.get_arguments()[0].get_raw_string_value()));
+            push(get_variable_cached(command.get_arguments()[0].get_raw_string_value(),
+                                     instruction_pc));
             break;
         }
         case Opcode::JOIN:
@@ -3198,7 +3370,7 @@ void execute_code_listing(vector<Command> &code_listing, size_t start_pc)
                 Value element;
                 element.set_string_value(expl_results.front());
                 expl_results.pop();
-                (*result.get_table())[double_to_string(index)] = element;
+                (*result.get_table())[array_index_key(index)] = element;
                 ++index;
             }
             push(std::move(result));
@@ -3228,7 +3400,7 @@ void execute_code_listing(vector<Command> &code_listing, size_t start_pc)
                 Value element;
                 element.set_string_value(expl_results.front());
                 expl_results.pop();
-                (*result.get_table())[double_to_string(index)] = element;
+                (*result.get_table())[array_index_key(index)] = element;
                 ++index;
             }
             push(std::move(result));
@@ -3315,14 +3487,14 @@ void execute_code_listing(vector<Command> &code_listing, size_t start_pc)
             Value return_kind = command.get_arguments()[0];
             runtime_state().pending_return =
                 num_eq(return_kind.get_as_number(), 0)
-                    ? execution_stack.top()
+                    ? execution_stack.back()
                     : pop(command);
             continue_pending_control();
             break;
         }
         case Opcode::CALL:
         {
-            return_stack.push(pc);
+            return_stack.push_back(pc);
             pc = command.get_branch_target();
             break;
         }
@@ -3334,8 +3506,8 @@ void execute_code_listing(vector<Command> &code_listing, size_t start_pc)
             }
             else
             {
-                pc = return_stack.top();
-                return_stack.pop();
+                pc = return_stack.back();
+                return_stack.pop_back();
             }
             break;
         }
@@ -3395,7 +3567,7 @@ void execute_code_listing(vector<Command> &code_listing, size_t start_pc)
             Value table = pop(command);
             if (table.get_type() != TABLE)
                 raise_nvm_error("Only TABLE values can be assigned through an index.");
-            (*table.get_table())[index.get_as_string()] = value;
+            (*table.get_table())[index.get_as_string()] = std::move(value);
             break;
         }
         case Opcode::PGET:
@@ -3470,7 +3642,8 @@ void execute_code_listing(vector<Command> &code_listing, size_t start_pc)
         {
             Value result;
             result.set_table_value();
-            stack<Value> values;
+            vector<Value> values;
+            values.reserve(8);
             // Pop values until we find a nil
             while (true)
             {
@@ -3485,15 +3658,14 @@ void execute_code_listing(vector<Command> &code_listing, size_t start_pc)
                 }
                 else
                 {
-                    values.push(v);
+                    values.push_back(std::move(v));
                 }
             }
             // Add the values to the array in reverse order
             size_t array_index = 1;
-            while (!values.empty())
+            for (auto it = values.rbegin(); it != values.rend(); ++it)
             {
-                (*result.get_table())[double_to_string(array_index)] = values.top();
-                values.pop();
+                (*result.get_table())[array_index_key(array_index)] = std::move(*it);
                 array_index += 1;
             }
             push(std::move(result));
@@ -3501,7 +3673,7 @@ void execute_code_listing(vector<Command> &code_listing, size_t start_pc)
         }
         case Opcode::DUPL:
         {
-            push(execution_stack.top());
+            push(execution_stack.back());
             break;
         }
         case Opcode::ISNIL:
@@ -3590,7 +3762,7 @@ void execute_code_listing(vector<Command> &code_listing, size_t start_pc)
         case Opcode::BNEW:
         {
             vector<unsigned char> data;
-            while (!execution_stack.empty() && execution_stack.top().get_type() != LISTLIMIT)
+            while (!execution_stack.empty() && execution_stack.back().get_type() != LISTLIMIT)
             {
                 long long byte = require_integer(pop(command), "Byte value");
                 if (byte < 0 || byte > 255)
@@ -3700,7 +3872,7 @@ void execute_code_listing(vector<Command> &code_listing, size_t start_pc)
         case Opcode::PJON:
         {
             vector<string> parts;
-            while (!execution_stack.empty() && execution_stack.top().get_type() != LISTLIMIT)
+            while (!execution_stack.empty() && execution_stack.back().get_type() != LISTLIMIT)
                 parts.push_back(pop(command).get_as_string());
             if (execution_stack.empty())
                 raise_nvm_error("Missing path_join argument-list marker.");
@@ -3773,7 +3945,7 @@ void execute_code_listing(vector<Command> &code_listing, size_t start_pc)
         }
         case Opcode::MDIR:
         {
-            bool parents = is_true(execution_stack.top());
+            bool parents = is_true(execution_stack.back());
             pop(command);
             filesystem::path path(pop(command).get_as_string());
             error_code error;
@@ -3785,7 +3957,7 @@ void execute_code_listing(vector<Command> &code_listing, size_t start_pc)
         }
         case Opcode::CPFL:
         {
-            bool overwrite = is_true(execution_stack.top());
+            bool overwrite = is_true(execution_stack.back());
             pop(command);
             filesystem::path destination(pop(command).get_as_string());
             filesystem::path source(pop(command).get_as_string());
@@ -4216,7 +4388,7 @@ void execute_code_listing(vector<Command> &code_listing, size_t start_pc)
             }
             else
             {
-                variable_tables.pop_back();
+                remove_scope();
             }
             break;
         }
@@ -4284,7 +4456,7 @@ void execute_code_listing(vector<Command> &code_listing, size_t start_pc)
             if (!runtime_state().actor_system || runtime_state().worker_id == 0)
                 raise_nvm_error("Worker runtime is unavailable.");
             vector<Value> arguments;
-            while (!execution_stack.empty() && execution_stack.top().get_type() != LISTLIMIT)
+            while (!execution_stack.empty() && execution_stack.back().get_type() != LISTLIMIT)
                 arguments.push_back(pop(command));
             if (execution_stack.empty())
                 raise_nvm_error("Missing spawn argument-list marker.");
@@ -4380,7 +4552,7 @@ void execute_code_listing(vector<Command> &code_listing, size_t start_pc)
                 {
                     Value key;
                     key.set_string_value(it->first);
-                    (*result.get_table())[double_to_string(index)] = key;
+                    (*result.get_table())[array_index_key(index)] = key;
                     ++index;
                 }
                 push(std::move(result));
