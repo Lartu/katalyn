@@ -1,4 +1,5 @@
 #include "compiler.hpp"
+#include "narivm.hpp"
 
 #include <exception>
 #include <fstream>
@@ -6,8 +7,6 @@
 #include <sstream>
 #include <string>
 #include <vector>
-
-int execute_nambly(const std::string& code);
 
 namespace {
 void help() {

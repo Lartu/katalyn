@@ -1,0 +1,127 @@
+import "assert.kat";
+
+$events: "";
+try;
+    $events: $events & "try,";
+    raise("boom");
+    $events: $events & "unreachable,";
+catch $error;
+    $events: $events & "catch,";
+    check($error{kind} = "Error", "raised text error kind");
+    check($error{message} = "boom", "raised text error message");
+    check(len($error{file}) > 0 && $error{line} > 0 && $error{pc} > 0,
+          "caught error source information");
+finally;
+    $events: $events & "finally";
+ok;
+check($events = "try,catch,finally", "try catch finally order");
+
+$normal: "";
+try;
+    $normal: "body";
+finally;
+    $normal: $normal & ",cleanup";
+ok;
+check($normal = "body,cleanup", "finally after normal completion");
+
+$forwarded: "";
+try;
+    try;
+        raise("forward me");
+    finally;
+        $forwarded: "inner-finally";
+    ok;
+catch $outer_error;
+    check($outer_error{message} = "forward me", "try-finally rethrows");
+    $forwarded: $forwarded & ",outer-catch";
+ok;
+check($forwarded = "inner-finally,outer-catch", "uncaught inner error order");
+
+$catch_cleanup: "";
+try;
+    try;
+        raise("first");
+    catch $inner_error;
+        raise("replacement");
+    finally;
+        $catch_cleanup: "ran";
+    ok;
+catch $replacement_error;
+    check($replacement_error{message} = "replacement", "error raised by catch propagates");
+ok;
+check($catch_cleanup = "ran", "error raised by catch still runs finally");
+
+$custom: table;
+$custom{kind}: "ExampleError";
+$custom{message}: "custom";
+$custom{detail}: 42;
+try;
+    raise($custom);
+catch $custom_error;
+    check($custom_error{kind} = "ExampleError" && $custom_error{detail} = 42,
+          "custom error tables retain fields");
+ok;
+
+$return_cleanup: 0;
+$after_return: 0;
+def return_from_try;
+    try;
+        return 17;
+    finally;
+        global $return_cleanup: $return_cleanup + 1;
+    ok;
+    global $after_return: 1;
+ok;
+check(return_from_try() = 17, "return value survives finally");
+check($return_cleanup = 1 && !$after_return, "finally runs but code after return does not");
+
+$loop_log: "";
+$i: 0;
+while $i < 3;
+    $i: $i + 1;
+    try;
+        if $i = 2;
+            continue;
+        ok;
+        $loop_log: $loop_log & $i;
+    finally;
+        $loop_log: $loop_log & "f";
+    ok;
+ok;
+check($loop_log = "1ff3f", "continue runs finally");
+
+$break_cleanup: 0;
+while 1;
+    try;
+        break;
+    finally;
+        $break_cleanup: $break_cleanup + 1;
+    ok;
+ok;
+check($break_cleanup = 1, "break runs finally");
+
+$caller_cleanup: 0;
+def loop_in_called_function;
+    $n: 0;
+    while $n < 2;
+        $n: $n + 1;
+        if $n = 1;
+            continue;
+        ok;
+    ok;
+    return $n;
+ok;
+try;
+    check(loop_in_called_function() = 2, "callee loop control stays in callee");
+finally;
+    $caller_cleanup: $caller_cleanup + 1;
+ok;
+check($caller_cleanup = 1, "caller finally runs at caller boundary");
+
+try;
+    len(table{missing});
+catch $runtime_error;
+    check($runtime_error{kind} = "RuntimeError", "runtime failures are catchable");
+ok;
+
+finish("errors-ok");

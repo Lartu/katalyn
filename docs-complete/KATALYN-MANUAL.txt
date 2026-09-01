@@ -60,15 +60,15 @@ ok;
 
   The language at a glance
 
-     * Values are numbers, text, tables, or the internal nil value.
+     * Values are numbers, Unicode text, tables, immutable bytes, or the internal nil value.
      * Variables begin with $; assignments use :.
      * Tables serve as dictionaries, arrays, sets, records, and lightweight objects.
      * Functions are declared with def; all arguments arrive in the table $_.
      * Blocks end with ok;, not braces.
      * The standard library is written in Katalyn and embedded into the executable at build
        time.
-     * There are no classes, modules, exceptions, booleans as a distinct type, or a
-       source-level nil literal.
+     * There are no classes, modules, booleans as a distinct type, or a source-level nil
+       literal. Runtime errors use try, catch, finally, and raise.
 
 
 02 Build and run
@@ -169,12 +169,13 @@ print($message); print("second statement");
 
 04 Values and conversion
 
-  The four user-visible kinds
+  The five user-visible kinds
 
    Kind Examples and origin False when
    Number 12, -4, 3.5; internally a floating-point value. It is zero.
    Text "Katalyn", input, file and process output. It is empty.
    Table table, arrays, records, function argument lists. It has no entries.
+   Bytes bytes(0, 255), binary files, encoded text, and raw input. It contains no bytes.
    Nil Missing variables or keys, exhausted reads, and functions without an explicit value.
    Always.
 
@@ -203,6 +204,7 @@ ok;
    beginning raises a runtime error.
    Table to number The number of entries in the table.
    Table to text A diagnostic map representation such as ['a':1, 'b':"two"].
+   Bytes conversion Never implicit. Use utf8_encode/utf8_decode, hexadecimal, or Base64.
    Nil to number/text Not convertible; attempts generally raise a runtime error.
 
   Equality
@@ -212,6 +214,8 @@ ok;
      * Numeric equality uses a very small floating-point tolerance.
      * Tables compare identity, not contents. Two variables are equal only when they refer to
        the same table object.
+     * Byte sequences compare by contents. Bytes and non-bytes are unequal and are not
+       coerced.
      * Nil is unusual: any equality involving nil is false, even nil against nil. Any
        inequality involving nil is true.
 
@@ -474,10 +478,9 @@ $length: greet("Katalyn");
 
   Definition order and shadowing
 
-   Define a function before calling it. Forward calls are not reliable in the current
-   compiler. Redefinition is source-position-sensitive: calls compiled before a later
-   definition keep targeting the older body, while later calls target the new definition. This
-   permits deliberate shadowing but can be surprising.
+   Forward calls are supported. Every called function must be defined by the end of
+   compilation. Redefinition is source-position-sensitive: existing calls retain the older
+   body and later calls use the new one.
 
   Calls are expressions
 
@@ -541,6 +544,29 @@ ok;
    nested conditions and loops overwrite its previous value; copy it to a named variable when
    it must survive nested work.
 
+  Errors and guaranteed cleanup
+
+try;
+    $data: read_bytes("settings.bin");
+    if !len($data);
+        raise("The settings file is empty");
+    ok;
+catch $error;
+    print($error{kind}, ": ", $error{message});
+finally;
+    print("cleanup always runs");
+ok;
+
+   A try must contain catch $variable;, finally;, or both. A caught error is a table with at
+   least kind, message, file, line, and pc. raise(text) creates an Error. raise(table) keeps
+   custom fields and supplies missing standard fields.
+
+   finally runs after ordinary completion, caught or uncaught runtime errors, and while
+   return, break, or continue exits the protected block. This is what distinguishes it from
+   code after try/catch: following code is skipped by those abrupt exits, while finally runs
+   during the exit. A return or new error in finally replaces the earlier return or error.
+   exit() terminates the process immediately and does not run finally blocks.
+
 10 Console input and output
 
    Call Behavior
@@ -601,6 +627,30 @@ close($out);
 
    Read position. read always resets to the beginning. read_line advances the current stream.
    A whole-file read therefore changes the position used by later line reads.
+
+  Binary files and filesystem paths
+
+   read_bytes(path) reads a complete file directly as immutable bytes. write_bytes(path,
+   bytes) replaces a file with exact bytes and returns the number written. These calls do not
+   use the text open-handle registry.
+
+   path_join(parts...) Join components and lexically normalize the result.
+   path_parent(path) Return the parent path.
+   path_name(path) Return the final filename.
+   path_extension(path) Return the extension including its leading dot.
+   path_absolute(path) Return an absolute normalized path.
+   path_normalize(path) Normalize . and .. lexically.
+   path_exists(path) Test existence.
+   is_file(path) Test whether the path is a regular file.
+   is_directory(path) Test whether the path is a directory.
+   file_size(path) Return a file size in bytes.
+   list_directory(path) Return a sorted dense table of entry names.
+   make_directory(path[, parents]) Create one directory or, when parents is true, every
+   missing parent.
+   copy_file(source, destination[, overwrite]) Copy a file, optionally replacing its target.
+   move_file(source, destination) Rename or move a path.
+   remove_file(path) Remove a non-directory path; directories are refused.
+   remove_directory(path) Remove an empty directory only; it never deletes recursively.
 
 
 12 Processes and time
@@ -671,6 +721,7 @@ import "models/person.kat";
    unsafe(expression) Compile an expression without the normal compile-time variable-existence
    check. Runtime semantics are otherwise unchanged.
    exit(status) Terminate the interpreter with the numeric status.
+   raise(error) Raise TEXT as an Error, or raise an error TABLE while preserving custom fields.
 
   Values, variables and tables
 
@@ -700,6 +751,26 @@ import "models/person.kat";
    explode(text, delimiters[, max[, add_empties]]) Like split, but delimiters is a table. At
    each position, the earliest matching delimiter wins.
 
+  Bytes and encodings
+
+   bytes(values...) Create immutable bytes from integer values 0 through 255. No arguments
+   creates empty bytes.
+   utf8_encode(text) Encode TEXT to exact UTF-8 bytes.
+   utf8_decode(bytes) Strictly decode UTF-8; malformed input raises a runtime error.
+   bytes_slice(bytes, start[, length]) Slice bytes. Positive positions are one-based, zero
+   begins at the first byte, and negative positions count from the end.
+   hex_encode(bytes) Convert to lowercase hexadecimal text.
+   hex_decode(text) Strictly decode case-insensitive hexadecimal text.
+   base64_encode(bytes) Convert to standard padded Base64 text.
+   base64_decode(text) Strictly decode standard padded Base64.
+   read_stdin_bytes([length]) Read bytes through EOF or up to length; -1 means EOF.
+   read_bytes(path) Read a complete file directly in binary mode.
+   write_bytes(path, bytes) Replace a file and return the byte count.
+
+   len(bytes) counts bytes. Indexing is one-based, supports negative positions, and returns a
+   number from 0 through 255; an out-of-range access returns nil. & concatenates bytes only
+   with bytes. Byte sequences are immutable and cannot be printed or implicitly converted.
+
   Files and processes
 
    Signature Description
@@ -711,6 +782,11 @@ import "models/person.kat";
    read(path) Read the complete open file from its beginning.
    read_line(path) Read the next line or return nil.
    write(path, value) Write/append and return value.
+   path_join(parts...) Join and normalize path components.
+   path_parent, path_name, path_extension, path_absolute, path_normalize Transform paths.
+   path_exists, is_file, is_directory, file_size, list_directory Inspect paths.
+   make_directory, copy_file, move_file, remove_file, remove_directory Mutate the filesystem
+   with the non-recursive safety rules described in chapter 11.
    exec(parts...) Concatenate at least one argument into a command, run synchronously, capture
    output, and return exit status.
 
@@ -733,10 +809,12 @@ import "models/person.kat";
    cgi_request([maximum_body_bytes]) Build a normalized CGI request table and read exactly
    CONTENT_LENGTH bytes. The default body limit is 16777216 bytes (16 MiB).
    cgi_response(status, content_type, body[, headers]) Validate and write a complete CGI
-   response. Header newline injection and duplicate Status/Content-Type fields are rejected.
+   response. body may be TEXT or BYTES. Header newline injection and duplicate
+   Status/Content-Type fields are rejected.
 
-   cgi_request returns method, query_string, query, content_type, content_length, body, form,
-   path_info, script_name, remote_addr, request_uri, headers, and environment fields. See
+   cgi_request returns method, query_string, query, content_type, content_length, body,
+   body_bytes, form, path_info, script_name, remote_addr, request_uri, headers, and environment
+   fields. body is the compatibility TEXT view; body_bytes preserves exact BYTES. See
    docs-complete/KATALYN-CGI.txt and examples/apache_cgi.kat for the complete CGI reference.
 
 
@@ -896,8 +974,8 @@ kat [options] -s [script arguments...] < source.kat
 
    The compiler’s declaration checks are intentionally strict enough to catch many
    misspellings. unsafe bypasses only that compile-time guard; it does not suppress runtime
-   errors. Katalyn has no exception handling construct, so a fatal language/runtime error
-   terminates the program.
+   errors. Compile-time errors cannot be caught. Runtime errors can be handled with
+   try/catch; an uncaught runtime error prints the traditional diagnostic and exits with 1.
 
   Debugging techniques
 
@@ -936,7 +1014,8 @@ kat [options] -s [script arguments...] < source.kat
 
   Compilation and source order
 
-     * Function calls should follow definitions. Forward calls are not reliable.
+     * Forward function calls are resolved by their later definition. Missing definitions are
+       compile-time errors.
      * Redefining a function affects only calls compiled after the new definition.
      * Declaration tracking follows compilation paths, not runtime paths. A conditional
        declaration may be “known” but nil.
@@ -959,8 +1038,8 @@ kat [options] -s [script arguments...] < source.kat
        host platform.
      * Table keys are stored as strings. Diagnostic storage order is lexical, while for gives
        numeric keys numeric priority.
-     * The VM’s global state persists if the host C++ API executes multiple programs inside
-       one process; the shipped CLI runs only one, so normal CLI use is isolated.
+     * Each execution owns its VM stacks, scopes, labels, handlers, and open-file registry.
+       Host environment variables and standard streams remain process resources.
 
    Robust Katalyn style. Define before use, keep arrays dense and one-based, probe optional
    data with is, use parentheses freely, use substr for end-relative text, verify files with
@@ -984,6 +1063,9 @@ statement        := ["in"] place ":" expression ";"
                   | ("while" | "whileis" | "until" | "for")
                     expression ";" statement* "ok" ";"
                   | "def" identifier ";" statement* "ok" ";"
+                  | "try" ";" statement*
+                    ["catch" variable ";" statement*]
+                    ["finally" ";" statement*] "ok" ";"
                   | "return" [expression] ";"
                   | "break" [integer] ";"
                   | "continue" ";"
@@ -1093,7 +1175,8 @@ ok;
   Reserved command words and built-in names
 
    Structural commands are in, global, if, elif, else, unless, while, whileis, until, for,
-   def, return, break, continue, sleep, import, and ok. The word table is a value constructor.
+   def, return, break, continue, try, catch, finally, sleep, import, and ok. The word table is
+   a value constructor.
    Native function names are listed in chapter 14; standard-library names are ordinary user
    functions that may be shadowed.
 

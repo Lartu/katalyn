@@ -21,8 +21,6 @@ namespace katalyn
         constexpr std::string_view operators[] = {
             "!", "^", "*", "/", "%", "//", "+", "-", "&", "::", "<", ">", "<=", ">=",
             "<>", "!=", "=", "&&", "||"};
-        constexpr std::string_view loop_tags[] = {"while", "until", "for", "whileis"};
-
         enum class Kind
         {
             word,
@@ -319,6 +317,8 @@ namespace katalyn
             std::string code;
             Token token;
             int group = -1;
+            bool loop = false;
+            bool function = false;
         };
 
     } // namespace
@@ -740,6 +740,38 @@ namespace katalyn
                 arity(command, args.size(), 0, 1);
                 return (args.empty() ? "\nPUSH -1" : arg(0)) + "\nRSTD";
             }
+            if (name == "read_stdin_bytes")
+            {
+                arity(command, args.size(), 0, 1);
+                return (args.empty() ? "\nPUSH -1" : arg(0)) + "\nRSTB";
+            }
+            if (name == "bytes")
+            {
+                std::string code = "\nPLIM";
+                for (std::size_t i = 0; i < args.size(); ++i)
+                    code += arg(i);
+                return code + "\nBNEW";
+            }
+            static const std::unordered_map<std::string, std::string> unary_bytes = {
+                {"utf8_encode", "UENC"}, {"utf8_decode", "UDEC"},
+                {"hex_encode", "HENC"}, {"hex_decode", "HDEC"},
+                {"base64_encode", "B64E"}, {"base64_decode", "B64D"},
+                {"read_bytes", "RBIN"}};
+            if (auto it = unary_bytes.find(name); it != unary_bytes.end())
+            {
+                arity(command, args.size(), 1, 1);
+                return arg(0) + "\n" + it->second;
+            }
+            if (name == "bytes_slice")
+            {
+                arity(command, args.size(), 2, 3);
+                return arg(0) + arg(1) + (args.size() == 3 ? arg(2) : "\nPUSH -1") + "\nBSLC";
+            }
+            if (name == "write_bytes")
+            {
+                arity(command, args.size(), 2, 2);
+                return arg(1) + arg(0) + "\nWBIN";
+            }
             if (name == "url_decode")
             {
                 arity(command, args.size(), 1, 2);
@@ -845,6 +877,46 @@ namespace katalyn
                 arity(command, args.size(), 2, 2);
                 return arg(1) + "\nDUPL" + arg(0) + "\nFWRT";
             }
+            if (name == "path_join")
+            {
+                arity(command, args.size(), 1, static_cast<std::size_t>(-1));
+                std::string code = "\nPLIM";
+                for (std::size_t i = 0; i < args.size(); ++i)
+                    code += arg(i);
+                return code + "\nPJON";
+            }
+            static const std::unordered_map<std::string, std::string> unary_paths = {
+                {"path_parent", "PPAR"}, {"path_name", "PNAM"},
+                {"path_extension", "PEXT"}, {"path_absolute", "PABS"},
+                {"path_normalize", "PNOR"}, {"path_exists", "PEXS"},
+                {"is_file", "PFIL"}, {"is_directory", "PDIR"},
+                {"file_size", "FSIZ"}, {"list_directory", "LDIR"},
+                {"remove_file", "RMFL"}, {"remove_directory", "RMDR"}};
+            if (auto it = unary_paths.find(name); it != unary_paths.end())
+            {
+                arity(command, args.size(), 1, 1);
+                return arg(0) + "\n" + it->second;
+            }
+            if (name == "make_directory")
+            {
+                arity(command, args.size(), 1, 2);
+                return arg(0) + (args.size() == 2 ? arg(1) : "\nPUSH 0") + "\nMDIR";
+            }
+            if (name == "copy_file")
+            {
+                arity(command, args.size(), 2, 3);
+                return arg(0) + arg(1) + (args.size() == 3 ? arg(2) : "\nPUSH 0") + "\nCPFL";
+            }
+            if (name == "move_file")
+            {
+                arity(command, args.size(), 2, 2);
+                return arg(0) + arg(1) + "\nMVFL";
+            }
+            if (name == "raise")
+            {
+                arity(command, args.size(), 1, 1);
+                return arg(0) + "\nTHRW";
+            }
             if (name == "exec")
             {
                 arity(command, args.size(), 1, static_cast<std::size_t>(-1));
@@ -937,7 +1009,7 @@ namespace katalyn
                 code = expression(args) + "\nGITR\nVSET " + quote(iid) + "\n@" + start +
                        "\nNEXT " + quote(iid) + "\nDUPL\nVSET " + quote(declare(result, true)) +
                        "\nJPIF " + end;
-                blocks.push_back({"\nJUMP " + start + "\n@" + end + "\nUNST " + quote(iid), command});
+                blocks.push_back({"\nJUMP " + start + "\n@" + end + "\nUNST " + quote(iid), command, -1, true});
             }
             else
             {
@@ -948,7 +1020,7 @@ namespace katalyn
                 if (command.value == "until")
                     code += "\nLNOT";
                 code += "\nJPIF " + end;
-                blocks.push_back({"\nJUMP " + start + "\n@" + end, command});
+                blocks.push_back({"\nJUMP " + start + "\n@" + end, command, -1, true});
             }
             loops.push_back({start, end});
             return code;
@@ -999,7 +1071,10 @@ namespace katalyn
             if (args.size() != 1 || args[0].kind != Kind::word)
                 fail("Parse", command, "def expects one function name.");
             scopes.push_back({});
-            Labels labels = function_labels(args[0], true);
+            // Reuse labels allocated by an earlier forward call, if present.
+            // A deliberate redefinition gets fresh labels so calls already compiled
+            // continue to refer to the older body.
+            Labels labels = function_labels(args[0], functions.count(args[0].value) > 0);
             functions[args[0].value] = labels;
             Token av{"$_", command.line, command.file, Kind::variable};
             Token caller{"$_caller", command.line, command.file, Kind::variable};
@@ -1007,7 +1082,8 @@ namespace katalyn
             std::string code = "\nJUMP " + labels.post + "\n@" + labels.start + "\nADSC\nARRR\nVSET " +
                                quote(declare(av)) + "\nVSET " + quote(declare(caller)) + "\nPUSH " +
                                quote(args[0].value) + "\nVSET " + quote(declare(context)) + "\nPNIL";
-            blocks.push_back({"\n@" + labels.end + "\nDLSC\nRTRN\n@" + labels.post, args[0]});
+            blocks.push_back({"\n@" + labels.end + "\nDLSC\nRTRN\n@" + labels.post,
+                              args[0], -1, false, true});
             return code;
         }
 
@@ -1043,17 +1119,66 @@ namespace katalyn
                 {
                     code += conditional(command, args);
                 }
+                else if (command.value == "try")
+                {
+                    if (!args.empty())
+                        fail("Parse", command, "try does not take arguments.");
+                    int group = block_count++;
+                    std::string id = std::to_string(group);
+                    code += "\nPTRY TRY_" + id + "_CATCH TRY_" + id + "_FINALLY TRY_" + id + "_END";
+                    blocks.push_back({"", command, group});
+                }
+                else if (command.value == "catch")
+                {
+                    if (blocks.empty() || blocks.back().token.value != "try")
+                        fail("Parse", command, "Unexpected catch.");
+                    if (args.size() != 1 || args[0].kind != Kind::variable)
+                        fail("Parse", command, "catch expects one error variable.");
+                    int group = blocks.back().group;
+                    blocks.back().token = command;
+                    std::string id = std::to_string(group);
+                    code += "\nETRY TRY_" + id + "_FINALLY\n@TRY_" + id + "_CATCH\nCERR " +
+                            quote(declare(args[0]));
+                }
+                else if (command.value == "finally")
+                {
+                    if (!args.empty() || blocks.empty() ||
+                        (blocks.back().token.value != "try" && blocks.back().token.value != "catch"))
+                        fail("Parse", command, "Unexpected finally.");
+                    int group = blocks.back().group;
+                    std::string id = std::to_string(group);
+                    if (blocks.back().token.value == "try")
+                        code += "\nETRY TRY_" + id + "_FINALLY\n@TRY_" + id + "_CATCH\nNCTH";
+                    else
+                        code += "\nECTH TRY_" + id + "_FINALLY";
+                    code += "\n@TRY_" + id + "_FINALLY";
+                    blocks.back().token = command;
+                }
                 else if (command.value == "ok")
                 {
                     if (!args.empty() || blocks.empty())
                         fail("Parse", command, "Unexpected ok.");
                     Block block = blocks.back();
                     blocks.pop_back();
-                    if (std::find(std::begin(loop_tags), std::end(loop_tags), block.token.value) != std::end(loop_tags))
+                    if (block.loop)
                         loops.pop_back();
-                    if (functions.count(block.token.value))
+                    if (block.function)
                         scopes.pop_back();
-                    code += block.code;
+                    if (block.token.value == "try")
+                        fail("Parse", block.token, "try requires catch, finally, or both.");
+                    if (block.token.value == "catch")
+                    {
+                        std::string id = std::to_string(block.group);
+                        code += "\nECTH TRY_" + id + "_FINALLY\n@TRY_" + id +
+                                "_FINALLY\nEFIN\n@TRY_" + id + "_END";
+                    }
+                    else if (block.token.value == "finally")
+                    {
+                        std::string id = std::to_string(block.group);
+                        code += "\nEFIN\n@TRY_" + id + "_END";
+                    }
+                    else
+                        code += block.code;
                     if (block.token.value == "if" || block.token.value == "elif" || block.token.value == "else")
                         code += "\n@EXIT_IF_" + std::to_string(block.group);
                 }
@@ -1061,7 +1186,7 @@ namespace katalyn
                 {
                     if (!args.empty() || loops.empty())
                         fail("Parse", command, "continue outside loop.");
-                    code += "\nJUMP " + loops.back().first;
+                    code += "\nFJMP " + loops.back().first;
                 }
                 else if (command.value == "break")
                 {
@@ -1074,7 +1199,7 @@ namespace katalyn
                     }
                     if (depth >= loops.size())
                         fail("Parse", command, "break outside loop.");
-                    code += "\nJUMP " + loops[loops.size() - 1 - depth].second;
+                    code += "\nFJMP " + loops[loops.size() - 1 - depth].second;
                 }
                 else if (command.value == "def")
                 {
@@ -1085,8 +1210,8 @@ namespace katalyn
                     if (scopes.size() == 1)
                         fail("Parse", command, "return outside function.");
                     if (!args.empty())
-                        code += "\nPOPV" + expression(args);
-                    code += "\nDLSC\nRTRN";
+                        code += expression(args);
+                    code += std::string("\nFRET ") + (args.empty() ? "0" : "1");
                 }
                 else if (command.value == "sleep")
                 {

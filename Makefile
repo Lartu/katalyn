@@ -15,6 +15,7 @@ OBJ_DIR := $(BUILD_DIR)/obj
 GEN_DIR := $(BUILD_DIR)/generated
 GEN_HEADER := $(GEN_DIR)/stdlib.hpp
 TARGET := $(BUILD_DIR)/kat
+RUNTIME_TEST := $(BUILD_DIR)/runtime-isolation-test
 TIGER_TARGET := $(BUILD_DIR)/kat-tiger-ppc
 TIGER_CXX ?= ppc-ld64-g++
 TIGER_CXXFLAGS ?= -std=c++17 -O2
@@ -28,7 +29,7 @@ SOURCES := \
 OBJECTS := $(SOURCES:%.cpp=$(OBJ_DIR)/%.o)
 DEPFILES := $(OBJECTS:.o=.d)
 
-CPPFLAGS += -I$(GEN_DIR) -Ilib/tiny-process-library -MMD -MP
+CPPFLAGS += -I. -I$(GEN_DIR) -Ilib/tiny-process-library -MMD -MP
 CXXFLAGS ?= -O2
 CXXFLAGS += -std=c++17 -Wall -Wextra -Wpedantic
 LDLIBS += -pthread
@@ -64,8 +65,14 @@ $(GEN_HEADER): stdlib.kat Makefile
 	} > $@.tmp
 	@mv $@.tmp $@
 
-test: $(TARGET)
+$(RUNTIME_TEST): tests/runtime_isolation.cpp $(OBJ_DIR)/narivm.o \
+	$(OBJ_DIR)/lib/tiny-process-library/process.o \
+	$(OBJ_DIR)/lib/tiny-process-library/process_unix.o
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $^ $(LDLIBS) -o $@
+
+test: $(TARGET) $(RUNTIME_TEST)
 	@echo "Running Katalyn compatibility tests"
+	@$(RUNTIME_TEST) >/dev/null 2>&1
 	@$(TARGET) --help | grep -q '^Usage: kat '
 	@$(TARGET) --version | grep -q 'Programming Language'
 	@$(TARGET) -v | grep -q 'Programming Language'
@@ -81,6 +88,9 @@ test: $(TARGET)
 	@$(TARGET) tests/unicode.kat | grep -qx 'unicode-ok'
 	@$(TARGET) -n tests/tables.kat | grep -qx 'tables-ok'
 	@$(TARGET) -n tests/control_flow.kat | grep -qx 'control-flow-ok'
+	@$(TARGET) tests/errors.kat | grep -qx 'errors-ok'
+	@$(TARGET) tests/bytes.kat | grep -qx 'bytes-ok'
+	@$(TARGET) tests/filesystem.kat | grep -qx 'filesystem-ok'
 	@$(TARGET) -n tests/functions_scope.kat | grep -qx 'functions-scope-ok'
 	@$(TARGET) tests/stdlib.kat | grep -qx 'stdlib-ok'
 	@$(TARGET) -a '$$j: parse_json("{\"x\":1}"); print($$j{x});' | grep -qx '1'

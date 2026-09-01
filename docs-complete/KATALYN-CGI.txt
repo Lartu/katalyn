@@ -129,7 +129,8 @@ The returned table contains:
     query           Decoded query parameters
     content_type    Raw CONTENT_TYPE
     content_length  Numeric CONTENT_LENGTH
-    body            Exact request body bytes
+    body            Request body as the historical TEXT compatibility value
+    body_bytes      Exact request body as immutable BYTES
     form            Decoded URL-encoded form parameters, or an empty table
     path_info       PATH_INFO
     script_name     SCRIPT_NAME
@@ -148,8 +149,9 @@ Apache exposes ordinary request headers as HTTP_* environment variables.
 Katalyn strips HTTP_, lowercases the name, and converts underscores to hyphens.
 CONTENT_TYPE and CONTENT_LENGTH are included as headers too.
 
-The body is read only once. Calling read_stdin() after cgi_request() normally
-returns no additional data.
+The body is read only once. Calling read_stdin() or read_stdin_bytes() after
+cgi_request() normally returns no additional data. Use body_bytes for uploads,
+images, compressed data, or any body that is not guaranteed UTF-8 text.
 
 If CONTENT_LENGTH is invalid, negative, larger than the configured maximum, or
 larger than the body Apache actually supplies, cgi_request() terminates with a
@@ -163,8 +165,8 @@ cgi_response(status, content_type, body)
 cgi_response(status, content_type, body, headers)
 
     Writes a complete CGI response and returns 1. status must be an integer from
-    100 through 999. content_type must be nonempty. body is written exactly,
-    without an automatically added newline.
+    100 through 999. content_type must be nonempty. body may be TEXT or BYTES
+    and is written exactly, without an automatically added newline.
 
 Example with additional headers:
 
@@ -223,6 +225,12 @@ read_stdin(length)
 
     cgi_request() is safer for CGI because it verifies that the number of bytes
     read exactly matches CONTENT_LENGTH.
+
+read_stdin_bytes()
+read_stdin_bytes(length)
+
+    The binary counterpart to read_stdin. It returns immutable BYTES and uses
+    the same EOF, length, and negative-length rules.
 
 url_decode(text)
 url_decode(text, plus_as_space)
@@ -350,9 +358,9 @@ See examples/apache_cgi.kat. It demonstrates:
     strong request isolation but is slower than a persistent application server.
     It is appropriate first for personal and low-traffic applications.
 
-  * Katalyn currently has no exception-handling construct. Invalid JSON and
-    other runtime errors terminate the request. Validate media type and empty
-    bodies before decoding, and monitor Apache's error log.
+  * Runtime failures can be handled with try/catch/finally. Keep the catch path
+    simple and ensure it emits one valid CGI response. Uncaught failures still
+    terminate the request and write diagnostics to Apache's error log.
 
   * Use Apache or a reverse proxy for TLS, authentication policy, request
     timeouts, logging, and rate limiting.
@@ -366,12 +374,13 @@ See examples/apache_cgi.kat. It demonstrates:
     env(name, fallback)                    text or fallback
     read_stdin()                           remaining standard input
     read_stdin(length)                     up to length raw bytes
+    read_stdin_bytes([length])             immutable binary input
     url_decode(text[, plus_as_space])      decoded text
     parse_query(text)                      decoded parameter table
     json_decode(text)                      decoded Katalyn value
     json_encode(value)                     compact JSON text
     cgi_request([maximum_body_bytes])      normalized request table
-    cgi_response(status, type, body[, h])  write response; return 1
+    cgi_response(status, type, body[, h])  write TEXT/BYTES response; return 1
 
 
 END OF KATALYN CGI REFERENCE

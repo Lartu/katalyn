@@ -1,0 +1,44 @@
+import "assert.kat";
+
+$root: path_join($_wdir, "build", "filesystem-test");
+$nested: path_join($root, "one", "two");
+check(path_normalize(path_join("a", "b", "..", "c")) = path_join("a", "c"),
+      "join and normalize paths");
+$example_path: path_join("somewhere", "example.txt");
+check(path_name($example_path) = "example.txt", "path filename");
+check(path_parent($example_path) = "somewhere", "path parent");
+check(path_extension($example_path) = ".txt", "path extension");
+check(len(path_absolute(".")) > 0, "absolute path");
+
+check(make_directory($nested, 1), "recursive directory creation");
+check(path_exists($root) && is_directory($nested) && !is_file($nested),
+      "directory inspection");
+
+$first: path_join($nested, "first.bin");
+$second: path_join($nested, "second.bin");
+$moved: path_join($nested, "moved.bin");
+$payload: bytes(0, 10, 65, 255);
+check(write_bytes($first, $payload) = 4, "binary write byte count");
+check(read_bytes($first) = $payload && file_size($first) = 4, "binary read and size");
+check(copy_file($first, $second), "copy file");
+check(move_file($second, $moved), "move file");
+check(is_file($first) && is_file($moved) && !path_exists($second), "file inspection");
+
+$remove_error: 0;
+try;
+    remove_directory($nested);
+catch $error;
+    $remove_error: 1;
+ok;
+check($remove_error && is_directory($nested), "nonempty directory removal is refused");
+
+$entries: list_directory($nested);
+check(len($entries) = 2 && $entries[1] = "first.bin" && $entries[2] = "moved.bin",
+      "sorted directory listing");
+
+check(remove_file($first) && remove_file($moved), "remove files");
+check(remove_directory($nested), "remove empty nested directory");
+check(remove_directory(path_join($root, "one")), "remove empty parent directory");
+check(remove_directory($root) && !path_exists($root), "remove root directory");
+
+finish("filesystem-ok");

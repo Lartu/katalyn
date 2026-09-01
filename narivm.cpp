@@ -19,6 +19,9 @@
 #include <queue>
 #include <fstream>
 #include <set>
+#include <filesystem>
+#include <optional>
+#include <stdexcept>
 #include <sys/stat.h>
 #include "lib/tiny-process-library/process.hpp"
 #include "lib/linenoise.hpp"
@@ -29,11 +32,11 @@ using namespace TinyProcessLib;
 #define NUMB 1      // Numeric Value
 #define TEXT 2      // String Value
 #define TABLE 3     // Table Value
+#define BYTES 4     // Immutable byte sequence
 #define NIL 5       // Null Value
 #define ITER 6      // Iterator Value
 #define LISTLIMIT 7 // List Limit Value
 
-size_t pc = 0; // Program Counter
 void raise_nvm_error(string error_message);
 
 string get_type_name(char type)
@@ -46,6 +49,8 @@ string get_type_name(char type)
         return "TEXT";
     case TABLE:
         return "TABLE";
+    case BYTES:
+        return "BYTES";
     case NIL:
         return "NIL";
     case ITER:
@@ -129,12 +134,48 @@ enum Opcode : uint8_t
     JENC, // JSON encode
     CGIR, // Build CGI request
     CGIO, // Write CGI response
+    PTRY, // Push error handler
+    ETRY, // Finish try body
+    CERR, // Bind caught error
+    NCTH, // Propagate through a try without catch
+    ECTH, // Finish catch body
+    EFIN, // Finish finally body
+    THRW, // Raise a value
+    FJMP, // Jump while honoring finally
+    FRET, // Return while honoring finally
+    BNEW, // Construct bytes
+    UENC, // UTF-8 encode
+    UDEC, // UTF-8 decode
+    BSLC, // Byte slice
+    RSTB, // Raw standard input as bytes
+    RBIN, // Read open file as bytes
+    WBIN, // Write bytes to open file
+    HENC, // Hex encode
+    HDEC, // Hex decode
+    B64E, // Base64 encode
+    B64D, // Base64 decode
+    PJON, // Join paths
+    PPAR, // Path parent
+    PNAM, // Path filename
+    PEXT, // Path extension
+    PABS, // Absolute path
+    PNOR, // Normalize path
+    PEXS, // Path exists
+    PFIL, // Is regular file
+    PDIR, // Is directory
+    FSIZ, // File size
+    LDIR, // List directory
+    MDIR, // Make directory
+    CPFL, // Copy file
+    MVFL, // Move file
+    RMFL, // Remove file
+    RMDR, // Remove empty directory
     DEBUG,
 };
 
 Opcode opcode_from_string(string_view str)
 {
-    static unordered_map<string_view, Opcode> str_to_opcode = {
+    static const unordered_map<string_view, Opcode> str_to_opcode = {
         {"PUSH", Opcode::PUSH},
         {"PNIL", Opcode::PNIL},
         {"ADDV", Opcode::ADDV},
@@ -206,9 +247,30 @@ Opcode opcode_from_string(string_view str)
         {"JENC", Opcode::JENC},
         {"CGIR", Opcode::CGIR},
         {"CGIO", Opcode::CGIO},
+        {"PTRY", Opcode::PTRY}, {"ETRY", Opcode::ETRY},
+        {"CERR", Opcode::CERR}, {"NCTH", Opcode::NCTH},
+        {"ECTH", Opcode::ECTH}, {"EFIN", Opcode::EFIN},
+        {"THRW", Opcode::THRW}, {"FJMP", Opcode::FJMP},
+        {"FRET", Opcode::FRET}, {"BNEW", Opcode::BNEW},
+        {"UENC", Opcode::UENC}, {"UDEC", Opcode::UDEC},
+        {"BSLC", Opcode::BSLC}, {"RSTB", Opcode::RSTB},
+        {"RBIN", Opcode::RBIN}, {"WBIN", Opcode::WBIN},
+        {"HENC", Opcode::HENC}, {"HDEC", Opcode::HDEC},
+        {"B64E", Opcode::B64E}, {"B64D", Opcode::B64D},
+        {"PJON", Opcode::PJON}, {"PPAR", Opcode::PPAR},
+        {"PNAM", Opcode::PNAM}, {"PEXT", Opcode::PEXT},
+        {"PABS", Opcode::PABS}, {"PNOR", Opcode::PNOR},
+        {"PEXS", Opcode::PEXS}, {"PFIL", Opcode::PFIL},
+        {"PDIR", Opcode::PDIR}, {"FSIZ", Opcode::FSIZ},
+        {"LDIR", Opcode::LDIR}, {"MDIR", Opcode::MDIR},
+        {"CPFL", Opcode::CPFL}, {"MVFL", Opcode::MVFL},
+        {"RMFL", Opcode::RMFL}, {"RMDR", Opcode::RMDR},
         {"DBUG", Opcode::DEBUG},
     };
-    return str_to_opcode[str];
+    auto found = str_to_opcode.find(str);
+    if (found == str_to_opcode.end())
+        raise_nvm_error("Unknown Nambly opcode: " + string(str));
+    return found->second;
 }
 
 string wrap_text(const string &text, size_t maxLineLength)
@@ -391,6 +453,42 @@ string_view opcode_as_string(Opcode opcode)
         return "CGIR";
     case Opcode::CGIO:
         return "CGIO";
+    case Opcode::PTRY: return "PTRY";
+    case Opcode::ETRY: return "ETRY";
+    case Opcode::CERR: return "CERR";
+    case Opcode::NCTH: return "NCTH";
+    case Opcode::ECTH: return "ECTH";
+    case Opcode::EFIN: return "EFIN";
+    case Opcode::THRW: return "THRW";
+    case Opcode::FJMP: return "FJMP";
+    case Opcode::FRET: return "FRET";
+    case Opcode::BNEW: return "BNEW";
+    case Opcode::UENC: return "UENC";
+    case Opcode::UDEC: return "UDEC";
+    case Opcode::BSLC: return "BSLC";
+    case Opcode::RSTB: return "RSTB";
+    case Opcode::RBIN: return "RBIN";
+    case Opcode::WBIN: return "WBIN";
+    case Opcode::HENC: return "HENC";
+    case Opcode::HDEC: return "HDEC";
+    case Opcode::B64E: return "B64E";
+    case Opcode::B64D: return "B64D";
+    case Opcode::PJON: return "PJON";
+    case Opcode::PPAR: return "PPAR";
+    case Opcode::PNAM: return "PNAM";
+    case Opcode::PEXT: return "PEXT";
+    case Opcode::PABS: return "PABS";
+    case Opcode::PNOR: return "PNOR";
+    case Opcode::PEXS: return "PEXS";
+    case Opcode::PFIL: return "PFIL";
+    case Opcode::PDIR: return "PDIR";
+    case Opcode::FSIZ: return "FSIZ";
+    case Opcode::LDIR: return "LDIR";
+    case Opcode::MDIR: return "MDIR";
+    case Opcode::CPFL: return "CPFL";
+    case Opcode::MVFL: return "MVFL";
+    case Opcode::RMFL: return "RMFL";
+    case Opcode::RMDR: return "RMDR";
     case Opcode::DEBUG:
         return "DBUG";
     default:
@@ -565,6 +663,7 @@ private:
     string str_rep;
     double num_rep;
     shared_ptr<map<string, Value>> table_rep;
+    shared_ptr<vector<unsigned char>> bytes_rep;
     shared_ptr<queue<string> /**/> iterator_elements;
     shared_ptr<vector<size_t>> utf8_offsets;
 
@@ -573,10 +672,13 @@ private:
         has_num_rep = false;
         has_str_rep = false;
         table_rep = nullptr;
+        bytes_rep = nullptr;
         utf8_offsets = nullptr;
     }
 
 public:
+    Value() : type(NIL), has_num_rep(false), has_str_rep(false), num_rep(0) {}
+
     void set_string_value(const string &value)
     {
         reset_values();
@@ -600,6 +702,20 @@ public:
         reset_values();
         this->table_rep = std::make_shared<map<string, Value>>();
         this->type = TABLE;
+    }
+
+    void set_bytes_value(const vector<unsigned char> &value)
+    {
+        reset_values();
+        bytes_rep = make_shared<vector<unsigned char>>(value);
+        type = BYTES;
+    }
+
+    void set_bytes_value(vector<unsigned char> &&value)
+    {
+        reset_values();
+        bytes_rep = make_shared<vector<unsigned char>>(std::move(value));
+        type = BYTES;
     }
 
     void set_nil_value()
@@ -629,6 +745,16 @@ public:
     map<string, Value> *get_table()
     {
         return table_rep.get();
+    }
+
+    vector<unsigned char> *get_bytes()
+    {
+        return bytes_rep.get();
+    }
+
+    const vector<unsigned char> *get_bytes() const
+    {
+        return bytes_rep.get();
     }
 
     queue<string> *get_iterator_queue()
@@ -690,6 +816,10 @@ public:
                 }
                 str_rep = return_value + "]";
             }
+            else if (type == BYTES)
+            {
+                raise_nvm_error("Can't convert BYTES value to string; use utf8_decode, hex_encode, or base64_encode.");
+            }
             else if (type == NUMB)
             {
                 str_rep = double_to_string(get_as_number());
@@ -741,6 +871,10 @@ public:
             {
                 num_rep = table_rep != nullptr ? num_rep = table_rep->size() : 0;
             }
+            else if (type == BYTES)
+            {
+                raise_nvm_error("Can't convert BYTES value to number.");
+            }
             else if (type == TEXT)
             {
                 try
@@ -775,6 +909,20 @@ Value table_value()
 {
     Value value;
     value.set_table_value();
+    return value;
+}
+
+Value bytes_value(const string &bytes)
+{
+    Value value;
+    value.set_bytes_value(vector<unsigned char>(bytes.begin(), bytes.end()));
+    return value;
+}
+
+Value bytes_value(vector<unsigned char> bytes)
+{
+    Value value;
+    value.set_bytes_value(std::move(bytes));
     return value;
 }
 
@@ -1295,6 +1443,7 @@ Value cgi_request_value(long long maximum_body)
     (*request.get_table())["content_type"] = text_value(content_type);
     (*request.get_table())["content_length"] = number_value(content_length);
     (*request.get_table())["body"] = text_value(body);
+    (*request.get_table())["body_bytes"] = bytes_value(body);
     (*request.get_table())["path_info"] = text_value(environment_text("PATH_INFO"));
     (*request.get_table())["script_name"] = text_value(environment_text("SCRIPT_NAME"));
     (*request.get_table())["remote_addr"] = text_value(environment_text("REMOTE_ADDR"));
@@ -1357,7 +1506,7 @@ string status_reason(int status)
     return found == reasons.end() ? "Status" : found->second;
 }
 
-void write_cgi_response(int status, const string &content_type, const string &body, Value headers)
+void write_cgi_response(int status, const string &content_type, Value body, Value headers)
 {
     if (status < 100 || status > 999)
         raise_nvm_error("CGI response status must be between 100 and 999.");
@@ -1366,6 +1515,8 @@ void write_cgi_response(int status, const string &content_type, const string &bo
         raise_nvm_error("Invalid CGI response content type.");
     if (headers.get_type() != TABLE)
         raise_nvm_error("CGI response headers must be a table.");
+    if (body.get_type() != TEXT && body.get_type() != BYTES)
+        raise_nvm_error("CGI response body must be TEXT or BYTES.");
 
     vector<pair<string, string>> validated_headers;
     for (auto &entry : *headers.get_table())
@@ -1385,7 +1536,16 @@ void write_cgi_response(int status, const string &content_type, const string &bo
     for (const auto &entry : validated_headers)
         cout << entry.first << ": " << entry.second << "\r\n";
     cout << "\r\n";
-    cout.write(body.data(), static_cast<streamsize>(body.size()));
+    if (body.get_type() == BYTES)
+    {
+        const auto &data = *body.get_bytes();
+        cout.write(reinterpret_cast<const char *>(data.data()), static_cast<streamsize>(data.size()));
+    }
+    else if (body.get_type() == TEXT)
+    {
+        const string &text = body.get_as_string();
+        cout.write(text.data(), static_cast<streamsize>(text.size()));
+    }
     cout.flush();
 }
 
@@ -1444,34 +1604,109 @@ public:
     }
 };
 
-Command *last_command = nullptr;
+class VmException : public exception
+{
+public:
+    explicit VmException(Value value) : error_value(std::move(value))
+    {
+        auto found = error_value.get_table()->find("message");
+        message = found == error_value.get_table()->end()
+                      ? "Katalyn runtime error"
+                      : found->second.get_as_string();
+    }
+
+    const char *what() const noexcept override { return message.c_str(); }
+    Value error() const { return error_value; }
+
+private:
+    Value error_value;
+    string message;
+};
+
+enum class HandlerPhase { Trying, Catching, Finally };
+
+struct ErrorHandler
+{
+    size_t start_pc = 0;
+    size_t catch_pc = 0;
+    size_t finally_pc = 0;
+    size_t end_pc = 0;
+    size_t stack_depth = 0;
+    size_t scope_depth = 0;
+    size_t return_depth = 0;
+    HandlerPhase phase = HandlerPhase::Trying;
+    optional<Value> caught_error;
+    optional<Value> pending_error;
+};
+
+enum class ControlKind { None, Jump, Return };
+
+struct RuntimeState
+{
+    size_t pc = 0;
+    Command *last_command = nullptr;
+    vector<unordered_map<string, Value>> variable_tables;
+    map<string, size_t> label_to_pc;
+    map<size_t, string> pc_to_label;
+    stack<Value> execution_stack;
+    map<string, fstream *> open_files;
+    set<string> untruncated_files;
+    set<string> read_only_files;
+    stack<size_t> return_stack;
+    vector<ErrorHandler> error_handlers;
+    ControlKind pending_control = ControlKind::None;
+    size_t pending_jump = 0;
+    optional<Value> pending_return;
+    Value nil_value;
+
+    ~RuntimeState()
+    {
+        for (auto &entry : open_files)
+        {
+            entry.second->close();
+            delete entry.second;
+        }
+    }
+};
+
+thread_local RuntimeState *active_runtime = nullptr;
+
+RuntimeState &runtime_state()
+{
+    if (!active_runtime)
+        throw logic_error("NariVM runtime state is unavailable.");
+    return *active_runtime;
+}
+
+struct RuntimeActivation
+{
+    explicit RuntimeActivation(RuntimeState &state) : previous(active_runtime)
+    {
+        active_runtime = &state;
+    }
+    ~RuntimeActivation() { active_runtime = previous; }
+    RuntimeState *previous;
+};
+
+Value make_error_value(const string &message, const string &kind = "RuntimeError")
+{
+    Value error = table_value();
+    (*error.get_table())["kind"] = text_value(kind);
+    (*error.get_table())["message"] = text_value(message);
+    RuntimeState &state = runtime_state();
+    if (state.last_command)
+    {
+        (*error.get_table())["file"] = text_value(state.last_command->get_file());
+        (*error.get_table())["line"] = number_value(state.last_command->get_line_number());
+    }
+    (*error.get_table())["pc"] = number_value(state.pc + 1);
+    return error;
+}
 
 void raise_nvm_error(string error_message)
 {
-    cerr << endl
-         << "====== Oh no! Runtime Error! ======" << endl;
-    cerr << wrap_text(error_message, 70) << endl;
-    if (last_command != nullptr)
-    {
-        cerr << endl
-             << "--- Source File Information --- " << endl;
-        cerr << "- Source File: " << last_command->get_file() << endl;
-        cerr << "- Source Line: " << last_command->get_line_number() << endl;
-    }
-    cerr << endl
-         << "--- NariVM State Information --- " << endl;
-    cerr << "- PC: " << pc + 1 << endl;
-    exit(1);
+    throw VmException(make_error_value(error_message));
 }
-
-vector<unordered_map<string, Value> /**/> variable_tables;
-map<string, size_t> label_to_pc;
-map<size_t, string> pc_to_label;
-stack<Value> execution_stack;
-map<string, fstream *> open_files;
-set<string> untruncated_files; // Garbage
-set<string> read_only_files;   // Garbage
-stack<size_t> return_stack;
 
 Value get_nil_value()
 {
@@ -1492,9 +1727,9 @@ void print_command_listing(vector<Command> &code_listing)
     // Prints a code listing to the console.
     for (size_t i = 0; i < code_listing.size(); ++i)
     {
-        if (pc_to_label.count(i) > 0)
+        if (runtime_state().pc_to_label.count(i) > 0)
         {
-            cout << "[" << pc_to_label[i] << "] => ";
+            cout << "[" << runtime_state().pc_to_label[i] << "] => ";
         }
         cout << "(" << i + 1 << ") " << code_listing[i].get_debug_string() << endl;
     }
@@ -1677,10 +1912,11 @@ vector<Command> generate_label_map_and_code_listing(const string &code)
         {
             int jmp_pc_value = pc;
             string label_name = line.substr(1);
-            if (label_to_pc.find(label_name) == label_to_pc.end())
+            auto &state = runtime_state();
+            if (state.label_to_pc.find(label_name) == state.label_to_pc.end())
             {
-                label_to_pc[label_name] = jmp_pc_value;
-                pc_to_label[pc] = label_name;
+                state.label_to_pc[label_name] = jmp_pc_value;
+                state.pc_to_label[pc] = label_name;
             }
             else
             {
@@ -1712,14 +1948,36 @@ vector<Command> generate_label_map_and_code_listing(const string &code)
         case Opcode::JUMP:
         case Opcode::JPIF:
         case Opcode::CALL:
-            pc = label_to_pc[command.get_arguments()[0].get_raw_string_value()] - 1;
+        case Opcode::FJMP:
+        {
+            const string label = command.get_arguments()[0].get_raw_string_value();
+            auto found = runtime_state().label_to_pc.find(label);
+            if (found == runtime_state().label_to_pc.end())
+                raise_nvm_error("Unknown label: " + label);
+            pc = found->second - 1;
             command.set_branch_target(pc);
+            break;
+        }
         default:
             break;
         }
     }
     return code_listing;
 }
+
+// The VM implementation below intentionally reads its state through the active
+// RuntimeState. These aliases keep the instruction implementations compact while
+// ensuring separate and nested interpreter instances do not share mutable state.
+#define pc (runtime_state().pc)
+#define last_command (runtime_state().last_command)
+#define variable_tables (runtime_state().variable_tables)
+#define label_to_pc (runtime_state().label_to_pc)
+#define pc_to_label (runtime_state().pc_to_label)
+#define execution_stack (runtime_state().execution_stack)
+#define open_files (runtime_state().open_files)
+#define untruncated_files (runtime_state().untruncated_files)
+#define read_only_files (runtime_state().read_only_files)
+#define return_stack (runtime_state().return_stack)
 
 void push(Value v)
 {
@@ -1800,9 +2058,7 @@ const Value &get_variable(const string &var_name)
             return location->second;
         }
     }
-    static Value nil_value;
-    nil_value.set_nil_value(); // Refresh the nil just in case
-    return nil_value;
+    return runtime_state().nil_value;
 }
 
 string substring(Value &value, long long from, long long count)
@@ -1955,7 +2211,112 @@ bool is_true(Value &value)
     {
         return !num_eq(value.get_as_number(), 0);
     }
+    else if (value.get_type() == BYTES)
+    {
+        return !value.get_bytes()->empty();
+    }
     return false;
+}
+
+long long require_integer(Value value, const string &description)
+{
+    double number = value.get_as_number();
+    if (!isfinite(number) || number != floor(number) ||
+        number < static_cast<double>(numeric_limits<long long>::min()) ||
+        number > static_cast<double>(numeric_limits<long long>::max()))
+        raise_nvm_error(description + " must be an integer.");
+    return static_cast<long long>(number);
+}
+
+string bytes_as_string(const Value &value)
+{
+    auto *data = value.get_bytes();
+    return string(reinterpret_cast<const char *>(data->data()), data->size());
+}
+
+string encode_hex(const vector<unsigned char> &data)
+{
+    static constexpr char digits[] = "0123456789abcdef";
+    string result;
+    result.reserve(data.size() * 2);
+    for (unsigned char byte : data)
+    {
+        result += digits[byte >> 4];
+        result += digits[byte & 15];
+    }
+    return result;
+}
+
+vector<unsigned char> decode_hex(const string &text)
+{
+    if (text.size() % 2)
+        raise_nvm_error("Hex text must contain an even number of digits.");
+    vector<unsigned char> result;
+    result.reserve(text.size() / 2);
+    for (size_t i = 0; i < text.size(); i += 2)
+    {
+        int high = hex_digit(text[i]), low = hex_digit(text[i + 1]);
+        if (high < 0 || low < 0)
+            raise_nvm_error("Invalid hexadecimal digit.");
+        result.push_back(static_cast<unsigned char>((high << 4) | low));
+    }
+    return result;
+}
+
+string encode_base64(const vector<unsigned char> &data)
+{
+    static constexpr char alphabet[] =
+        "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    string result;
+    for (size_t i = 0; i < data.size(); i += 3)
+    {
+        unsigned int chunk = static_cast<unsigned int>(data[i]) << 16;
+        if (i + 1 < data.size()) chunk |= static_cast<unsigned int>(data[i + 1]) << 8;
+        if (i + 2 < data.size()) chunk |= data[i + 2];
+        result += alphabet[(chunk >> 18) & 63];
+        result += alphabet[(chunk >> 12) & 63];
+        result += i + 1 < data.size() ? alphabet[(chunk >> 6) & 63] : '=';
+        result += i + 2 < data.size() ? alphabet[chunk & 63] : '=';
+    }
+    return result;
+}
+
+vector<unsigned char> decode_base64(const string &text)
+{
+    if (text.size() % 4)
+        raise_nvm_error("Base64 text length must be a multiple of four.");
+    auto value = [](unsigned char ch) -> int {
+        if (ch >= 'A' && ch <= 'Z') return ch - 'A';
+        if (ch >= 'a' && ch <= 'z') return ch - 'a' + 26;
+        if (ch >= '0' && ch <= '9') return ch - '0' + 52;
+        if (ch == '+') return 62;
+        if (ch == '/') return 63;
+        return -1;
+    };
+    vector<unsigned char> result;
+    for (size_t i = 0; i < text.size(); i += 4)
+    {
+        const bool pad2 = text[i + 2] == '=', pad3 = text[i + 3] == '=';
+        if ((pad2 && !pad3) || (i + 4 != text.size() && (pad2 || pad3)))
+            raise_nvm_error("Invalid Base64 padding.");
+        int a = value(text[i]), b = value(text[i + 1]);
+        int c = pad2 ? 0 : value(text[i + 2]);
+        int d = pad3 ? 0 : value(text[i + 3]);
+        if (a < 0 || b < 0 || c < 0 || d < 0)
+            raise_nvm_error("Invalid Base64 character.");
+        unsigned int chunk = static_cast<unsigned int>((a << 18) | (b << 12) | (c << 6) | d);
+        result.push_back(static_cast<unsigned char>((chunk >> 16) & 255));
+        if (!pad2) result.push_back(static_cast<unsigned char>((chunk >> 8) & 255));
+        if (!pad3) result.push_back(static_cast<unsigned char>(chunk & 255));
+    }
+    return result;
+}
+
+[[noreturn]] void raise_filesystem_error(const string &operation, const filesystem::path &path,
+                                         const error_code &error)
+{
+    raise_nvm_error(operation + " '" + path.string() + "': " + error.message());
+    std::abort();
 }
 
 void run_command(const string &command, string &stdout_str, string &stderr_str, int &return_code)
@@ -2063,6 +2424,144 @@ void replace_all(string &str, const string &from, const string &to)
     }
 }
 
+size_t label_pc(const Value &label)
+{
+    auto found = label_to_pc.find(label.get_raw_string_value());
+    if (found == label_to_pc.end())
+        raise_nvm_error("Unknown label: " + label.get_raw_string_value());
+    return found->second;
+}
+
+void trim_execution_stack(size_t depth)
+{
+    while (execution_stack.size() > depth)
+        execution_stack.pop();
+}
+
+void trim_scopes(size_t depth)
+{
+    while (variable_tables.size() > depth)
+        variable_tables.pop_back();
+}
+
+void trim_returns(size_t depth)
+{
+    while (return_stack.size() > depth)
+        return_stack.pop();
+}
+
+void jump_to(size_t target)
+{
+    pc = target - 1;
+}
+
+bool handler_contains_target(const ErrorHandler &handler, size_t target)
+{
+    return target > handler.start_pc && target < handler.end_pc;
+}
+
+void continue_pending_control()
+{
+    RuntimeState &state = runtime_state();
+    while (!state.error_handlers.empty())
+    {
+        ErrorHandler &handler = state.error_handlers.back();
+        bool same_function = handler.return_depth == return_stack.size();
+        bool must_leave = same_function &&
+                          (state.pending_control == ControlKind::Return ||
+                           !handler_contains_target(handler, state.pending_jump));
+        if (!must_leave)
+            break;
+        if (handler.phase == HandlerPhase::Finally)
+        {
+            state.error_handlers.pop_back();
+            continue;
+        }
+        handler.phase = HandlerPhase::Finally;
+        handler.pending_error.reset();
+        jump_to(handler.finally_pc);
+        return;
+    }
+
+    if (state.pending_control == ControlKind::Jump)
+    {
+        size_t target = state.pending_jump;
+        state.pending_control = ControlKind::None;
+        jump_to(target);
+        return;
+    }
+
+    if (state.pending_control == ControlKind::Return)
+    {
+        if (return_stack.empty() || !state.pending_return)
+            raise_nvm_error("Empty return stack.");
+        Value result = std::move(*state.pending_return);
+        state.pending_return.reset();
+        state.pending_control = ControlKind::None;
+        if (execution_stack.empty())
+            raise_nvm_error("Missing function return slot.");
+        execution_stack.pop();
+        if (variable_tables.empty())
+            raise_nvm_error("No function scope to return from.");
+        variable_tables.pop_back();
+        pc = return_stack.top();
+        return_stack.pop();
+        push(std::move(result));
+    }
+}
+
+bool dispatch_error(Value error)
+{
+    RuntimeState &state = runtime_state();
+    state.pending_control = ControlKind::None;
+    state.pending_return.reset();
+    while (!state.error_handlers.empty())
+    {
+        ErrorHandler &handler = state.error_handlers.back();
+        trim_execution_stack(handler.stack_depth);
+        trim_scopes(handler.scope_depth);
+        trim_returns(handler.return_depth);
+        if (handler.phase == HandlerPhase::Trying)
+        {
+            handler.phase = HandlerPhase::Catching;
+            handler.caught_error = std::move(error);
+            jump_to(handler.catch_pc);
+            return true;
+        }
+        if (handler.phase == HandlerPhase::Catching)
+        {
+            handler.phase = HandlerPhase::Finally;
+            handler.pending_error = std::move(error);
+            jump_to(handler.finally_pc);
+            return true;
+        }
+        state.error_handlers.pop_back();
+    }
+    return false;
+}
+
+Value normalized_raised_value(Value value)
+{
+    if (value.get_type() == TEXT)
+        return make_error_value(value.get_as_string(), "Error");
+    if (value.get_type() != TABLE)
+        raise_nvm_error("raise expects TEXT or an error TABLE.");
+    auto &fields = *value.get_table();
+    if (!fields.count("message")) fields["message"] = text_value("Katalyn error");
+    if (!fields.count("kind")) fields["kind"] = text_value("Error");
+    if (fields["message"].get_type() != TEXT)
+        raise_nvm_error("Raised error TABLE field 'message' must be TEXT.");
+    if (fields["kind"].get_type() != TEXT)
+        raise_nvm_error("Raised error TABLE field 'kind' must be TEXT.");
+    if (!fields.count("pc")) fields["pc"] = number_value(pc + 1);
+    if (last_command && !fields.count("file"))
+    {
+        fields["file"] = text_value(last_command->get_file());
+        fields["line"] = number_value(last_command->get_line_number());
+    }
+    return value;
+}
+
 void execute_code_listing(vector<Command> &code_listing)
 {
     pc = 0;
@@ -2070,6 +2569,8 @@ void execute_code_listing(vector<Command> &code_listing)
     {
         Command &command = code_listing[pc];
         last_command = &command;
+        try
+        {
         switch (command.get_opcode())
         {
         case Opcode::PUSH:
@@ -2203,6 +2704,14 @@ void execute_code_listing(vector<Command> &code_listing)
             {
                 result.set_number_value(v1.get_as_string() == v2.get_as_string() ? 1 : 0);
             }
+            else if (v1.get_type() == BYTES && v2.get_type() == BYTES)
+            {
+                result.set_number_value(*v1.get_bytes() == *v2.get_bytes() ? 1 : 0);
+            }
+            else if (v1.get_type() == BYTES || v2.get_type() == BYTES)
+            {
+                result.set_number_value(0);
+            }
             else
             {
                 result.set_number_value(v1.get_as_number() == v2.get_as_number() ? 1 : 0);
@@ -2226,6 +2735,14 @@ void execute_code_listing(vector<Command> &code_listing)
             else if (v1.get_type() == TEXT && v2.get_type() == TEXT)
             {
                 result.set_number_value(v1.get_as_string() == v2.get_as_string() ? 0 : 1);
+            }
+            else if (v1.get_type() == BYTES && v2.get_type() == BYTES)
+            {
+                result.set_number_value(*v1.get_bytes() == *v2.get_bytes() ? 0 : 1);
+            }
+            else if (v1.get_type() == BYTES || v2.get_type() == BYTES)
+            {
+                result.set_number_value(1);
             }
             else
             {
@@ -2254,6 +2771,15 @@ void execute_code_listing(vector<Command> &code_listing)
         {
             Value v2 = pop(command);
             Value v1 = pop(command);
+            if (v1.get_type() == BYTES || v2.get_type() == BYTES)
+            {
+                if (v1.get_type() != BYTES || v2.get_type() != BYTES)
+                    raise_nvm_error("Cannot concatenate BYTES and non-BYTES values.");
+                vector<unsigned char> joined = *v1.get_bytes();
+                joined.insert(joined.end(), v2.get_bytes()->begin(), v2.get_bytes()->end());
+                push(bytes_value(std::move(joined)));
+                break;
+            }
             Value result;
             string join_result = v1.get_as_string() + v2.get_as_string();
             result.set_string_value(join_result);
@@ -2341,6 +2867,87 @@ void execute_code_listing(vector<Command> &code_listing)
             pc = command.get_branch_target();
             break;
         }
+        case Opcode::PTRY:
+        {
+            if (command.get_arguments().size() != 3)
+                raise_nvm_error("Malformed PTRY instruction.");
+            ErrorHandler handler;
+            handler.start_pc = pc;
+            handler.catch_pc = label_pc(command.get_arguments()[0]);
+            handler.finally_pc = label_pc(command.get_arguments()[1]);
+            handler.end_pc = label_pc(command.get_arguments()[2]);
+            handler.stack_depth = execution_stack.size();
+            handler.scope_depth = variable_tables.size();
+            handler.return_depth = return_stack.size();
+            runtime_state().error_handlers.push_back(std::move(handler));
+            break;
+        }
+        case Opcode::ETRY:
+        case Opcode::ECTH:
+        {
+            if (runtime_state().error_handlers.empty())
+                raise_nvm_error("No active try block.");
+            ErrorHandler &handler = runtime_state().error_handlers.back();
+            handler.phase = HandlerPhase::Finally;
+            handler.pending_error.reset();
+            jump_to(handler.finally_pc);
+            break;
+        }
+        case Opcode::CERR:
+        {
+            if (runtime_state().error_handlers.empty() ||
+                !runtime_state().error_handlers.back().caught_error)
+                raise_nvm_error("No caught error is available.");
+            set_variable(command.get_arguments()[0].get_raw_string_value(),
+                         *runtime_state().error_handlers.back().caught_error);
+            runtime_state().error_handlers.back().caught_error.reset();
+            break;
+        }
+        case Opcode::NCTH:
+        {
+            if (runtime_state().error_handlers.empty())
+                raise_nvm_error("No active try block.");
+            ErrorHandler &handler = runtime_state().error_handlers.back();
+            handler.pending_error = std::move(handler.caught_error);
+            handler.phase = HandlerPhase::Finally;
+            jump_to(handler.finally_pc);
+            break;
+        }
+        case Opcode::EFIN:
+        {
+            if (runtime_state().error_handlers.empty())
+                raise_nvm_error("No active finally block.");
+            optional<Value> error = std::move(runtime_state().error_handlers.back().pending_error);
+            runtime_state().error_handlers.pop_back();
+            if (error)
+                throw VmException(std::move(*error));
+            if (runtime_state().pending_control != ControlKind::None)
+                continue_pending_control();
+            break;
+        }
+        case Opcode::THRW:
+            throw VmException(normalized_raised_value(pop(command)));
+        case Opcode::FJMP:
+            runtime_state().pending_control = ControlKind::Jump;
+            runtime_state().pending_jump = command.get_branch_target() + 1;
+            runtime_state().pending_return.reset();
+            continue_pending_control();
+            break;
+        case Opcode::FRET:
+        {
+            runtime_state().pending_control = ControlKind::Return;
+            if (command.get_arguments().empty())
+                raise_nvm_error("Malformed FRET instruction.");
+            if (execution_stack.empty())
+                raise_nvm_error("Missing function return value.");
+            Value return_kind = command.get_arguments()[0];
+            runtime_state().pending_return =
+                num_eq(return_kind.get_as_number(), 0)
+                    ? execution_stack.top()
+                    : pop(command);
+            continue_pending_control();
+            break;
+        }
         case Opcode::CALL:
         {
             return_stack.push(pc);
@@ -2388,6 +2995,10 @@ void execute_code_listing(vector<Command> &code_listing)
                     pc = command.get_branch_target();
                 }
             }
+            else if (value.get_type() == BYTES)
+            {
+                if (value.get_bytes()->empty()) pc = command.get_branch_target();
+            }
             else
             {
                 raise_nvm_error("Values of type " + get_type_name(value.get_type()) + " are not logical.");
@@ -2406,6 +3017,8 @@ void execute_code_listing(vector<Command> &code_listing)
             Value value = pop(command);
             Value index = pop(command);
             Value table = pop(command);
+            if (table.get_type() != TABLE)
+                raise_nvm_error("Only TABLE values can be assigned through an index.");
             (*table.get_table())[index.get_as_string()] = value;
             break;
         }
@@ -2413,9 +3026,9 @@ void execute_code_listing(vector<Command> &code_listing)
         {
             Value index = pop(command);
             Value table = pop(command);
-            string index_string = index.get_as_string();
             if (table.get_type() == TABLE)
             {
+                string index_string = index.get_as_string();
                 auto it = table.get_table()->find(index_string);
                 if (it != table.get_table()->end())
                 {
@@ -2425,6 +3038,15 @@ void execute_code_listing(vector<Command> &code_listing)
                 {
                     push(get_nil_value());
                 }
+            }
+            else if (table.get_type() == BYTES)
+            {
+                long long idx = require_integer(index, "Byte index");
+                const long long length = static_cast<long long>(table.get_bytes()->size());
+                if (idx > 0) --idx;
+                if (idx < 0) idx += length;
+                if (idx < 0 || idx >= length) push(get_nil_value());
+                else push(number_value((*table.get_bytes())[static_cast<size_t>(idx)]));
             }
             else if (table.get_type() == TEXT || table.get_type() == NUMB)
             {
@@ -2579,7 +3201,7 @@ void execute_code_listing(vector<Command> &code_listing)
         case Opcode::CGIO:
         {
             Value headers = pop(command);
-            string body = pop(command).get_as_string();
+            Value body = pop(command);
             string content_type = pop(command).get_as_string();
             double status_number = pop(command).get_as_number();
             if (!isfinite(status_number) || status_number != floor(status_number) ||
@@ -2587,6 +3209,240 @@ void execute_code_listing(vector<Command> &code_listing)
                 raise_nvm_error("CGI response status must be an integer between 100 and 999.");
             write_cgi_response(static_cast<int>(status_number), content_type, body, headers);
             push(number_value(1));
+            break;
+        }
+        case Opcode::BNEW:
+        {
+            vector<unsigned char> data;
+            while (!execution_stack.empty() && execution_stack.top().get_type() != LISTLIMIT)
+            {
+                long long byte = require_integer(pop(command), "Byte value");
+                if (byte < 0 || byte > 255)
+                    raise_nvm_error("Byte value must be between 0 and 255.");
+                data.push_back(static_cast<unsigned char>(byte));
+            }
+            if (execution_stack.empty())
+                raise_nvm_error("Missing bytes argument-list marker.");
+            pop(command);
+            reverse(data.begin(), data.end());
+            push(bytes_value(std::move(data)));
+            break;
+        }
+        case Opcode::UENC:
+        {
+            Value source = pop(command);
+            if (source.get_type() != TEXT)
+                raise_nvm_error("utf8_encode expects TEXT.");
+            string text = source.get_as_string();
+            push(bytes_value(text));
+            break;
+        }
+        case Opcode::UDEC:
+        {
+            Value data = pop(command);
+            if (data.get_type() != BYTES)
+                raise_nvm_error("utf8_decode expects BYTES.");
+            string text = bytes_as_string(data);
+            if (!is_valid_utf8(text))
+                raise_nvm_error("Byte sequence is not valid UTF-8.");
+            push(text_value(text));
+            break;
+        }
+        case Opcode::BSLC:
+        {
+            long long count = require_integer(pop(command), "Byte slice length");
+            long long start = require_integer(pop(command), "Byte slice start");
+            Value source = pop(command);
+            if (source.get_type() != BYTES)
+                raise_nvm_error("bytes_slice expects BYTES.");
+            const auto &data = *source.get_bytes();
+            long long size = static_cast<long long>(data.size());
+            long long offset = start > 0 ? start - 1 : (start < 0 ? size + start : 0);
+            offset = max(0LL, min(offset, size));
+            if (count < -1)
+                raise_nvm_error("Byte slice length must be -1 or a non-negative integer.");
+            if (count == -1) count = size - offset;
+            long long end = min(size, offset + count);
+            push(bytes_value(vector<unsigned char>(data.begin() + offset, data.begin() + end)));
+            break;
+        }
+        case Opcode::RSTB:
+        {
+            long long length = require_integer(pop(command), "read_stdin_bytes length");
+            if (length < -1)
+                raise_nvm_error("read_stdin_bytes length must be -1 or a non-negative integer.");
+            push(bytes_value(read_standard_input(length)));
+            break;
+        }
+        case Opcode::RBIN:
+        {
+            filesystem::path path(pop(command).get_as_string());
+            ifstream file(path, ios::binary);
+            if (!file)
+                raise_nvm_error("Could not open '" + path.string() + "' for binary reading.");
+            vector<unsigned char> data((istreambuf_iterator<char>(file)), istreambuf_iterator<char>());
+            push(bytes_value(std::move(data)));
+            break;
+        }
+        case Opcode::WBIN:
+        {
+            filesystem::path path(pop(command).get_as_string());
+            Value data = pop(command);
+            if (data.get_type() != BYTES)
+                raise_nvm_error("write_bytes expects a BYTES value.");
+            ofstream file(path, ios::binary | ios::trunc);
+            if (!file)
+                raise_nvm_error("Could not open '" + path.string() + "' for binary writing.");
+            file.write(reinterpret_cast<const char *>(data.get_bytes()->data()),
+                       static_cast<streamsize>(data.get_bytes()->size()));
+            if (!file)
+                raise_nvm_error("Could not finish writing '" + path.string() + "'.");
+            push(number_value(data.get_bytes()->size()));
+            break;
+        }
+        case Opcode::HENC:
+        case Opcode::B64E:
+        {
+            Value data = pop(command);
+            if (data.get_type() != BYTES)
+                raise_nvm_error(string(command.get_opcode() == Opcode::HENC ? "hex_encode" : "base64_encode") + " expects BYTES.");
+            push(text_value(command.get_opcode() == Opcode::HENC
+                                ? encode_hex(*data.get_bytes())
+                                : encode_base64(*data.get_bytes())));
+            break;
+        }
+        case Opcode::HDEC:
+        case Opcode::B64D:
+        {
+            Value source = pop(command);
+            if (source.get_type() != TEXT)
+                raise_nvm_error(string(command.get_opcode() == Opcode::HDEC ? "hex_decode" : "base64_decode") + " expects TEXT.");
+            string text = source.get_as_string();
+            push(bytes_value(command.get_opcode() == Opcode::HDEC ? decode_hex(text) : decode_base64(text)));
+            break;
+        }
+        case Opcode::PJON:
+        {
+            vector<string> parts;
+            while (!execution_stack.empty() && execution_stack.top().get_type() != LISTLIMIT)
+                parts.push_back(pop(command).get_as_string());
+            if (execution_stack.empty())
+                raise_nvm_error("Missing path_join argument-list marker.");
+            pop(command);
+            reverse(parts.begin(), parts.end());
+            filesystem::path result;
+            for (const auto &part : parts) result /= filesystem::path(part);
+            push(text_value(result.lexically_normal().string()));
+            break;
+        }
+        case Opcode::PPAR:
+        case Opcode::PNAM:
+        case Opcode::PEXT:
+        case Opcode::PABS:
+        case Opcode::PNOR:
+        {
+            filesystem::path path(pop(command).get_as_string());
+            error_code error;
+            filesystem::path result;
+            if (command.get_opcode() == Opcode::PPAR) result = path.parent_path();
+            else if (command.get_opcode() == Opcode::PNAM) result = path.filename();
+            else if (command.get_opcode() == Opcode::PEXT) result = path.extension();
+            else if (command.get_opcode() == Opcode::PNOR) result = path.lexically_normal();
+            else result = filesystem::absolute(path, error).lexically_normal();
+            if (error) raise_filesystem_error("Could not make path absolute", path, error);
+            push(text_value(result.string()));
+            break;
+        }
+        case Opcode::PEXS:
+        case Opcode::PFIL:
+        case Opcode::PDIR:
+        {
+            filesystem::path path(pop(command).get_as_string());
+            error_code error;
+            bool result = command.get_opcode() == Opcode::PEXS ? filesystem::exists(path, error)
+                        : command.get_opcode() == Opcode::PFIL ? filesystem::is_regular_file(path, error)
+                                                              : filesystem::is_directory(path, error);
+            if (error) raise_filesystem_error("Could not inspect path", path, error);
+            push(number_value(result ? 1 : 0));
+            break;
+        }
+        case Opcode::FSIZ:
+        {
+            filesystem::path path(pop(command).get_as_string());
+            error_code error;
+            auto size = filesystem::file_size(path, error);
+            if (error) raise_filesystem_error("Could not read file size", path, error);
+            push(number_value(static_cast<double>(size)));
+            break;
+        }
+        case Opcode::LDIR:
+        {
+            filesystem::path path(pop(command).get_as_string());
+            error_code error;
+            vector<string> names;
+            filesystem::directory_iterator iterator(path, error), end;
+            if (error) raise_filesystem_error("Could not list directory", path, error);
+            while (iterator != end)
+            {
+                names.push_back(iterator->path().filename().string());
+                iterator.increment(error);
+                if (error) raise_filesystem_error("Could not list directory", path, error);
+            }
+            sort(names.begin(), names.end());
+            Value result = table_value();
+            for (size_t i = 0; i < names.size(); ++i)
+                (*result.get_table())[double_to_string(i + 1)] = text_value(names[i]);
+            push(std::move(result));
+            break;
+        }
+        case Opcode::MDIR:
+        {
+            bool parents = is_true(execution_stack.top());
+            pop(command);
+            filesystem::path path(pop(command).get_as_string());
+            error_code error;
+            bool created = parents ? filesystem::create_directories(path, error)
+                                   : filesystem::create_directory(path, error);
+            if (error) raise_filesystem_error("Could not create directory", path, error);
+            push(number_value(created ? 1 : 0));
+            break;
+        }
+        case Opcode::CPFL:
+        {
+            bool overwrite = is_true(execution_stack.top());
+            pop(command);
+            filesystem::path destination(pop(command).get_as_string());
+            filesystem::path source(pop(command).get_as_string());
+            error_code error;
+            bool copied = filesystem::copy_file(source, destination,
+                overwrite ? filesystem::copy_options::overwrite_existing : filesystem::copy_options::none, error);
+            if (error) raise_filesystem_error("Could not copy file", source, error);
+            push(number_value(copied ? 1 : 0));
+            break;
+        }
+        case Opcode::MVFL:
+        {
+            filesystem::path destination(pop(command).get_as_string());
+            filesystem::path source(pop(command).get_as_string());
+            error_code error;
+            filesystem::rename(source, destination, error);
+            if (error) raise_filesystem_error("Could not move path", source, error);
+            push(number_value(1));
+            break;
+        }
+        case Opcode::RMFL:
+        case Opcode::RMDR:
+        {
+            filesystem::path path(pop(command).get_as_string());
+            error_code error;
+            if (command.get_opcode() == Opcode::RMFL && filesystem::is_directory(path, error))
+                raise_nvm_error("remove_file refuses to remove a directory.");
+            if (command.get_opcode() == Opcode::RMDR && !filesystem::is_directory(path, error))
+                raise_nvm_error("remove_directory expects a directory.");
+            if (error) raise_filesystem_error("Could not inspect path", path, error);
+            bool removed = filesystem::remove(path, error);
+            if (error) raise_filesystem_error("Could not remove path", path, error);
+            push(number_value(removed ? 1 : 0));
             break;
         }
         case Opcode::DISP:
@@ -2869,6 +3725,10 @@ void execute_code_listing(vector<Command> &code_listing)
             {
                 result.set_number_value(num_eq(value.get_as_number(), 0) ? 1 : 0);
             }
+            else if (value.get_type() == BYTES)
+            {
+                result.set_number_value(value.get_bytes()->empty() ? 1 : 0);
+            }
             else
             {
                 raise_nvm_error("Values of type " + get_type_name(value.get_type()) + " are not logical.");
@@ -2908,6 +3768,10 @@ void execute_code_listing(vector<Command> &code_listing)
             if (value.get_type() == TABLE)
             {
                 result.set_number_value((*value.get_table()).size());
+            }
+            else if (value.get_type() == BYTES)
+            {
+                result.set_number_value(value.get_bytes()->size());
             }
             else if (value.get_type() == TEXT || value.get_type() == NUMB)
             {
@@ -3050,6 +3914,11 @@ void execute_code_listing(vector<Command> &code_listing)
                     result.get_iterator_queue()->push(character);
                 }
             }
+            else if (container.get_type() == BYTES)
+            {
+                for (size_t i = 0; i < container.get_bytes()->size(); ++i)
+                    result.get_iterator_queue()->push(double_to_string(i + 1));
+            }
             else
             {
                 raise_nvm_error("Cannot iterate over non-iterable value.");
@@ -3106,13 +3975,40 @@ void execute_code_listing(vector<Command> &code_listing)
         default:
             raise_nvm_error("Unknown Nambly command: " + command.get_debug_string());
         }
+        }
+        catch (const VmException &error)
+        {
+            if (!dispatch_error(error.error()))
+                throw;
+        }
         ++pc;
     }
 }
 
 int execute_nambly(const string &code)
 {
-    vector<Command> code_listing = generate_label_map_and_code_listing(code);
-    execute_code_listing(code_listing);
-    return 0;
+    RuntimeState state;
+    RuntimeActivation activation(state);
+    try
+    {
+        vector<Command> code_listing = generate_label_map_and_code_listing(code);
+        execute_code_listing(code_listing);
+        return 0;
+    }
+    catch (const VmException &error)
+    {
+        Value detail = error.error();
+        auto &fields = *detail.get_table();
+        cerr << endl << "====== Oh no! Runtime Error! ======" << endl;
+        cerr << wrap_text(fields["message"].get_as_string(), 70) << endl;
+        if (fields.count("file"))
+        {
+            cerr << endl << "--- Source File Information --- " << endl;
+            cerr << "- Source File: " << fields["file"].get_as_string() << endl;
+            cerr << "- Source Line: " << fields["line"].get_as_number() << endl;
+        }
+        cerr << endl << "--- NariVM State Information --- " << endl;
+        cerr << "- PC: " << fields["pc"].get_as_number() << endl;
+        return 1;
+    }
 }

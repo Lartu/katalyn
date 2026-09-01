@@ -307,7 +307,7 @@
     <header>
       <h1>Katalyn <span>complete reference</span></h1>
       <p class="lede">A practical and implementation-aware guide to the entire Katalyn language: syntax, semantics, native facilities, shipped standard library, command-line interface, and the small surprises that matter in real programs.</p>
-      <span class="version">C++ implementation · July 2026</span>
+      <span class="version">C++ implementation · September 2026</span>
     </header>
 
     <section id="introduction">
@@ -327,13 +327,13 @@ ok;</code></pre>
 
       <h3>The language at a glance</h3>
       <ul>
-        <li>Values are numbers, text, tables, or the internal <em>nil</em> value.</li>
+        <li>Values are numbers, Unicode text, tables, immutable byte sequences, or the internal <em>nil</em> value.</li>
         <li>Variables begin with <code>$</code>; assignments use <code>:</code>.</li>
         <li>Tables serve as dictionaries, arrays, sets, records, and lightweight objects.</li>
         <li>Functions are declared with <code>def</code>; all arguments arrive in the table <code>$_</code>.</li>
         <li>Blocks end with <code>ok;</code>, not braces.</li>
         <li>The standard library is written in Katalyn and embedded into the executable at build time.</li>
-        <li>There are no classes, modules, exceptions, booleans as a distinct type, or a source-level nil literal.</li>
+        <li>There are no classes, modules, booleans as a distinct type, or a source-level nil literal. Runtime errors use <code>try</code>, <code>catch</code>, <code>finally</code>, and <code>raise</code>.</li>
       </ul>
       <a class="toplink" href="#top">Back to contents</a>
     </section>
@@ -418,13 +418,14 @@ print($message); print("second statement");</code></pre>
     <section id="values">
       <h2><span class="number">04</span> Values and conversion</h2>
 
-      <h3>The four user-visible kinds</h3>
+      <h3>The five user-visible kinds</h3>
       <table>
         <thead><tr><th>Kind</th><th>Examples and origin</th><th>False when</th></tr></thead>
         <tbody>
           <tr><td>Number</td><td><code>12</code>, <code>-4</code>, <code>3.5</code>; internally a floating-point value.</td><td>It is zero.</td></tr>
           <tr><td>Text</td><td><code>"Katalyn"</code>, input, file and process output.</td><td>It is empty.</td></tr>
           <tr><td>Table</td><td><code>table</code>, arrays, records, function argument lists.</td><td>It has no entries.</td></tr>
+          <tr><td>Bytes</td><td><code>bytes(0, 255)</code>, binary files, encoded text, and raw input.</td><td>It contains no bytes.</td></tr>
           <tr><td>Nil</td><td>Missing variables or keys, exhausted reads, and functions without an explicit value.</td><td>Always.</td></tr>
         </tbody>
       </table>
@@ -448,6 +449,7 @@ ok;</code></pre>
           <tr><td>Text to number</td><td>Arithmetic and numeric comparison invoke C++ numeric parsing. A numeric prefix is accepted, so current behavior converts <code>"12abc"</code> to <code>12</code>; text without a numeric beginning raises a runtime error.</td></tr>
           <tr><td>Table to number</td><td>The number of entries in the table.</td></tr>
           <tr><td>Table to text</td><td>A diagnostic map representation such as <code>['a':1, 'b':"two"]</code>.</td></tr>
+          <tr><td>Bytes conversion</td><td>Never implicit. Use <code>utf8_encode</code>/<code>utf8_decode</code>, hexadecimal, or Base64 functions.</td></tr>
           <tr><td>Nil to number/text</td><td>Not convertible; attempts generally raise a runtime error.</td></tr>
         </tbody>
       </table>
@@ -458,6 +460,7 @@ ok;</code></pre>
         <li>Otherwise, scalar values compare numerically where conversion is possible.</li>
         <li>Numeric equality uses a very small floating-point tolerance.</li>
         <li>Tables compare identity, not contents. Two variables are equal only when they refer to the same table object.</li>
+        <li>Byte sequences compare by contents. Bytes and non-bytes are unequal; neither is coerced.</li>
         <li>Nil is unusual: any equality involving nil is false, even nil against nil. Any inequality involving nil is true.</li>
       </ul>
 
@@ -662,7 +665,7 @@ $length: greet("Katalyn");</code></pre>
       <p>Each call receives a fresh local scope containing <code>$_</code>, <code>$_caller</code>, and <code>$_context</code>. Ordinary assignments are local. Explicit <code>global</code> assignments update shared state. Recursion is supported by the VM’s call frames, subject to memory and stack limits.</p>
 
       <h3>Definition order and shadowing</h3>
-      <p>Define a function before calling it. Forward calls are not reliable in the current compiler. Redefinition is source-position-sensitive: calls compiled before a later definition keep targeting the older body, while later calls target the new definition. This permits deliberate shadowing but can be surprising.</p>
+      <p>Forward calls are supported: the compiler reserves a label and connects it when the definition is encountered. Every called function must be defined by the end of compilation. Redefinition remains source-position-sensitive: existing calls keep the older body and later calls use the new one.</p>
 
       <h3>Calls are expressions</h3>
       <p>Native and user calls can be nested and used wherever a value is expected. Arguments are comma-separated. A trailing comma is currently accepted, but leading or doubled empty arguments are errors; portable code should omit trailing commas.</p>
@@ -718,6 +721,20 @@ ok;</code></pre>
         <li><code>ok;</code> closes the current function or control block according to the compiler’s block stack.</li>
       </ul>
       <p>Conditions and iteration update <code>$_r</code>. Because it is shared magic state within the scope, nested conditions and loops overwrite its previous value; copy it to a named variable when it must survive nested work.</p>
+
+      <h3>Errors and guaranteed cleanup</h3>
+      <pre><code>try;
+    $data: read_bytes("settings.bin");
+    if !len($data);
+        raise("The settings file is empty");
+    ok;
+catch $error;
+    print($error{kind}, ": ", $error{message});
+finally;
+    print("cleanup always runs");
+ok;</code></pre>
+      <p>A <code>try</code> must have <code>catch $variable;</code>, <code>finally;</code>, or both. The catch variable is an error table containing at least <code>kind</code>, <code>message</code>, <code>file</code>, <code>line</code>, and <code>pc</code>. <code>raise(text)</code> creates an <code>Error</code>; <code>raise(table)</code> preserves custom fields and fills missing standard fields.</p>
+      <p><code>finally</code> runs after normal completion, after a caught or uncaught runtime error, and while <code>return</code>, <code>break</code>, or <code>continue</code> leaves the protected block. This is the difference from placing code after the construct: ordinary following code is skipped by those abrupt exits, whereas <code>finally</code> runs during the exit. A <code>return</code> or new error inside <code>finally</code> replaces the earlier return or error. <code>exit()</code> terminates the process immediately and does not run finally blocks.</p>
       <a class="toplink" href="#top">Back to contents</a>
     </section>
 
@@ -777,6 +794,25 @@ write($out, "first line\n");
 write($out, "second line\n");
 close($out);</code></pre>
       <div class="callout"><strong>Read position.</strong> <code>read</code> always resets to the beginning. <code>read_line</code> advances the current stream. A whole-file <code>read</code> therefore changes the position used by later line reads.</div>
+
+      <h3>Binary files and paths</h3>
+      <p><code>read_bytes(path)</code> and <code>write_bytes(path, bytes)</code> open the named file directly in binary mode; they do not use the text-handle registry above. Writing replaces the file and returns its byte count. Path operations are lexical except where the host filesystem must be queried.</p>
+      <table>
+        <thead><tr><th>Call</th><th>Behavior</th></tr></thead>
+        <tbody>
+          <tr><td><code>path_join(parts...)</code></td><td>Join one or more components and lexically normalize the result.</td></tr>
+          <tr><td><code>path_parent(path)</code>, <code>path_name(path)</code>, <code>path_extension(path)</code></td><td>Return the parent, final filename, or extension (including its leading dot).</td></tr>
+          <tr><td><code>path_absolute(path)</code>, <code>path_normalize(path)</code></td><td>Make a path absolute, or normalize <code>.</code> and <code>..</code> lexically.</td></tr>
+          <tr><td><code>path_exists(path)</code>, <code>is_file(path)</code>, <code>is_directory(path)</code></td><td>Query the host filesystem and return numeric truth.</td></tr>
+          <tr><td><code>file_size(path)</code></td><td>Return a regular file’s size in bytes.</td></tr>
+          <tr><td><code>list_directory(path)</code></td><td>Return a sorted, dense table of entry names, excluding the parent path.</td></tr>
+          <tr><td><code>make_directory(path[, parents])</code></td><td>Create one directory, or all missing parents when the second argument is truthy.</td></tr>
+          <tr><td><code>copy_file(source, destination[, overwrite])</code></td><td>Copy a file, optionally replacing its destination.</td></tr>
+          <tr><td><code>move_file(source, destination)</code></td><td>Rename or move a path using the host filesystem.</td></tr>
+          <tr><td><code>remove_file(path)</code></td><td>Remove a non-directory path; refuses directories.</td></tr>
+          <tr><td><code>remove_directory(path)</code></td><td>Remove an empty directory only; never recursively deletes contents.</td></tr>
+        </tbody>
+      </table>
       <a class="toplink" href="#top">Back to contents</a>
     </section>
 
@@ -833,6 +869,7 @@ import "models/person.kat";</code></pre>
           <tr><td><code>is(value)</code></td><td>Return 1 when value is not nil, otherwise 0. It tests presence, not truthiness.</td></tr>
           <tr><td><code>unsafe(expression)</code></td><td>Compile an expression without the normal compile-time variable-existence check. Runtime semantics are otherwise unchanged.</td></tr>
           <tr><td><code>exit(status)</code></td><td>Terminate the interpreter with the numeric status.</td></tr>
+          <tr><td><code>raise(error)</code></td><td>Raise TEXT as an <code>Error</code>, or raise an error TABLE while preserving custom fields.</td></tr>
         </tbody>
       </table>
 
@@ -860,6 +897,23 @@ import "models/person.kat";</code></pre>
         </tbody>
       </table>
 
+      <h3>Bytes and encodings</h3>
+      <table>
+        <thead><tr><th>Signature</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td><code>bytes(values...)</code></td><td>Create immutable bytes from integer values 0 through 255. With no arguments, returns empty bytes.</td></tr>
+          <tr><td><code>utf8_encode(text)</code></td><td>Encode TEXT as its exact UTF-8 bytes.</td></tr>
+          <tr><td><code>utf8_decode(bytes)</code></td><td>Strictly decode UTF-8; malformed sequences raise a catchable runtime error.</td></tr>
+          <tr><td><code>bytes_slice(bytes, start[, length])</code></td><td>Slice by byte position. Positive positions are one-based, zero starts at the first byte, and negatives count from the end.</td></tr>
+          <tr><td><code>hex_encode(bytes)</code>, <code>hex_decode(text)</code></td><td>Convert between bytes and lowercase hexadecimal text. Decoding is case-insensitive and strict.</td></tr>
+          <tr><td><code>base64_encode(bytes)</code>, <code>base64_decode(text)</code></td><td>Convert using standard padded Base64.</td></tr>
+          <tr><td><code>read_stdin_bytes([length])</code></td><td>Read bytes through EOF, or at most the requested byte length. <code>-1</code> means EOF.</td></tr>
+          <tr><td><code>read_bytes(path)</code></td><td>Read a complete file directly as bytes.</td></tr>
+          <tr><td><code>write_bytes(path, bytes)</code></td><td>Replace a file with exact bytes and return the count written.</td></tr>
+        </tbody>
+      </table>
+      <p><code>len(bytes)</code> counts bytes; indexing returns a number from 0 through 255 and supports negative indices. <code>&amp;</code> concatenates two byte sequences. Bytes cannot be printed or converted implicitly, and indexed assignment is rejected because byte values are immutable.</p>
+
       <h3>Files and processes</h3>
       <table>
         <thead><tr><th>Signature</th><th>Description</th></tr></thead>
@@ -872,6 +926,10 @@ import "models/person.kat";</code></pre>
           <tr><td><code>read(path)</code></td><td>Read the complete open file from its beginning.</td></tr>
           <tr><td><code>read_line(path)</code></td><td>Read the next line or return nil.</td></tr>
           <tr><td><code>write(path, value)</code></td><td>Write/append and return value.</td></tr>
+          <tr><td><code>path_join(parts...)</code></td><td>Join and normalize path components.</td></tr>
+          <tr><td><code>path_parent</code>, <code>path_name</code>, <code>path_extension</code>, <code>path_absolute</code>, <code>path_normalize</code></td><td>Transform paths without opening files.</td></tr>
+          <tr><td><code>path_exists</code>, <code>is_file</code>, <code>is_directory</code>, <code>file_size</code>, <code>list_directory</code></td><td>Inspect filesystem paths.</td></tr>
+          <tr><td><code>make_directory</code>, <code>copy_file</code>, <code>move_file</code>, <code>remove_file</code>, <code>remove_directory</code></td><td>Perform the filesystem mutations detailed in chapter 11.</td></tr>
           <tr><td><code>exec(parts...)</code></td><td>Concatenate at least one argument into a command, run synchronously, capture output, and return exit status.</td></tr>
         </tbody>
       </table>
@@ -888,10 +946,10 @@ import "models/person.kat";</code></pre>
           <tr><td><code>json_decode(text)</code></td><td>Strictly decode one complete JSON value, including escapes, surrogate pairs, booleans and null.</td></tr>
           <tr><td><code>json_encode(value)</code></td><td>Encode compact JSON. Dense nonempty tables become arrays; other tables become objects.</td></tr>
           <tr><td><code>cgi_request([maximum_body_bytes])</code></td><td>Read and normalize a CGI request, enforcing CONTENT_LENGTH and a body limit of 16 MiB by default.</td></tr>
-          <tr><td><code>cgi_response(status, type, body[, headers])</code></td><td>Validate and write a complete CGI response, rejecting header newline injection.</td></tr>
+          <tr><td><code>cgi_response(status, type, body[, headers])</code></td><td>Validate and write a complete CGI response. Body may be TEXT or BYTES.</td></tr>
         </tbody>
       </table>
-      <div class="callout"><strong>Apache CGI.</strong> The request table contains method, query, form, body, normalized headers, path and environment data. See <code>docs-complete/KATALYN-CGI.txt</code> and <code>examples/apache_cgi.kat</code>.</div>
+      <div class="callout"><strong>Apache CGI.</strong> The request table contains both <code>body</code> (TEXT compatibility view) and <code>body_bytes</code> (exact BYTES), plus method, query, form, normalized headers, path and environment data. See <code>docs-complete/KATALYN-CGI.txt</code> and <code>examples/apache_cgi.kat</code>.</div>
       <a class="toplink" href="#top">Back to contents</a>
     </section>
 
@@ -1024,7 +1082,7 @@ kat [options] -s [script arguments...] &lt; source.kat</code></pre>
           <tr><td>Runtime/VM</td><td>Invalid type conversion, arithmetic failure, unopened/unwritable file, invalid indexing, or external process trouble.</td></tr>
         </tbody>
       </table>
-      <p>The compiler’s declaration checks are intentionally strict enough to catch many misspellings. <code>unsafe</code> bypasses only that compile-time guard; it does not suppress runtime errors. Katalyn has no exception handling construct, so a fatal language/runtime error terminates the program.</p>
+      <p>The compiler’s declaration checks are intentionally strict enough to catch many misspellings. <code>unsafe</code> bypasses only that compile-time guard; it does not suppress runtime errors. Compile-time errors cannot be caught. Runtime errors can be handled with <code>try</code>/<code>catch</code>; an uncaught error prints the traditional diagnostic and returns status 1.</p>
 
       <h3>Debugging techniques</h3>
       <ul>
@@ -1059,7 +1117,7 @@ kat [options] -s [script arguments...] &lt; source.kat</code></pre>
 
       <h3>Compilation and source order</h3>
       <ul>
-        <li>Function calls should follow definitions. Forward calls are not reliable.</li>
+        <li>Forward function calls are resolved when their definition appears; a missing definition is a compile-time error.</li>
         <li>Redefining a function affects only calls compiled after the new definition.</li>
         <li>Declaration tracking follows compilation paths, not runtime paths. A conditional declaration may be “known” but nil.</li>
         <li><code>unset</code> has both runtime and compile-time consequences.</li>
@@ -1080,7 +1138,7 @@ kat [options] -s [script arguments...] &lt; source.kat</code></pre>
         <li>The interpreter requires a C++17 toolchain to build; the resulting CLI has no Python runtime dependency.</li>
         <li>External process syntax, available commands, path syntax, and exit statuses vary by host platform.</li>
         <li>Table keys are stored as strings. Diagnostic storage order is lexical, while <code>for</code> gives numeric keys numeric priority.</li>
-        <li>The VM’s global state persists if the host C++ API executes multiple programs inside one process; the shipped CLI runs only one, so normal CLI use is isolated.</li>
+        <li>Each interpreter execution owns its VM stack, scopes, labels, calls, exception handlers, and open-file registry. Handles close when that runtime is destroyed. Host environment variables and standard streams remain process resources.</li>
       </ul>
 
       <div class="callout tip"><strong>Robust Katalyn style.</strong> Define before use, keep arrays dense and one-based, probe optional data with <code>is</code>, use parentheses freely, use <code>substr</code> for end-relative text, verify files with <code>is_open</code>, treat shell input as trusted-only, and use the native JSON functions for strict parsing and correct escaping.</div>
@@ -1102,6 +1160,9 @@ statement        := ["in"] place ":" expression ";"
                   | ("while" | "whileis" | "until" | "for")
                     expression ";" statement* "ok" ";"
                   | "def" identifier ";" statement* "ok" ";"
+                  | "try" ";" statement*
+                    ["catch" variable ";" statement*]
+                    ["finally" ";" statement*] "ok" ";"
                   | "return" [expression] ";"
                   | "break" [integer] ";"
                   | "continue" ";"
@@ -1210,7 +1271,7 @@ ok;</code></pre>
       </div>
 
       <h3>Reserved command words and built-in names</h3>
-      <p>Structural commands are <code>in</code>, <code>global</code>, <code>if</code>, <code>elif</code>, <code>else</code>, <code>unless</code>, <code>while</code>, <code>whileis</code>, <code>until</code>, <code>for</code>, <code>def</code>, <code>return</code>, <code>break</code>, <code>continue</code>, <code>sleep</code>, <code>import</code>, and <code>ok</code>. The word <code>table</code> is a value constructor. Native function names are listed in chapter 14; standard-library names are ordinary user functions that may be shadowed.</p>
+      <p>Structural commands are <code>in</code>, <code>global</code>, <code>if</code>, <code>elif</code>, <code>else</code>, <code>unless</code>, <code>while</code>, <code>whileis</code>, <code>until</code>, <code>for</code>, <code>def</code>, <code>return</code>, <code>break</code>, <code>continue</code>, <code>try</code>, <code>catch</code>, <code>finally</code>, <code>sleep</code>, <code>import</code>, and <code>ok</code>. The word <code>table</code> is a value constructor. Native function names are listed in chapter 14; standard-library names are ordinary user functions.</p>
       <a class="toplink" href="#top">Back to contents</a>
     </section>
 

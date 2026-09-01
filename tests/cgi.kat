@@ -14,6 +14,7 @@ $ok: $ok && $request{form}{message} = "Hello CGI";
 $ok: $ok && $request{headers}{accept} = "application/json";
 $ok: $ok && $request{path_info} = "/demo";
 $ok: $ok && $request{content_length} = 30;
+$ok: $ok && $request{body_bytes} = utf8_encode("color=purple&message=Hello+CGI");
 $ok: $ok && url_decode("a%2Fb+c", 0) = "a/b+c";
 $ok: $ok && url_decode("a%2Fb+c", 1) = "a/b c";
 

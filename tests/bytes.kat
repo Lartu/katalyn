@@ -1,0 +1,41 @@
+import "assert.kat";
+
+$empty: bytes();
+$data: bytes(0, 1, 65, 127, 128, 255);
+check(len($empty) = 0 && !$empty, "empty bytes length and truth");
+check(len($data) = 6 && $data, "bytes length and truth");
+check($data[1] = 0 && $data[3] = 65 && $data[-1] = 255,
+      "one-based and negative byte indexing");
+check(!is($data[99]), "out-of-range byte indexing returns nil");
+check($data = bytes(0, 1, 65, 127, 128, 255), "bytes content equality");
+check($data != bytes(0, 1), "bytes inequality");
+check(bytes(1, 2) & bytes(3, 4) = bytes(1, 2, 3, 4), "bytes concatenation");
+check(bytes_slice($data, 3, 2) = bytes(65, 127), "byte slice");
+check(bytes_slice($data, -2) = bytes(128, 255), "negative byte slice");
+
+$unicode: "héllö 😀";
+check(utf8_decode(utf8_encode($unicode)) = $unicode, "UTF-8 round trip");
+check(hex_encode($data) = "0001417f80ff", "hex encode");
+check(hex_decode("0001417f80ff") = $data, "hex decode");
+check(base64_decode(base64_encode($data)) = $data, "Base64 round trip");
+
+$caught: 0;
+try;
+    utf8_decode(bytes(255));
+catch $error;
+    $caught: $caught + 1;
+ok;
+try;
+    bytes(256);
+catch $error;
+    $caught: $caught + 1;
+ok;
+try;
+    $immutable: bytes(1);
+    $immutable[1]: 2;
+catch $error;
+    $caught: $caught + 1;
+ok;
+check($caught = 3, "invalid UTF-8, byte range, and mutation are catchable");
+
+finish("bytes-ok");

@@ -49,6 +49,28 @@ At startup, `$_scriptpath` contains the script's absolute filename,
 absolute working directory. For source supplied with `-a` or `-s`, both script
 location variables are nil because no script file exists.
 
+## Language facilities
+
+Katalyn includes Unicode text, associative tables, immutable byte sequences,
+structured `try`/`catch`/`finally` errors, JSON and CGI helpers, binary I/O, and
+portable filesystem/path operations. For example:
+
+```katalyn
+try;
+    $payload: read_bytes(path_join($_scriptdir, "message.txt"));
+    print(utf8_decode($payload));
+catch $error;
+    print($error{kind}, ": ", $error{message});
+finally;
+    print("Finished.");
+ok;
+```
+
+`finally` is guaranteed to run when its protected block completes normally,
+raises an error, returns from a function, or leaves a loop with `break` or
+`continue`. See the complete manual for the byte encoding, binary file, and
+filesystem APIs.
+
 ## Apache CGI
 
 Katalyn includes native CGI request handling, bounded raw standard input,
