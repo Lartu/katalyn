@@ -11,13 +11,13 @@
 namespace {
 void help() {
     std::cout
-        << "Usage: lspl [switches] <source file> [arguments...]\n"
+        << "\nUsage: lspl [switches] <source file> [arguments...]\n"
         << "  -a <source>             read source from argument\n"
         << "  -h, --help              print this information\n"
         << "  -i                      print internal representation instead of executing\n"
         << "  -n                      do not include standard library\n"
         << "  -s                      read source from standard input\n"
-        << "  -v, --version           print version and build information\n";
+        << "  -v, --version           print version and build information\n\n";
 }
 
 void version() {
@@ -25,16 +25,7 @@ void version() {
     if (build_date.size() > 4 && build_date[4] == ' ')
         build_date.erase(4, 1);
 
-    std::cout << R"(
-  _      ____  ____  _
- | |    / ___||  _ \| |
- | |    \___ \| |_) | |
- | |___  ___) |  __/| |___
- |_____||____/|_|   |_____|
-             Programming Language
-
-)"
-              << "This is LSPL version " << lspl::version()
+    std::cout << "\nThis is LSPL version " << lspl::version()
               << ", running on the NariVM.\n"
               << "Built on " << build_date << " at " << __TIME__ << ".\n"
               << "Copyright 2024, Lartu (www.lartu.net).\n\n";
