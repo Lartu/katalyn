@@ -1,6 +1,6 @@
-#!/usr/local/bin/katalyn
+#!/usr/local/bin/kat
 #
-# Install katalyn at /usr/local/bin/katalyn, place this executable script in
+# Install Katalyn as /usr/local/bin/kat, place this executable script in
 # Apache's cgi-bin directory, and run: chmod +x apache_cgi.kat
 
 $request: cgi_request(1048576);

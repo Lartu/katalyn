@@ -15,11 +15,11 @@ make
 make test
 ```
 
-The executable is created at `build/katalyn`.
+The executable is created at `build/kat`.
 
 ```sh
-./build/katalyn examples/disan_count.kat
-./build/katalyn -a 'print("Hello from Katalyn!");'
+./build/kat examples/disan_count.kat
+./build/kat -a 'print("Hello from Katalyn!");'
 ```
 
 Install it under `/usr/local/bin` with:
@@ -31,18 +31,23 @@ sudo make install
 ## Command line
 
 ```text
-katalyn [switches] <source file> [arguments...]
+kat [switches] <source file> [arguments...]
 ```
 
 - `-a <source>` executes source supplied directly on the command line.
 - `-s` reads the program source from standard input.
 - `-i` prints the compiled internal representation without executing it.
 - `-n` runs without the embedded standard library.
-- `-h` prints command-line help; `-v` prints the version.
+- `-h` prints command-line help; `-v` prints the version and build timestamp.
 
 Arguments following a source filename are available in the one-based `$_args`
-table. A script beginning with `#!/usr/local/bin/katalyn`
+table. A script beginning with `#!/usr/local/bin/kat`
 can be made executable and run directly.
+
+At startup, `$_scriptpath` contains the script's absolute filename,
+`$_scriptdir` contains its absolute parent directory, and `$_wdir` contains the
+absolute working directory. For source supplied with `-a` or `-s`, both script
+location variables are nil because no script file exists.
 
 ## Apache CGI
 
@@ -51,7 +56,7 @@ environment access, URL/form decoding, JSON encoding and decoding, and safe CGI
 response generation.
 
 ```katalyn
-#!/usr/local/bin/katalyn
+#!/usr/local/bin/kat
 
 $request: cgi_request();
 $name: "world";

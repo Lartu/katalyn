@@ -14,8 +14,8 @@ BUILD_DIR := build
 OBJ_DIR := $(BUILD_DIR)/obj
 GEN_DIR := $(BUILD_DIR)/generated
 GEN_HEADER := $(GEN_DIR)/stdlib.hpp
-TARGET := $(BUILD_DIR)/katalyn
-TIGER_TARGET := $(BUILD_DIR)/katalyn-tiger-ppc
+TARGET := $(BUILD_DIR)/kat
+TIGER_TARGET := $(BUILD_DIR)/kat-tiger-ppc
 TIGER_CXX ?= ppc-ld64-g++
 TIGER_CXXFLAGS ?= -std=c++17 -O2
 
@@ -66,6 +66,12 @@ $(GEN_HEADER): stdlib.kat Makefile
 
 test: $(TARGET)
 	@echo "Running Katalyn compatibility tests"
+	@$(TARGET) --help | grep -q '^Usage: kat '
+	@$(TARGET) --version | grep -q 'Programming Language'
+	@$(TARGET) -v | grep -q 'Programming Language'
+	@$(TARGET) --version | grep -Eq '^Built on .+ at [0-9]{2}:[0-9]{2}:[0-9]{2}\.$$'
+	@! $(TARGET) --version | grep -Eq '^Built on [A-Z][a-z]{2}  [0-9]'
+	@$(TARGET) --version | grep -q '^This is Katalyn version .*, running on the NariVM\.$$'
 	@$(TARGET) -n -a 'print("hello", 2 + 3);' | grep -qx 'hello5'
 	@$(TARGET) -n tests/core.kat | grep -qx 'core-ok'
 	@$(TARGET) -n tests/nil_truth.kat | grep -qx 'nil-truth-ok'
@@ -97,14 +103,20 @@ test: $(TARGET)
 		$(TARGET) -n -a 'cgi_request(4);' >/dev/null 2>&1
 	@$(TARGET) tests/print_arr.kat | diff -u tests/expected/print_arr.txt -
 	@$(TARGET) -n tests/io_import.kat alpha beta | grep -qx 'io-import-ok'
+	@$(TARGET) -n tests/magic_paths.kat "$(CURDIR)" "$(CURDIR)/tests/magic_paths.kat" \
+		"$(CURDIR)/tests" | \
+		grep -qx 'magic-paths-ok'
+	@$(TARGET) -n -a 'print(!is($$_scriptpath) && !is($$_scriptdir) && len($$_wdir) > 0);' | grep -qx '1'
+	@printf 'print(!is($$_scriptpath) && !is($$_scriptdir) && len($$_wdir) > 0);' | \
+		$(TARGET) -n -s | grep -qx '1'
 	@$(RM) $(BUILD_DIR)/katalyn-test-output.txt
 	@$(TARGET) -a 'print(ceil(2.2));' | grep -qx '3'
 	@echo "All tests passed."
 
 install: $(TARGET)
 	install -d "$(DESTDIR)$(PREFIX)/bin"
-	install -m 755 $(TARGET) "$(DESTDIR)$(PREFIX)/bin/katalyn"
-	@echo "Installed $(DESTDIR)$(PREFIX)/bin/katalyn"
+	install -m 755 $(TARGET) "$(DESTDIR)$(PREFIX)/bin/kat"
+	@echo "Installed $(DESTDIR)$(PREFIX)/bin/kat"
 
 run: $(TARGET)
 	@if [ -z "$(SCRIPT)" ]; then \

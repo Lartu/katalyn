@@ -9,6 +9,8 @@ namespace katalyn {
 struct CompileOptions {
     bool include_standard_library = true;
     std::vector<std::string> arguments;
+    // Empty for source supplied through -a/-s or another non-file source.
+    std::string script_path;
 };
 
 class Compiler {

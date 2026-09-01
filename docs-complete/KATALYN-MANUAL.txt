@@ -77,9 +77,9 @@ ok;
 
    A C++17 compiler and make are required. From the repository root:
 make
-./build/katalyn examples/disan_count.kat
+./build/kat examples/disan_count.kat
 
-   The executable is build/katalyn. Useful maintenance targets are:
+   The executable is build/kat. Useful maintenance targets are:
 
    Command Effect
    make Compile the interpreter and embed the current standard library.
@@ -87,20 +87,20 @@ make
    regression suites.
    make run SCRIPT=file.kat Build if necessary, then run one script.
    make clean Remove the generated build directory.
-   make install Install katalyn in /usr/local/bin by default. Override with PREFIX or DESTDIR.
+   make install Install kat in /usr/local/bin by default. Override with PREFIX or DESTDIR.
 
   Run source
 
-katalyn program.kat one two three
-katalyn -a 'print("Hello from an argument!");'
-printf 'print("Hello from standard input!");' | katalyn -s
-katalyn -n program.kat
+kat program.kat one two three
+kat -a 'print("Hello from an argument!");'
+printf 'print("Hello from standard input!");' | kat -s
+kat -n program.kat
 
    The normal form loads the bundled standard library before the program. -n omits it. -a runs
    the next argument as source text; -s reads source from standard input. Arguments after the
    selected source are available to Katalyn as $_args.
 
-   Portable scripts. A Unix script may begin with #!/usr/bin/env katalyn. The line is harmless
+   Portable scripts. A Unix script may begin with #!/usr/bin/env kat. The line is harmless
    to Katalyn because it begins with #.
 
 
@@ -278,6 +278,12 @@ ok;
    $_r The current key/index for loops; also the most recently evaluated condition result in
    relevant flow constructs.
    $_args One-based table of command-line arguments that follow the selected script/source.
+   $_scriptpath Absolute filename of the main script. It is nil for source supplied through
+   -a or -s. Imports do not change it.
+   $_scriptdir Absolute directory containing the main script. It is nil for source supplied
+   through -a or -s. Imports do not change it.
+   $_wdir Absolute process working directory captured when the program is compiled for
+   execution. It does not depend on the main script's directory.
    $_caller Name of the calling function/context.
    $_context Name of the currently executing function/context.
    $_stdout Standard output captured by the latest exec.
@@ -843,9 +849,9 @@ import "models/person.kat";
 
 16 Command-line reference
 
-katalyn [options] <script.kat> [script arguments...]
-katalyn [options] -a <source> [script arguments...]
-katalyn [options] -s [script arguments...] < source.kat
+kat [options] <script.kat> [script arguments...]
+kat [options] -a <source> [script arguments...]
+kat [options] -s [script arguments...] < source.kat
 
    Option Meaning
    -a SOURCE Compile and execute source supplied as the next command-line argument.
@@ -854,11 +860,17 @@ katalyn [options] -s [script arguments...] < source.kat
    file, argument, or standard-input source.
    -n Do not prepend the bundled standard library.
    -h, --help Show usage.
-   -v, --version Show interpreter version information.
+   -v, --version Show interpreter version information plus the date and time at which the
+   executable was compiled.
 
    Once a source file or argument-source mode has been selected, later tokens are program
    arguments—even if they begin with a dash. They become $_args[1], $_args[2], and so on. The
    CLI executes one program per process.
+
+   For a file-backed program, $_scriptpath contains the normalized absolute filename of that
+   main script and $_scriptdir contains its absolute parent directory. For -a and -s both are
+   nil. $_wdir contains the absolute directory from which Katalyn was invoked. Imported files
+   do not replace either script-location value.
 
   Standard library loading
 
@@ -1019,7 +1031,7 @@ for $_args;
 ok;
 
 unless len($values);
-    halt("usage: katalyn stats.kat NUMBER ...");
+    halt("usage: kat stats.kat NUMBER ...");
 ok;
 
 sort($values);

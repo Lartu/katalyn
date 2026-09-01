@@ -40,12 +40,12 @@ Build, test, and install Katalyn:
 
 The default installation path is:
 
-    /usr/local/bin/katalyn
+    /usr/local/bin/kat
 
 The first line of each CGI script must name the actual absolute interpreter
 path:
 
-    #!/usr/local/bin/katalyn
+    #!/usr/local/bin/kat
 
 Katalyn treats that shebang as a line comment when it reads the source.
 
@@ -83,7 +83,7 @@ The output must begin with CGI headers, followed by an empty line and the body.
 03 First CGI script
 -------------------
 
-    #!/usr/local/bin/katalyn
+    #!/usr/local/bin/kat
 
     $request: cgi_request();
     $name: "world";

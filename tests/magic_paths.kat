@@ -1,0 +1,9 @@
+$ok: $_wdir = $_args[1];
+$ok: $ok && $_scriptpath = $_args[2];
+$ok: $ok && $_scriptdir = $_args[3];
+
+if $ok;
+    print("magic-paths-ok");
+else;
+    print("magic-paths-failed");
+ok;

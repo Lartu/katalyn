@@ -1159,7 +1159,18 @@ namespace katalyn
         impl_->reset();
         Token context{"$_context", 0, filename, Kind::variable};
         Token flags{"$_args", 0, filename, Kind::variable};
-        std::string code = "\nPUSH \"\"\nVSET " + quote(impl_->declare(context, true)) + "\nPLIM";
+        Token script_path{"$_scriptpath", 0, filename, Kind::variable};
+        Token script_directory{"$_scriptdir", 0, filename, Kind::variable};
+        Token working_directory{"$_wdir", 0, filename, Kind::variable};
+        std::string code = "\nPUSH \"\"\nVSET " + quote(impl_->declare(context, true));
+        code += options.script_path.empty() ? "\nPNIL" : "\nPUSH " + quote(options.script_path);
+        code += "\nVSET " + quote(impl_->declare(script_path, true));
+        code += options.script_path.empty()
+                    ? "\nPNIL"
+                    : "\nPUSH " + quote(std::filesystem::path(options.script_path).parent_path().string());
+        code += "\nVSET " + quote(impl_->declare(script_directory, true));
+        code += "\nPUSH " + quote(std::filesystem::current_path().lexically_normal().string());
+        code += "\nVSET " + quote(impl_->declare(working_directory, true)) + "\nPLIM";
         for (const auto &arg : options.arguments)
             code += "\nPUSH " + quote(arg);
         code += "\nARRR\nVSET " + quote(impl_->declare(flags, true));
@@ -1171,12 +1182,15 @@ namespace katalyn
 
     std::string Compiler::compile_file(const std::string &filename, const CompileOptions &options)
     {
-        std::ifstream file(filename);
+        const auto absolute = std::filesystem::absolute(filename).lexically_normal().string();
+        std::ifstream file(absolute);
         if (!file)
             throw std::runtime_error("File " + filename + " not found.");
         std::ostringstream source;
         source << file.rdbuf();
-        return compile_source(source.str(), std::filesystem::absolute(filename).string(), options);
+        CompileOptions file_options = options;
+        file_options.script_path = absolute;
+        return compile_source(source.str(), absolute, file_options);
     }
 
     const char *version() { return "0.1.0"; }

@@ -12,17 +12,33 @@ int execute_nambly(const std::string& code);
 namespace {
 void help() {
     std::cout
-        << "Usage: katalyn [switches] <source file> [arguments...]\n"
+        << "Usage: kat [switches] <source file> [arguments...]\n"
         << "  -a <source>             read source from argument\n"
-        << "  -h                      print this information\n"
+        << "  -h, --help              print this information\n"
         << "  -i                      print internal representation instead of executing\n"
         << "  -n                      do not include standard library\n"
         << "  -s                      read source from standard input\n"
-        << "  -v                      print version\n";
+        << "  -v, --version           print version and build information\n";
 }
 
 void version() {
-    std::cout << "Katalyn " << katalyn::version() << " (C++ interpreter)\n";
+    std::string build_date = __DATE__;
+    if (build_date.size() > 4 && build_date[4] == ' ')
+        build_date.erase(4, 1);
+
+    std::cout << R"(
+ The__  __.       __         .__
+ |    |/ _|____ _/  |______  |  | ___.__. ____
+ |      < \__  \\   __\__  \ |  |<   |  |/    \
+ |    |  \ / __ \|  |  / __ \|  |_\___  |   |  \
+ |____|__ (____  /__| (____  /____/ ____|___|  /
+        \/    \/          \/ Programming Language
+
+)"
+              << "This is Katalyn version " << katalyn::version()
+              << ", running on the NariVM.\n"
+              << "Built on " << build_date << " at " << __TIME__ << ".\n"
+              << "Copyright 2024, Lartu (www.lartu.net).\n\n";
 }
 }
 

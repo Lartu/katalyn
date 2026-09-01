@@ -344,8 +344,8 @@ ok;</code></pre>
       <h3>Build</h3>
       <p>A C++17 compiler and <code>make</code> are required. From the repository root:</p>
       <pre><code>make
-./build/katalyn examples/disan_count.kat</code></pre>
-      <p>The executable is <code>build/katalyn</code>. Useful maintenance targets are:</p>
+./build/kat examples/disan_count.kat</code></pre>
+      <p>The executable is <code>build/kat</code>. Useful maintenance targets are:</p>
       <table>
         <thead><tr><th>Command</th><th>Effect</th></tr></thead>
         <tbody>
@@ -358,12 +358,12 @@ ok;</code></pre>
       </table>
 
       <h3>Run source</h3>
-      <pre><code>katalyn program.kat one two three
-katalyn -a 'print("Hello from an argument!");'
-printf 'print("Hello from standard input!");' | katalyn -s
-katalyn -n program.kat</code></pre>
+      <pre><code>kat program.kat one two three
+kat -a 'print("Hello from an argument!");'
+printf 'print("Hello from standard input!");' | kat -s
+kat -n program.kat</code></pre>
       <p>The normal form loads the bundled standard library before the program. <code>-n</code> omits it. <code>-a</code> runs the next argument as source text; <code>-s</code> reads source from standard input. Arguments after the selected source are available to Katalyn as <code>$_args</code>.</p>
-      <div class="callout tip"><strong>Portable scripts.</strong> A Unix script may begin with <code>#!/usr/bin/env katalyn</code>. The line is harmless to Katalyn because it begins with <code>#</code>.</div>
+      <div class="callout tip"><strong>Portable scripts.</strong> A Unix script may begin with <code>#!/usr/bin/env kat</code>. The line is harmless to Katalyn because it begins with <code>#</code>.</div>
       <a class="toplink" href="#top">Back to contents</a>
     </section>
 
@@ -514,6 +514,9 @@ ok;</code></pre>
           <tr><td><code>$_</code></td><td>Inside a user function, a one-based table containing every argument.</td></tr>
           <tr><td><code>$_r</code></td><td>The current key/index for loops; also the most recently evaluated condition result in relevant flow constructs.</td></tr>
           <tr><td><code>$_args</code></td><td>One-based table of command-line arguments that follow the selected script/source.</td></tr>
+          <tr><td><code>$_scriptpath</code></td><td>Normalized absolute filename of the main script, or nil for <code>-a</code> and <code>-s</code>. Imports do not change it.</td></tr>
+          <tr><td><code>$_scriptdir</code></td><td>Absolute directory containing the main script, or nil for <code>-a</code> and <code>-s</code>. Imports do not change it.</td></tr>
+          <tr><td><code>$_wdir</code></td><td>Absolute process working directory captured when the program is compiled for execution.</td></tr>
           <tr><td><code>$_caller</code></td><td>Name of the calling function/context.</td></tr>
           <tr><td><code>$_context</code></td><td>Name of the currently executing function/context.</td></tr>
           <tr><td><code>$_stdout</code></td><td>Standard output captured by the latest <code>exec</code>.</td></tr>
@@ -986,9 +989,9 @@ import "models/person.kat";</code></pre>
 
     <section id="cli">
       <h2><span class="number">16</span> Command-line reference</h2>
-      <pre><code>katalyn [options] &lt;script.kat&gt; [script arguments...]
-katalyn [options] -a &lt;source&gt; [script arguments...]
-katalyn [options] -s [script arguments...] &lt; source.kat</code></pre>
+      <pre><code>kat [options] &lt;script.kat&gt; [script arguments...]
+kat [options] -a &lt;source&gt; [script arguments...]
+kat [options] -s [script arguments...] &lt; source.kat</code></pre>
       <table>
         <thead><tr><th>Option</th><th>Meaning</th></tr></thead>
         <tbody>
@@ -997,10 +1000,11 @@ katalyn [options] -s [script arguments...] &lt; source.kat</code></pre>
           <tr><td><code>-i</code></td><td>Print generated Nambly VM instructions instead of executing the program. Works with file, argument, or standard-input source.</td></tr>
           <tr><td><code>-n</code></td><td>Do not prepend the bundled standard library.</td></tr>
           <tr><td><code>-h</code>, <code>--help</code></td><td>Show usage.</td></tr>
-          <tr><td><code>-v</code>, <code>--version</code></td><td>Show interpreter version information.</td></tr>
+          <tr><td><code>-v</code>, <code>--version</code></td><td>Show interpreter version information plus the date and time at which the executable was compiled.</td></tr>
         </tbody>
       </table>
       <p>Once a source file or argument-source mode has been selected, later tokens are program arguments—even if they begin with a dash. They become <code>$_args[1]</code>, <code>$_args[2]</code>, and so on. The CLI executes one program per process.</p>
+      <p>For a file-backed program, <code>$_scriptpath</code> contains the normalized absolute filename of the main script and <code>$_scriptdir</code> contains its absolute parent directory. Both are nil for <code>-a</code> and <code>-s</code>. <code>$_wdir</code> contains the absolute directory from which Katalyn was invoked. Imported files do not replace either script-location value.</p>
 
       <h3>Standard library loading</h3>
       <p>Normally, <code>stdlib.kat</code> behaves as though its source appeared before the user program. Thus its globals and functions are visible and may be shadowed later. <code>-n</code> is useful for the smallest runtime surface, VM/compiler testing, or programs that provide their own library.</p>
@@ -1144,7 +1148,7 @@ for $_args;
 ok;
 
 unless len($values);
-    halt("usage: katalyn stats.kat NUMBER ...");
+    halt("usage: kat stats.kat NUMBER ...");
 ok;
 
 sort($values);
