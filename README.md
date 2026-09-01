@@ -52,8 +52,9 @@ location variables are nil because no script file exists.
 ## Language facilities
 
 Katalyn includes Unicode text, associative tables, immutable byte sequences,
-structured `try`/`catch`/`finally` errors, JSON and CGI helpers, binary I/O, and
-portable filesystem/path operations. For example:
+structured `try`/`catch`/`finally` errors, actor-style workers and message
+passing, JSON and CGI helpers, binary I/O, and portable filesystem/path
+operations. For example:
 
 ```katalyn
 try;
@@ -70,6 +71,32 @@ ok;
 raises an error, returns from a function, or leaves a loop with `break` or
 `continue`. See the complete manual for the byte encoding, binary file, and
 filesystem APIs.
+
+## Concurrency
+
+Workers have isolated globals and FIFO inboxes. Messages are copied when sent,
+so workers do not share mutable tables. The runtime schedules work
+automatically; Katalyn programs do not need a `yield` function.
+
+```katalyn
+def greet;
+    $message: receive();
+    send($message{from}, "Hello, " & $message{message} & "!");
+    return "finished";
+ok;
+
+$worker: spawn(greet);
+send($worker, "Katalyn");
+$reply: receive(1);
+print($reply{message});
+$result: wait($worker);
+```
+
+The worker API consists of `spawn`, `self`, `send`, `receive`, `receive_now`,
+`worker_alive`, and `wait`. Uncaught worker errors stay inside that worker and
+are reported by `wait`. See `examples/concurrency.kat` and the concurrency
+chapter in the complete manual for lifecycle, timeout, copying, and error
+semantics.
 
 ## Apache CGI
 

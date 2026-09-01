@@ -92,6 +92,7 @@ test: $(TARGET) $(RUNTIME_TEST)
 	@$(TARGET) tests/bytes.kat | grep -qx 'bytes-ok'
 	@$(TARGET) tests/filesystem.kat | grep -qx 'filesystem-ok'
 	@$(TARGET) tests/datetime.kat | grep -qx 'datetime-ok'
+	@$(TARGET) tests/concurrency.kat | grep -qx 'concurrency-ok'
 	@$(TARGET) -n -a '$$t: datetime(); print(len($$t) = 10);' | grep -qx '1'
 	@$(TARGET) -n tests/functions_scope.kat | grep -qx 'functions-scope-ok'
 	@$(TARGET) tests/stdlib.kat | grep -qx 'stdlib-ok'

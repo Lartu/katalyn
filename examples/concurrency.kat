@@ -1,0 +1,42 @@
+# A small actor-style counter. Each worker owns its variables and receives
+# copied messages through a private FIFO inbox.
+
+def counter;
+    $count: $_[1];
+    while 1;
+        $envelope: receive();
+        $message: $envelope{message};
+        if $message{kind} = "increment";
+            $count: $count + 1;
+        elif $message{kind} = "read";
+            send($envelope{from}, $count);
+        elif $message{kind} = "stop";
+            return $count;
+        ok;
+    ok;
+ok;
+
+$counter: spawn(counter, 0);
+
+$increment: table;
+$increment{kind}: "increment";
+send($counter, $increment);
+send($counter, $increment);
+send($counter, $increment);
+
+$read: table;
+$read{kind}: "read";
+send($counter, $read);
+$reply: receive();
+print("Current count: ", $reply{message});
+
+$stop: table;
+$stop{kind}: "stop";
+send($counter, $stop);
+
+$result: wait($counter);
+if $result{status} = "done";
+    print("Final count: ", $result{value});
+else;
+    print("Counter failed: ", $result{error}{message});
+ok;

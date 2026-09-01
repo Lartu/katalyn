@@ -24,6 +24,7 @@ CONTENTS
  7. Tables, arrays and indexing
  8. Functions
  9. Control flow
+ 9A. Concurrency and workers
 10. Console input and output
 11. Files
 12. Processes and time
@@ -60,7 +61,8 @@ ok;
 
   The language at a glance
 
-     * Values are numbers, Unicode text, tables, immutable bytes, or the internal nil value.
+     * Values are numbers, Unicode text, tables, immutable bytes, opaque worker PIDs, or the
+       internal nil value.
      * Variables begin with $; assignments use :.
      * Tables serve as dictionaries, arrays, sets, records, and lightweight objects.
      * Functions are declared with def; all arguments arrive in the table $_.
@@ -169,13 +171,14 @@ print($message); print("second statement");
 
 04 Values and conversion
 
-  The five user-visible kinds
+  The six user-visible kinds
 
    Kind Examples and origin False when
    Number 12, -4, 3.5; internally a floating-point value. It is zero.
    Text "Katalyn", input, file and process output. It is empty.
    Table table, arrays, records, function argument lists. It has no entries.
    Bytes bytes(0, 255), binary files, encoded text, and raw input. It contains no bytes.
+   PID self() and spawn(worker); an opaque worker identity. Never false.
    Nil Missing variables or keys, exhausted reads, and functions without an explicit value.
    Always.
 
@@ -205,6 +208,8 @@ ok;
    Table to number The number of entries in the table.
    Table to text A diagnostic map representation such as ['a':1, 'b':"two"].
    Bytes conversion Never implicit. Use utf8_encode/utf8_decode, hexadecimal, or Base64.
+   PID conversion Printable as <pid:N>, but not convertible to number. PIDs support identity
+   equality.
    Nil to number/text Not convertible; attempts generally raise a runtime error.
 
   Equality
@@ -216,6 +221,7 @@ ok;
        the same table object.
      * Byte sequences compare by contents. Bytes and non-bytes are unequal and are not
        coerced.
+     * PIDs compare by worker identity and are unequal to non-PID values.
      * Nil is unusual: any equality involving nil is false, even nil against nil. Any
        inequality involving nil is true.
 
@@ -567,6 +573,79 @@ ok;
    during the exit. A return or new error in finally replaces the earlier return or error.
    exit() terminates the process immediately and does not run finally blocks.
 
+09A Concurrency and workers
+
+   Katalyn uses actor-style concurrency. Every worker has an isolated VM runtime and a private
+   FIFO inbox. Workers do not share mutable variables; they communicate by sending copied
+   values to PIDs. Scheduling is automatic. There is no yield() function and programs do not
+   need to cooperate with the scheduler.
+
+  Starting and addressing workers
+
+def echo;
+    $envelope: receive();
+    send($envelope{from}, $envelope{message});
+    return "finished";
+ok;
+
+$worker: spawn(echo);
+send($worker, "hello");
+$reply: receive();
+print($reply{message});
+$result: wait($worker);
+
+   spawn(function[, arguments...]) starts a worker and returns its opaque PID. Its first
+   argument is a bare function name checked by the compiler, not quoted text. Remaining values
+   arrive in the worker function's $_ table. self() returns the current worker's stable PID.
+   The original program is worker 1 and has an inbox too.
+
+  Messages and inboxes
+
+   send(pid, value) synchronously copies a value into the destination's FIFO inbox and returns
+   1. receive() blocks and removes the oldest message envelope:
+
+       $envelope{from}       sender PID
+       $envelope{message}    copied message value
+
+   receive(seconds) waits at most that many seconds and returns nil on timeout. receive_now()
+   never blocks and returns nil when the inbox is empty. A delivered nil is distinguishable
+   because it remains inside a non-nil envelope.
+
+   Numbers, text, bytes, nil, PIDs, and tables can be sent. Tables are deeply copied when sent,
+   preserving repeated references and cycles. Sender and receiver mutations therefore cannot
+   race. Bytes are immutable and may share storage. Internal iterator values cannot cross a
+   worker boundary.
+
+  Isolation
+
+   A worker receives a deep snapshot of its parent's global variables when spawned. It then
+   has independent globals, local scopes, stacks, error handlers, and open-file registry. A
+   path string may be sent, but a file opened in one worker is not open in another.
+
+  Completion and errors
+
+   worker_alive(pid) is true until completion. wait(pid) waits indefinitely; wait(pid,
+   seconds) may return a timeout. Result tables have these forms:
+
+       {status}: "done"       {value}: copied function return value
+       {status}: "error"      {error}: structured uncaught error table
+       {status}: "timeout"    worker remains alive
+
+   Worker errors are isolated. An uncaught error ends that spawned worker and is reported by
+   wait; an uncaught root-worker error retains normal CLI behavior. Workers may spawn workers.
+   Waiting for oneself or sending to an unknown or finished PID raises a catchable error.
+
+  Lifetime and implementation
+
+   When root source ends normally, kat waits for every worker. A worker left forever in
+   receive() keeps the program alive, so long-running actors need an explicit stop message.
+   exit(status) terminates the entire process.
+
+   The current backend uses one native C++ thread per Katalyn worker. Inbox waits use condition
+   variables and do not poll. Console streams and process environment are shared; concurrent
+   output may interleave. See examples/concurrency.kat for a complete counter actor.
+
+
 10 Console input and output
 
    Call Behavior
@@ -735,6 +814,18 @@ import "models/person.kat";
    place is syntax, not an arbitrary computed value.
    unset(variables...) Remove each named variable and make the compiler forget it. Arguments
    must be bare variable names. With no arguments it performs no work.
+
+  Workers and message passing
+
+   spawn(function[, arguments...]) Start an isolated worker at the bare function name and
+   return its PID.
+   self() Return the current worker's PID.
+   send(pid, message) Copy a value into the destination inbox and return 1.
+   receive([timeout]) Remove the oldest envelope, waiting indefinitely or for timeout seconds;
+   return nil on timeout.
+   receive_now() Remove the oldest envelope without blocking, or return nil.
+   worker_alive(pid) Return whether the worker is still executing.
+   wait(pid[, timeout]) Return a done, error, or timeout result table.
 
   Text splitting and replacement
 
@@ -1025,7 +1116,7 @@ kat [options] -s [script arguments...] < source.kat
   Current native/library defects and surprises
 
      * The case-conversion library is ASCII-only.
-     * The HTTP and date helpers depend on external Unix-style commands.
+     * The HTTP helpers depend on external Unix-style commands; datetime() is native.
 
   Portability and resource behavior
 
@@ -1037,6 +1128,10 @@ kat [options] -s [script arguments...] < source.kat
        numeric keys numeric priority.
      * Each execution owns its VM stacks, scopes, labels, handlers, and open-file registry.
        Host environment variables and standard streams remain process resources.
+     * Worker state and messages are isolated, but console streams, process environment, and
+       the operating-system process itself are shared.
+     * The native-thread backend is intended for moderate worker counts, not millions of
+       Erlang-style processes.
 
    Robust Katalyn style. Define before use, keep arrays dense and one-based, probe optional
    data with is, use parentheses freely, use substr for end-relative text, verify files with

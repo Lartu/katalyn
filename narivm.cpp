@@ -23,6 +23,10 @@
 #include <filesystem>
 #include <optional>
 #include <stdexcept>
+#include <deque>
+#include <mutex>
+#include <condition_variable>
+#include <atomic>
 #include <sys/stat.h>
 #include "lib/tiny-process-library/process.hpp"
 #include "lib/linenoise.hpp"
@@ -37,6 +41,7 @@ using namespace TinyProcessLib;
 #define NIL 5       // Null Value
 #define ITER 6      // Iterator Value
 #define LISTLIMIT 7 // List Limit Value
+#define PID 8       // Actor process identifier
 
 void raise_nvm_error(string error_message);
 
@@ -58,6 +63,8 @@ string get_type_name(char type)
         return "ITERATOR";
     case LISTLIMIT:
         return "LISTLIMIT";
+    case PID:
+        return "PID";
     }
     return "???";
 }
@@ -172,6 +179,13 @@ enum Opcode : uint8_t
     RMFL, // Remove file
     RMDR, // Remove empty directory
     DTIM, // Local date and time
+    SPWN, // Spawn worker
+    SELF, // Current worker PID
+    SEND, // Send worker message
+    RECV, // Receive with optional timeout
+    RNOW, // Receive without blocking
+    WALV, // Worker alive
+    WWAIT, // Wait for worker
     DEBUG,
 };
 
@@ -268,6 +282,10 @@ Opcode opcode_from_string(string_view str)
         {"CPFL", Opcode::CPFL}, {"MVFL", Opcode::MVFL},
         {"RMFL", Opcode::RMFL}, {"RMDR", Opcode::RMDR},
         {"DTIM", Opcode::DTIM},
+        {"SPWN", Opcode::SPWN}, {"SELF", Opcode::SELF},
+        {"SEND", Opcode::SEND}, {"RECV", Opcode::RECV},
+        {"RNOW", Opcode::RNOW}, {"WALV", Opcode::WALV},
+        {"WWAIT", Opcode::WWAIT},
         {"DBUG", Opcode::DEBUG},
     };
     auto found = str_to_opcode.find(str);
@@ -493,6 +511,13 @@ string_view opcode_as_string(Opcode opcode)
     case Opcode::RMFL: return "RMFL";
     case Opcode::RMDR: return "RMDR";
     case Opcode::DTIM: return "DTIM";
+    case Opcode::SPWN: return "SPWN";
+    case Opcode::SELF: return "SELF";
+    case Opcode::SEND: return "SEND";
+    case Opcode::RECV: return "RECV";
+    case Opcode::RNOW: return "RNOW";
+    case Opcode::WALV: return "WALV";
+    case Opcode::WWAIT: return "WWAIT";
     case Opcode::DEBUG:
         return "DBUG";
     default:
@@ -666,6 +691,7 @@ private:
     bool has_str_rep;
     string str_rep;
     double num_rep;
+    uint64_t pid_rep = 0;
     shared_ptr<map<string, Value>> table_rep;
     shared_ptr<vector<unsigned char>> bytes_rep;
     shared_ptr<queue<string> /**/> iterator_elements;
@@ -678,6 +704,7 @@ private:
         table_rep = nullptr;
         bytes_rep = nullptr;
         utf8_offsets = nullptr;
+        pid_rep = 0;
     }
 
 public:
@@ -741,12 +768,29 @@ public:
         this->type = ITER;
     }
 
-    char get_type()
+    void set_pid_value(uint64_t value)
+    {
+        reset_values();
+        pid_rep = value;
+        type = PID;
+    }
+
+    char get_type() const
     {
         return type;
     }
 
+    uint64_t get_pid() const
+    {
+        return pid_rep;
+    }
+
     map<string, Value> *get_table()
+    {
+        return table_rep.get();
+    }
+
+    const map<string, Value> *get_table() const
     {
         return table_rep.get();
     }
@@ -824,6 +868,10 @@ public:
             {
                 raise_nvm_error("Can't convert BYTES value to string; use utf8_decode, hex_encode, or base64_encode.");
             }
+            else if (type == PID)
+            {
+                str_rep = "<pid:" + to_string(pid_rep) + ">";
+            }
             else if (type == NUMB)
             {
                 str_rep = double_to_string(get_as_number());
@@ -879,6 +927,10 @@ public:
             {
                 raise_nvm_error("Can't convert BYTES value to number.");
             }
+            else if (type == PID)
+            {
+                raise_nvm_error("Can't convert PID value to number.");
+            }
             else if (type == TEXT)
             {
                 try
@@ -927,6 +979,13 @@ Value bytes_value(vector<unsigned char> bytes)
 {
     Value value;
     value.set_bytes_value(std::move(bytes));
+    return value;
+}
+
+Value pid_value(uint64_t pid)
+{
+    Value value;
+    value.set_pid_value(pid);
     return value;
 }
 
@@ -1645,6 +1704,8 @@ struct ErrorHandler
 
 enum class ControlKind { None, Jump, Return };
 
+class ActorSystem;
+
 struct RuntimeState
 {
     size_t pc = 0;
@@ -1662,6 +1723,12 @@ struct RuntimeState
     size_t pending_jump = 0;
     optional<Value> pending_return;
     Value nil_value;
+    shared_ptr<ActorSystem> actor_system;
+    uint64_t worker_id = 0;
+
+    map<string, size_t> &labels() { return label_to_pc; }
+    map<size_t, string> &reverse_labels() { return pc_to_label; }
+    vector<unordered_map<string, Value>> &scopes() { return variable_tables; }
 
     ~RuntimeState()
     {
@@ -1671,6 +1738,54 @@ struct RuntimeState
             delete entry.second;
         }
     }
+};
+
+struct ActorEnvelope
+{
+    uint64_t from = 0;
+    Value message;
+};
+
+struct WorkerRecord
+{
+    explicit WorkerRecord(uint64_t worker) : id(worker) {}
+    uint64_t id;
+    mutex lock;
+    condition_variable changed;
+    deque<ActorEnvelope> inbox;
+    bool finished = false;
+    optional<Value> result;
+    optional<Value> error;
+    thread execution;
+};
+
+class ActorSystem : public enable_shared_from_this<ActorSystem>
+{
+public:
+    ActorSystem(shared_ptr<vector<Command>> listing,
+                map<string, size_t> labels,
+                map<size_t, string> reverse_labels);
+    ~ActorSystem();
+
+    uint64_t spawn(size_t entry_pc, vector<Value> arguments,
+                   const unordered_map<string, Value> &globals,
+                   string caller_context);
+    void send(uint64_t from, uint64_t destination, Value message);
+    optional<ActorEnvelope> receive(uint64_t worker, optional<double> timeout_seconds);
+    bool alive(uint64_t worker);
+    Value wait(uint64_t caller, uint64_t worker, optional<double> timeout_seconds);
+    void finish(uint64_t worker, optional<Value> result, optional<Value> error);
+    void wait_for_all();
+
+    shared_ptr<vector<Command>> code_listing;
+    map<string, size_t> program_labels;
+    map<size_t, string> program_reverse_labels;
+
+private:
+    shared_ptr<WorkerRecord> find(uint64_t worker);
+    mutex workers_lock;
+    unordered_map<uint64_t, shared_ptr<WorkerRecord>> workers;
+    atomic<uint64_t> next_id{2};
 };
 
 thread_local RuntimeState *active_runtime = nullptr;
@@ -2219,6 +2334,10 @@ bool is_true(Value &value)
     {
         return !value.get_bytes()->empty();
     }
+    else if (value.get_type() == PID)
+    {
+        return true;
+    }
     return false;
 }
 
@@ -2566,9 +2685,242 @@ Value normalized_raised_value(Value value)
     return value;
 }
 
-void execute_code_listing(vector<Command> &code_listing)
+Value clone_actor_value(const Value &source, unordered_map<const map<string, Value> *, Value> &seen)
 {
-    pc = 0;
+    if (source.get_type() == ITER || source.get_type() == LISTLIMIT)
+        raise_nvm_error("ITERATOR and internal LISTLIMIT values cannot cross worker boundaries.");
+    if (source.get_type() != TABLE)
+        return source;
+
+    const auto *original = source.get_table();
+    auto existing = seen.find(original);
+    if (existing != seen.end())
+        return existing->second;
+
+    Value copy = table_value();
+    seen[original] = copy;
+    for (const auto &entry : *original)
+        (*copy.get_table())[entry.first] = clone_actor_value(entry.second, seen);
+    return copy;
+}
+
+Value clone_actor_value(const Value &source)
+{
+    unordered_map<const map<string, Value> *, Value> seen;
+    return clone_actor_value(source, seen);
+}
+
+unordered_map<string, Value> clone_actor_globals(const unordered_map<string, Value> &source)
+{
+    unordered_map<const map<string, Value> *, Value> seen;
+    unordered_map<string, Value> result;
+    for (const auto &entry : source)
+        result[entry.first] = clone_actor_value(entry.second, seen);
+    return result;
+}
+
+void execute_code_listing(vector<Command> &code_listing, size_t start_pc = 0);
+
+ActorSystem::ActorSystem(shared_ptr<vector<Command>> listing,
+                         map<string, size_t> labels,
+                         map<size_t, string> reverse_labels)
+    : code_listing(std::move(listing)),
+      program_labels(std::move(labels)),
+      program_reverse_labels(std::move(reverse_labels))
+{
+    workers.emplace(1, make_shared<WorkerRecord>(1));
+}
+
+ActorSystem::~ActorSystem()
+{
+    vector<shared_ptr<WorkerRecord>> snapshot;
+    {
+        lock_guard<mutex> guard(workers_lock);
+        for (auto &entry : workers)
+            if (entry.first != 1)
+                snapshot.push_back(entry.second);
+    }
+    for (auto &worker : snapshot)
+    {
+        if (!worker->execution.joinable())
+            continue;
+        if (worker->execution.get_id() == this_thread::get_id())
+            worker->execution.detach();
+        else
+            worker->execution.join();
+    }
+}
+
+shared_ptr<WorkerRecord> ActorSystem::find(uint64_t worker)
+{
+    lock_guard<mutex> guard(workers_lock);
+    auto found = workers.find(worker);
+    return found == workers.end() ? nullptr : found->second;
+}
+
+uint64_t ActorSystem::spawn(size_t entry_pc, vector<Value> arguments,
+                            const unordered_map<string, Value> &globals,
+                            string caller_context)
+{
+    uint64_t id = next_id.fetch_add(1);
+    auto worker = make_shared<WorkerRecord>(id);
+    auto copied_globals = clone_actor_globals(globals);
+    for (Value &argument : arguments)
+        argument = clone_actor_value(argument);
+    {
+        lock_guard<mutex> guard(workers_lock);
+        workers[id] = worker;
+    }
+
+    shared_ptr<ActorSystem> system = shared_from_this();
+    worker->execution = thread([system, worker, entry_pc,
+                                arguments = std::move(arguments),
+                                globals = std::move(copied_globals),
+                                caller_context = std::move(caller_context)]() mutable {
+        RuntimeState state;
+        state.actor_system = system;
+        state.worker_id = worker->id;
+        state.labels() = system->program_labels;
+        state.reverse_labels() = system->program_reverse_labels;
+        state.scopes().push_back(std::move(globals));
+        RuntimeActivation activation(state);
+        optional<Value> result;
+        optional<Value> error;
+        try
+        {
+            push(text_value(caller_context));
+            push(get_listlimit_value());
+            for (auto &argument : arguments)
+                push(std::move(argument));
+            return_stack.push(system->code_listing->size());
+            execute_code_listing(*system->code_listing, entry_pc);
+            result = execution_stack.empty() ? get_nil_value() : clone_actor_value(execution_stack.top());
+        }
+        catch (const VmException &failure)
+        {
+            error = clone_actor_value(failure.error());
+        }
+        catch (const exception &failure)
+        {
+            error = make_error_value(failure.what(), "HostError");
+        }
+        system->finish(worker->id, std::move(result), std::move(error));
+    });
+    return id;
+}
+
+void ActorSystem::send(uint64_t from, uint64_t destination, Value message)
+{
+    auto worker = find(destination);
+    if (!worker)
+        raise_nvm_error("Unknown worker PID.");
+    Value copied = clone_actor_value(message);
+    {
+        lock_guard<mutex> guard(worker->lock);
+        if (worker->finished)
+            raise_nvm_error("Cannot send a message to a finished worker.");
+        worker->inbox.push_back({from, std::move(copied)});
+    }
+    worker->changed.notify_all();
+}
+
+optional<ActorEnvelope> ActorSystem::receive(uint64_t worker_id, optional<double> timeout_seconds)
+{
+    auto worker = find(worker_id);
+    if (!worker)
+        raise_nvm_error("Current worker is not registered.");
+    unique_lock<mutex> guard(worker->lock);
+    auto ready = [&] { return !worker->inbox.empty(); };
+    if (!timeout_seconds)
+        worker->changed.wait(guard, ready);
+    else if (!worker->changed.wait_for(guard, chrono::duration<double>(*timeout_seconds), ready))
+        return nullopt;
+    ActorEnvelope envelope = std::move(worker->inbox.front());
+    worker->inbox.pop_front();
+    return envelope;
+}
+
+bool ActorSystem::alive(uint64_t worker_id)
+{
+    auto worker = find(worker_id);
+    if (!worker)
+        return false;
+    lock_guard<mutex> guard(worker->lock);
+    return !worker->finished;
+}
+
+Value ActorSystem::wait(uint64_t caller, uint64_t worker_id, optional<double> timeout_seconds)
+{
+    if (caller == worker_id)
+        raise_nvm_error("A worker cannot wait for itself.");
+    auto worker = find(worker_id);
+    if (!worker)
+        raise_nvm_error("Unknown worker PID.");
+    unique_lock<mutex> guard(worker->lock);
+    auto ready = [&] { return worker->finished; };
+    bool completed = timeout_seconds
+                         ? worker->changed.wait_for(guard, chrono::duration<double>(*timeout_seconds), ready)
+                         : (worker->changed.wait(guard, ready), true);
+    Value response = table_value();
+    if (!completed)
+    {
+        (*response.get_table())["status"] = text_value("timeout");
+        return response;
+    }
+    optional<Value> result = worker->result;
+    optional<Value> error = worker->error;
+    guard.unlock();
+    if (error)
+    {
+        (*response.get_table())["status"] = text_value("error");
+        (*response.get_table())["error"] = clone_actor_value(*error);
+    }
+    else
+    {
+        (*response.get_table())["status"] = text_value("done");
+        (*response.get_table())["value"] = result ? clone_actor_value(*result) : get_nil_value();
+    }
+    return response;
+}
+
+void ActorSystem::finish(uint64_t worker_id, optional<Value> result, optional<Value> error)
+{
+    auto worker = find(worker_id);
+    if (!worker)
+        return;
+    {
+        lock_guard<mutex> guard(worker->lock);
+        worker->result = std::move(result);
+        worker->error = std::move(error);
+        worker->finished = true;
+    }
+    worker->changed.notify_all();
+}
+
+void ActorSystem::wait_for_all()
+{
+    size_t joined = 0;
+    while (true)
+    {
+        vector<shared_ptr<WorkerRecord>> snapshot;
+        {
+            lock_guard<mutex> guard(workers_lock);
+            for (auto &entry : workers)
+                if (entry.first != 1)
+                    snapshot.push_back(entry.second);
+        }
+        for (auto &worker : snapshot)
+            if (worker->execution.joinable())
+                worker->execution.join();
+        if (snapshot.size() == joined)
+            return;
+        joined = snapshot.size();
+    }
+}
+
+void execute_code_listing(vector<Command> &code_listing, size_t start_pc)
+{
+    pc = start_pc;
     while (pc < code_listing.size())
     {
         Command &command = code_listing[pc];
@@ -2712,6 +3064,14 @@ void execute_code_listing(vector<Command> &code_listing)
             {
                 result.set_number_value(*v1.get_bytes() == *v2.get_bytes() ? 1 : 0);
             }
+            else if (v1.get_type() == PID && v2.get_type() == PID)
+            {
+                result.set_number_value(v1.get_pid() == v2.get_pid() ? 1 : 0);
+            }
+            else if (v1.get_type() == PID || v2.get_type() == PID)
+            {
+                result.set_number_value(0);
+            }
             else if (v1.get_type() == BYTES || v2.get_type() == BYTES)
             {
                 result.set_number_value(0);
@@ -2743,6 +3103,14 @@ void execute_code_listing(vector<Command> &code_listing)
             else if (v1.get_type() == BYTES && v2.get_type() == BYTES)
             {
                 result.set_number_value(*v1.get_bytes() == *v2.get_bytes() ? 0 : 1);
+            }
+            else if (v1.get_type() == PID && v2.get_type() == PID)
+            {
+                result.set_number_value(v1.get_pid() == v2.get_pid() ? 0 : 1);
+            }
+            else if (v1.get_type() == PID || v2.get_type() == PID)
+            {
+                result.set_number_value(1);
             }
             else if (v1.get_type() == BYTES || v2.get_type() == BYTES)
             {
@@ -3002,6 +3370,10 @@ void execute_code_listing(vector<Command> &code_listing)
             else if (value.get_type() == BYTES)
             {
                 if (value.get_bytes()->empty()) pc = command.get_branch_target();
+            }
+            else if (value.get_type() == PID)
+            {
+                // PIDs are always truthy.
             }
             else
             {
@@ -3733,6 +4105,10 @@ void execute_code_listing(vector<Command> &code_listing)
             {
                 result.set_number_value(value.get_bytes()->empty() ? 1 : 0);
             }
+            else if (value.get_type() == PID)
+            {
+                result.set_number_value(0);
+            }
             else
             {
                 raise_nvm_error("Values of type " + get_type_name(value.get_type()) + " are not logical.");
@@ -3903,6 +4279,91 @@ void execute_code_listing(vector<Command> &code_listing)
             push(std::move(result));
             break;
         }
+        case Opcode::SPWN:
+        {
+            if (!runtime_state().actor_system || runtime_state().worker_id == 0)
+                raise_nvm_error("Worker runtime is unavailable.");
+            vector<Value> arguments;
+            while (!execution_stack.empty() && execution_stack.top().get_type() != LISTLIMIT)
+                arguments.push_back(pop(command));
+            if (execution_stack.empty())
+                raise_nvm_error("Missing spawn argument-list marker.");
+            pop(command);
+            reverse(arguments.begin(), arguments.end());
+            if (variable_tables.empty())
+                raise_nvm_error("No global scope is available for spawning.");
+            string caller = get_variable("_context").get_type() == NIL
+                                ? string()
+                                : Value(get_variable("_context")).get_as_string();
+            uint64_t child = runtime_state().actor_system->spawn(
+                label_pc(command.get_arguments()[0]), std::move(arguments),
+                variable_tables.front(), std::move(caller));
+            push(pid_value(child));
+            break;
+        }
+        case Opcode::SELF:
+            if (!runtime_state().actor_system || runtime_state().worker_id == 0)
+                raise_nvm_error("Worker runtime is unavailable.");
+            push(pid_value(runtime_state().worker_id));
+            break;
+        case Opcode::SEND:
+        {
+            Value message = pop(command);
+            Value destination = pop(command);
+            if (destination.get_type() != PID)
+                raise_nvm_error("send expects a PID as its first argument.");
+            runtime_state().actor_system->send(runtime_state().worker_id,
+                                               destination.get_pid(), std::move(message));
+            push(number_value(1));
+            break;
+        }
+        case Opcode::RECV:
+        case Opcode::RNOW:
+        {
+            optional<double> timeout;
+            if (command.get_opcode() == Opcode::RNOW)
+                timeout = 0.0;
+            else
+            {
+                double seconds = pop(command).get_as_number();
+                if (!isfinite(seconds) || seconds < -1)
+                    raise_nvm_error("receive timeout must be -1 or a non-negative number.");
+                if (seconds >= 0) timeout = seconds;
+            }
+            auto envelope = runtime_state().actor_system->receive(runtime_state().worker_id, timeout);
+            if (!envelope)
+                push(get_nil_value());
+            else
+            {
+                Value result = table_value();
+                (*result.get_table())["from"] = pid_value(envelope->from);
+                (*result.get_table())["message"] = std::move(envelope->message);
+                push(std::move(result));
+            }
+            break;
+        }
+        case Opcode::WALV:
+        {
+            Value worker = pop(command);
+            if (worker.get_type() != PID)
+                raise_nvm_error("worker_alive expects a PID.");
+            push(number_value(runtime_state().actor_system->alive(worker.get_pid()) ? 1 : 0));
+            break;
+        }
+        case Opcode::WWAIT:
+        {
+            double seconds = pop(command).get_as_number();
+            Value worker = pop(command);
+            if (worker.get_type() != PID)
+                raise_nvm_error("wait expects a PID as its first argument.");
+            if (!isfinite(seconds) || seconds < -1)
+                raise_nvm_error("wait timeout must be -1 or a non-negative number.");
+            optional<double> timeout;
+            if (seconds >= 0) timeout = seconds;
+            push(runtime_state().actor_system->wait(runtime_state().worker_id,
+                                                    worker.get_pid(), timeout));
+            break;
+        }
         case Opcode::KEYS:
         {
             Value value = pop(command);
@@ -4029,14 +4490,22 @@ int execute_nambly(const string &code)
 {
     RuntimeState state;
     RuntimeActivation activation(state);
+    shared_ptr<ActorSystem> actors;
     try
     {
-        vector<Command> code_listing = generate_label_map_and_code_listing(code);
-        execute_code_listing(code_listing);
+        auto code_listing = make_shared<vector<Command>>(generate_label_map_and_code_listing(code));
+        actors = make_shared<ActorSystem>(code_listing, state.labels(), state.reverse_labels());
+        state.actor_system = actors;
+        state.worker_id = 1;
+        execute_code_listing(*code_listing);
+        actors->wait_for_all();
+        actors->finish(1, get_nil_value(), nullopt);
         return 0;
     }
     catch (const VmException &error)
     {
+        if (actors)
+            actors->finish(1, nullopt, error.error());
         Value detail = error.error();
         auto &fields = *detail.get_table();
         cerr << endl << "====== Oh no! Runtime Error! ======" << endl;

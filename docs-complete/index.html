@@ -289,6 +289,7 @@
       <li><a href="#tables">Tables, arrays and indexing</a></li>
       <li><a href="#functions">Functions</a></li>
       <li><a href="#control">Control flow</a></li>
+      <li><a href="#concurrency">Concurrency and workers</a></li>
       <li><a href="#input-output">Console input and output</a></li>
       <li><a href="#files">Files</a></li>
       <li><a href="#processes">Processes and time</a></li>
@@ -327,7 +328,7 @@ ok;</code></pre>
 
       <h3>The language at a glance</h3>
       <ul>
-        <li>Values are numbers, Unicode text, tables, immutable byte sequences, or the internal <em>nil</em> value.</li>
+        <li>Values are numbers, Unicode text, tables, immutable byte sequences, opaque worker PIDs, or the internal <em>nil</em> value.</li>
         <li>Variables begin with <code>$</code>; assignments use <code>:</code>.</li>
         <li>Tables serve as dictionaries, arrays, sets, records, and lightweight objects.</li>
         <li>Functions are declared with <code>def</code>; all arguments arrive in the table <code>$_</code>.</li>
@@ -418,7 +419,7 @@ print($message); print("second statement");</code></pre>
     <section id="values">
       <h2><span class="number">04</span> Values and conversion</h2>
 
-      <h3>The five user-visible kinds</h3>
+      <h3>The six user-visible kinds</h3>
       <table>
         <thead><tr><th>Kind</th><th>Examples and origin</th><th>False when</th></tr></thead>
         <tbody>
@@ -426,6 +427,7 @@ print($message); print("second statement");</code></pre>
           <tr><td>Text</td><td><code>"Katalyn"</code>, input, file and process output.</td><td>It is empty.</td></tr>
           <tr><td>Table</td><td><code>table</code>, arrays, records, function argument lists.</td><td>It has no entries.</td></tr>
           <tr><td>Bytes</td><td><code>bytes(0, 255)</code>, binary files, encoded text, and raw input.</td><td>It contains no bytes.</td></tr>
+          <tr><td>PID</td><td><code>self()</code> and <code>spawn(worker)</code>; an opaque worker identity.</td><td>Never.</td></tr>
           <tr><td>Nil</td><td>Missing variables or keys, exhausted reads, and functions without an explicit value.</td><td>Always.</td></tr>
         </tbody>
       </table>
@@ -450,6 +452,7 @@ ok;</code></pre>
           <tr><td>Table to number</td><td>The number of entries in the table.</td></tr>
           <tr><td>Table to text</td><td>A diagnostic map representation such as <code>['a':1, 'b':"two"]</code>.</td></tr>
           <tr><td>Bytes conversion</td><td>Never implicit. Use <code>utf8_encode</code>/<code>utf8_decode</code>, hexadecimal, or Base64 functions.</td></tr>
+          <tr><td>PID conversion</td><td>Printable as <code>&lt;pid:N&gt;</code>, but not convertible to a number. PIDs support identity equality.</td></tr>
           <tr><td>Nil to number/text</td><td>Not convertible; attempts generally raise a runtime error.</td></tr>
         </tbody>
       </table>
@@ -461,6 +464,7 @@ ok;</code></pre>
         <li>Numeric equality uses a very small floating-point tolerance.</li>
         <li>Tables compare identity, not contents. Two variables are equal only when they refer to the same table object.</li>
         <li>Byte sequences compare by contents. Bytes and non-bytes are unequal; neither is coerced.</li>
+        <li>PIDs compare by worker identity and are unequal to every non-PID value.</li>
         <li>Nil is unusual: any equality involving nil is false, even nil against nil. Any inequality involving nil is true.</li>
       </ul>
 
@@ -738,6 +742,54 @@ ok;</code></pre>
       <a class="toplink" href="#top">Back to contents</a>
     </section>
 
+    <section id="concurrency">
+      <h2><span class="number">09A</span> Concurrency and workers</h2>
+      <p>Katalyn uses an actor-style concurrency model. Every worker has an isolated VM runtime and a private FIFO inbox. Workers do not share mutable variables; they communicate by sending copied values to PIDs. Scheduling is automatic—there is no <code>yield()</code> function and no cooperative action required by programs.</p>
+
+      <h3>Starting and addressing workers</h3>
+      <pre><code>def echo;
+    $envelope: receive();
+    send($envelope{from}, $envelope{message});
+    return "finished";
+ok;
+
+$worker: spawn(echo);
+send($worker, "hello");
+$reply: receive();
+print($reply{message});
+$result: wait($worker);</code></pre>
+      <p>The first argument of <code>spawn</code> is a bare Katalyn function name, checked by the compiler—not quoted text and not a first-class function value. Remaining arguments become the new function’s ordinary <code>$_</code> arguments. <code>spawn</code> returns an opaque PID. <code>self()</code> returns the current worker’s stable PID; the original program is worker 1 and has an inbox like every spawned worker.</p>
+
+      <h3>Messages and inboxes</h3>
+      <p><code>send(pid, value)</code> synchronously copies the value into the destination’s FIFO inbox and returns 1. Receiving removes exactly the oldest envelope:</p>
+      <pre><code>$envelope: receive();
+$sender: $envelope{from};       # PID
+$message: $envelope{message};   # the copied value</code></pre>
+      <p><code>receive()</code> blocks indefinitely. <code>receive(seconds)</code> blocks for at most that duration and returns nil on timeout; <code>receive_now()</code> never blocks and returns nil for an empty inbox. A nil message is not confused with a timeout because a delivered nil remains inside a non-nil envelope.</p>
+      <p>Numbers, text, bytes, nil, PIDs, and tables may be sent. Tables are deep-copied at send time, preserving repeated references and cycles within the copy. Consequently, later sender mutations and receiver mutations cannot race. Bytes are immutable and may safely share storage. Internal iterator values cannot cross worker boundaries.</p>
+
+      <h3>Isolation</h3>
+      <p>At spawn time, the worker receives a deep snapshot of the parent’s global variables. It then has independent globals, local scopes, stacks, exception handlers, and open-file registry. Changing a global or table in one worker never changes it in another. Path strings can be sent, but a text file opened in one worker is not automatically open in another.</p>
+
+      <h3>Completion, timeouts, and failures</h3>
+      <p><code>worker_alive(pid)</code> is true until the worker returns or ends with an uncaught error. <code>wait(pid)</code> blocks for completion; <code>wait(pid, seconds)</code> returns a timeout result if necessary. Waiting never consumes inbox messages and may be repeated.</p>
+      <table>
+        <thead><tr><th>Status</th><th>Result table</th></tr></thead>
+        <tbody>
+          <tr><td><code>done</code></td><td><code>{status}</code> is <code>"done"</code>; <code>{value}</code> contains the function’s copied return value.</td></tr>
+          <tr><td><code>error</code></td><td><code>{status}</code> is <code>"error"</code>; <code>{error}</code> contains the structured uncaught error.</td></tr>
+          <tr><td><code>timeout</code></td><td><code>{status}</code> is <code>"timeout"</code>; the worker continues running.</td></tr>
+        </tbody>
+      </table>
+      <p>An uncaught error ends only the spawned worker. The root worker retains normal CLI behavior: its uncaught error ends the program. A worker may spawn and wait for other workers. Waiting for oneself and sending to a finished or unknown PID are catchable runtime errors.</p>
+
+      <h3>Lifetime and current backend</h3>
+      <p>When the root source reaches its end normally, <code>kat</code> waits for every spawned worker to finish. A worker left forever in <code>receive()</code> therefore keeps the program alive; use an explicit stop-message protocol. <code>exit(status)</code> remains a whole-process operation.</p>
+      <p>The current backend maps each Katalyn worker to a native C++ thread. Inbox waits use condition variables, so blocked workers do not poll or consume CPU. Console output and process environment are process-wide resources; concurrent printing may interleave, so applications commonly designate one worker for output.</p>
+      <p>See <code>examples/concurrency.kat</code> for a complete counter actor.</p>
+      <a class="toplink" href="#top">Back to contents</a>
+    </section>
+
     <section id="input-output">
       <h2><span class="number">10</span> Console input and output</h2>
       <table>
@@ -883,6 +935,20 @@ import "models/person.kat";</code></pre>
           <tr><td><code>del(table, key)</code></td><td>Remove <code>key</code> from <code>table</code> in place; return the table.</td></tr>
           <tr><td><code>set(place, value)</code></td><td>Assign a variable or table place and return the newly assigned value. <code>place</code> is syntax, not an arbitrary computed value.</td></tr>
           <tr><td><code>unset(variables...)</code></td><td>Remove each named variable and make the compiler forget it. Arguments must be bare variable names. With no arguments it performs no work.</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Workers and message passing</h3>
+      <table>
+        <thead><tr><th>Signature</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td><code>spawn(function[, arguments...])</code></td><td>Start an isolated worker at the bare function name and return its PID.</td></tr>
+          <tr><td><code>self()</code></td><td>Return the current worker’s PID.</td></tr>
+          <tr><td><code>send(pid, message)</code></td><td>Copy a value into the destination inbox; return 1.</td></tr>
+          <tr><td><code>receive([timeout])</code></td><td>Remove the oldest envelope, blocking indefinitely or for the given seconds. Return nil on timeout.</td></tr>
+          <tr><td><code>receive_now()</code></td><td>Remove the oldest envelope without blocking, or return nil.</td></tr>
+          <tr><td><code>worker_alive(pid)</code></td><td>Return whether the worker is still executing.</td></tr>
+          <tr><td><code>wait(pid[, timeout])</code></td><td>Wait for completion and return a <code>done</code>, <code>error</code>, or <code>timeout</code> result table.</td></tr>
         </tbody>
       </table>
 
@@ -1129,7 +1195,7 @@ kat [options] -s [script arguments...] &lt; source.kat</code></pre>
       <h3>Current native/library defects and surprises</h3>
       <ul>
         <li>The case-conversion library is ASCII-only.</li>
-        <li>The HTTP and date helpers depend on external Unix-style commands.</li>
+        <li>The HTTP helpers depend on external Unix-style commands; <code>datetime()</code> is native.</li>
       </ul>
 
       <h3>Portability and resource behavior</h3>
@@ -1138,6 +1204,8 @@ kat [options] -s [script arguments...] &lt; source.kat</code></pre>
         <li>External process syntax, available commands, path syntax, and exit statuses vary by host platform.</li>
         <li>Table keys are stored as strings. Diagnostic storage order is lexical, while <code>for</code> gives numeric keys numeric priority.</li>
         <li>Each interpreter execution owns its VM stack, scopes, labels, calls, exception handlers, and open-file registry. Handles close when that runtime is destroyed. Host environment variables and standard streams remain process resources.</li>
+        <li>Worker state and messages are isolated, but console streams, the process environment, and the operating-system process itself are shared resources.</li>
+        <li>The native-thread backend is practical for moderate worker counts, not Erlang-scale millions of processes.</li>
       </ul>
 
       <div class="callout tip"><strong>Robust Katalyn style.</strong> Define before use, keep arrays dense and one-based, probe optional data with <code>is</code>, use parentheses freely, use <code>substr</code> for end-relative text, verify files with <code>is_open</code>, treat shell input as trusted-only, and use the native JSON functions for strict parsing and correct escaping.</div>

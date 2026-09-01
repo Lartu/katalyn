@@ -1,0 +1,114 @@
+import "assert.kat";
+
+$shared_global: table;
+$shared_global{value}: 10;
+
+def snapshot_worker;
+    $envelope: receive();
+    $message: $envelope{message};
+    $reply: table;
+    $reply{sender_ok}: $envelope{from} != self();
+    $reply{message_value}: $message{value};
+    $reply{global_value}: $shared_global{value};
+    $message{value}: 99;
+    $shared_global{value}: 88;
+    send($envelope{from}, $reply);
+    return "snapshot-done";
+ok;
+
+def fifo_worker;
+    $first: receive();
+    $second: receive();
+    return $first{message} & $second{message};
+ok;
+
+def waiting_worker;
+    $message: receive();
+    return $message{message};
+ok;
+
+def failing_worker;
+    raise("worker boom");
+ok;
+
+def cyclic_worker;
+    $envelope: receive();
+    return $envelope{message} = $envelope{message}{self};
+ok;
+
+def nil_worker;
+    $envelope: receive();
+    return !is($envelope{message});
+ok;
+
+def nested_child;
+    return $_[1] + 1;
+ok;
+
+def nested_parent;
+    $child: spawn(nested_child, $_[1]);
+    $result: wait($child);
+    return $result{value} + 1;
+ok;
+
+check(self() = self(), "self returns a stable PID");
+check(!is(receive_now()), "receive_now returns nil for an empty inbox");
+check(!is(receive(0.001)), "timed receive returns nil on timeout");
+
+$message: table;
+$message{value}: 1;
+$worker: spawn(snapshot_worker);
+check(worker_alive($worker), "spawned worker is alive");
+send($worker, $message);
+$message{value}: 2;
+$reply_envelope: receive(2);
+$reply: $reply_envelope{message};
+check($reply{sender_ok}, "message envelope includes sender PID");
+check($reply{message_value} = 1, "send snapshots table messages");
+check($reply{global_value} = 10, "spawn snapshots global values");
+check($message{value} = 2, "worker mutation does not affect sender table");
+check($shared_global{value} = 10, "worker globals are isolated");
+$snapshot_result: wait($worker);
+check($snapshot_result{status} = "done" && $snapshot_result{value} = "snapshot-done",
+      "wait returns worker value");
+check(!worker_alive($worker), "finished worker is not alive");
+
+$fifo: spawn(fifo_worker);
+send($fifo, "A");
+send($fifo, "B");
+check(wait($fifo){value} = "AB", "worker inbox is FIFO");
+
+$waiting: spawn(waiting_worker);
+check(wait($waiting, 0.001){status} = "timeout", "timed wait reports timeout");
+send($waiting, "stop");
+check(wait($waiting){value} = "stop", "wait succeeds after a timeout");
+
+$failure: spawn(failing_worker);
+$failed: wait($failure);
+check($failed{status} = "error", "uncaught worker error is isolated");
+check($failed{error}{kind} = "Error" && $failed{error}{message} = "worker boom",
+      "wait exposes structured worker error");
+
+$cycle: table;
+$cycle{self}: $cycle;
+$cyclic: spawn(cyclic_worker);
+send($cyclic, $cycle);
+check(wait($cyclic){value}, "message copying preserves table cycles");
+
+$nil_source: table;
+$nil_receiver: spawn(nil_worker);
+send($nil_receiver, $nil_source{missing});
+check(wait($nil_receiver){value}, "nil can be sent without resembling a timeout");
+
+$nested: spawn(nested_parent, 40);
+check(wait($nested){value} = 42, "workers can spawn and wait for workers");
+
+$dead_send_caught: 0;
+try;
+    send($worker, "too late");
+catch $error;
+    $dead_send_caught: 1;
+ok;
+check($dead_send_caught, "sending to a finished worker is catchable");
+
+finish("concurrency-ok");

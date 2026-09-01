@@ -694,6 +694,46 @@ namespace katalyn
             const auto &name = command.value;
             auto arg = [&](std::size_t i)
             { return expression(args.at(i)); };
+            if (name == "spawn")
+            {
+                arity(command, args.size(), 1, static_cast<std::size_t>(-1));
+                if (args[0].size() != 1 || args[0][0].kind != Kind::word)
+                    fail("Parse", command, "spawn expects a function name as its first argument.");
+                std::string code = "\nPLIM";
+                for (std::size_t i = 1; i < args.size(); ++i)
+                    code += arg(i);
+                return code + "\nSPWN " + function_labels(args[0][0]).start;
+            }
+            if (name == "self")
+            {
+                arity(command, args.size(), 0, 0);
+                return "\nSELF";
+            }
+            if (name == "send")
+            {
+                arity(command, args.size(), 2, 2);
+                return arg(0) + arg(1) + "\nSEND";
+            }
+            if (name == "receive")
+            {
+                arity(command, args.size(), 0, 1);
+                return (args.empty() ? "\nPUSH -1" : arg(0)) + "\nRECV";
+            }
+            if (name == "receive_now")
+            {
+                arity(command, args.size(), 0, 0);
+                return "\nRNOW";
+            }
+            if (name == "worker_alive")
+            {
+                arity(command, args.size(), 1, 1);
+                return arg(0) + "\nWALV";
+            }
+            if (name == "wait")
+            {
+                arity(command, args.size(), 1, 2);
+                return arg(0) + (args.size() == 2 ? arg(1) : "\nPUSH -1") + "\nWWAIT";
+            }
             if (name == "print" || name == "printc")
             {
                 std::string code = "\nPUSH \"\"";
