@@ -1,4 +1,4 @@
-<p align="center">
+<p>
   <img src="https://github.com/Lartu/katalyn/blob/lspl-rebrand/images/lspl_logo_micro.png">
   <br><br>
   <img src="https://img.shields.io/badge/last_release-0.1.0-green.svg">
