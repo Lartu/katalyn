@@ -1,4 +1,9 @@
-# LSPL
+<p align="center">
+  <img src="https://github.com/Lartu/katalyn/blob/lspl-rebrand/images/lspl_logo_small.png">
+  <br><br>
+  <img src="https://img.shields.io/badge/last_release-0.1.0-green.svg">
+  <img src="https://img.shields.io/badge/license-Apache_2.0-orange">
+</p>
 
 LSPL is a compact interpreted scripting language designed to combine Lua-like
 simplicity with Perl-like practicality. The current interpreter is implemented
