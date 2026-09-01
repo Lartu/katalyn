@@ -1,5 +1,5 @@
-import "assert.kat";
-import "fixtures/imported.kat";
+import "assert.lspl";
+import "fixtures/imported.lspl";
 
 check(imported_value() = "import-ok", "relative import");
 check(len($_args) = 2, "command-line argument count");
@@ -14,13 +14,13 @@ check(!is(read_line($input)), "read_line EOF is nil");
 close($input);
 check(!is_open($input), "close");
 
-$output: open_rw("build/katalyn-test-output.txt");
+$output: open_rw("build/lspl-test-output.txt");
 check(is_open($output), "open_rw");
 check(write($output, "hello") = "hello", "write return value");
 write($output, "\nworld");
 close($output);
 
-$output: open_r("build/katalyn-test-output.txt");
+$output: open_r("build/lspl-test-output.txt");
 check(read($output) = "hello\nworld", "write then read whole file");
 close($output);
 

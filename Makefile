@@ -1,4 +1,4 @@
-# Katalyn C++ build
+# LSPL C++ build
 #
 # Common commands:
 #   make
@@ -14,9 +14,9 @@ BUILD_DIR := build
 OBJ_DIR := $(BUILD_DIR)/obj
 GEN_DIR := $(BUILD_DIR)/generated
 GEN_HEADER := $(GEN_DIR)/stdlib.hpp
-TARGET := $(BUILD_DIR)/kat
+TARGET := $(BUILD_DIR)/lspl
 RUNTIME_TEST := $(BUILD_DIR)/runtime-isolation-test
-TIGER_TARGET := $(BUILD_DIR)/kat-tiger-ppc
+TIGER_TARGET := $(BUILD_DIR)/lspl-tiger-ppc
 TIGER_CXX ?= ppc-ld64-g++
 TIGER_CXXFLAGS ?= -std=c++17 -O2
 
@@ -58,13 +58,13 @@ $(OBJ_DIR)/%.o: %.cpp $(GEN_HEADER)
 	@mkdir -p $(dir $@)
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -c $< -o $@
 
-$(GEN_HEADER): stdlib.kat Makefile
+$(GEN_HEADER): stdlib.lspl Makefile
 	@mkdir -p $(dir $@)
 	@{ \
-		printf '%s\n' '#pragma once' '' 'namespace katalyn {'; \
-		printf '%s' 'inline constexpr const char standard_library[] = R"KATALYN_STDLIB('; \
+		printf '%s\n' '#pragma once' '' 'namespace lspl {'; \
+		printf '%s' 'inline constexpr const char standard_library[] = R"LSPL_STDLIB('; \
 		cat $<; \
-		printf '%s\n' ')KATALYN_STDLIB";' '}'; \
+		printf '%s\n' ')LSPL_STDLIB";' '}'; \
 	} > $@.tmp
 	@mv $@.tmp $@
 
@@ -74,41 +74,41 @@ $(RUNTIME_TEST): tests/runtime_isolation.cpp $(OBJ_DIR)/narivm.o \
 	$(CXX) $(LDFLAGS) $(CPPFLAGS) $(CXXFLAGS) $^ $(LDLIBS) -o $@
 
 test: $(TARGET) $(RUNTIME_TEST)
-	@echo "Running Katalyn compatibility tests"
+	@echo "Running LSPL compatibility tests"
 	@$(RUNTIME_TEST) >/dev/null 2>&1
-	@$(TARGET) --help | grep -q '^Usage: kat '
+	@$(TARGET) --help | grep -q '^Usage: lspl '
 	@$(TARGET) --version | grep -q 'Programming Language'
 	@$(TARGET) -v | grep -q 'Programming Language'
 	@$(TARGET) --version | grep -Eq '^Built on .+ at [0-9]{2}:[0-9]{2}:[0-9]{2}\.$$'
 	@! $(TARGET) --version | grep -Eq '^Built on [A-Z][a-z]{2}  [0-9]'
-	@$(TARGET) --version | grep -q '^This is Katalyn version .*, running on the NariVM\.$$'
+	@$(TARGET) --version | grep -q '^This is LSPL version .*, running on the NariVM\.$$'
 	@$(TARGET) -n -a 'print("hello", 2 + 3);' | grep -qx 'hello5'
-	@$(TARGET) -n tests/core.kat | grep -qx 'core-ok'
-	@$(TARGET) -n tests/nil_truth.kat | grep -qx 'nil-truth-ok'
-	@$(TARGET) -n tests/short_circuit.kat | grep -qx 'short-circuit-ok'
-	@$(TARGET) -n tests/precedence.kat | grep -qx 'precedence-ok'
-	@$(TARGET) -n tests/operators_values.kat | grep -qx 'operators-values-ok'
-	@$(TARGET) tests/unicode.kat | grep -qx 'unicode-ok'
-	@$(TARGET) -n tests/tables.kat | grep -qx 'tables-ok'
-	@$(TARGET) -n tests/control_flow.kat | grep -qx 'control-flow-ok'
-	@$(TARGET) tests/errors.kat | grep -qx 'errors-ok'
-	@$(TARGET) tests/bytes.kat | grep -qx 'bytes-ok'
-	@$(TARGET) tests/filesystem.kat | grep -qx 'filesystem-ok'
-	@$(TARGET) tests/datetime.kat | grep -qx 'datetime-ok'
-	@$(TARGET) tests/concurrency.kat | grep -qx 'concurrency-ok'
+	@$(TARGET) -n tests/core.lspl | grep -qx 'core-ok'
+	@$(TARGET) -n tests/nil_truth.lspl | grep -qx 'nil-truth-ok'
+	@$(TARGET) -n tests/short_circuit.lspl | grep -qx 'short-circuit-ok'
+	@$(TARGET) -n tests/precedence.lspl | grep -qx 'precedence-ok'
+	@$(TARGET) -n tests/operators_values.lspl | grep -qx 'operators-values-ok'
+	@$(TARGET) tests/unicode.lspl | grep -qx 'unicode-ok'
+	@$(TARGET) -n tests/tables.lspl | grep -qx 'tables-ok'
+	@$(TARGET) -n tests/control_flow.lspl | grep -qx 'control-flow-ok'
+	@$(TARGET) tests/errors.lspl | grep -qx 'errors-ok'
+	@$(TARGET) tests/bytes.lspl | grep -qx 'bytes-ok'
+	@$(TARGET) tests/filesystem.lspl | grep -qx 'filesystem-ok'
+	@$(TARGET) tests/datetime.lspl | grep -qx 'datetime-ok'
+	@$(TARGET) tests/concurrency.lspl | grep -qx 'concurrency-ok'
 	@$(TARGET) -n -a '$$t: datetime(); print(len($$t) = 10);' | grep -qx '1'
-	@$(TARGET) -n tests/functions_scope.kat | grep -qx 'functions-scope-ok'
-	@$(TARGET) tests/stdlib.kat | grep -qx 'stdlib-ok'
+	@$(TARGET) -n tests/functions_scope.lspl | grep -qx 'functions-scope-ok'
+	@$(TARGET) tests/stdlib.lspl | grep -qx 'stdlib-ok'
 	@$(TARGET) -a '$$j: parse_json("{\"x\":1}"); print($$j{x});' | grep -qx '1'
-	@$(TARGET) -n tests/json.kat | grep -qx 'json-ok'
-	@printf 'abcdef' | $(TARGET) -n tests/stdin.kat | grep -qx 'abc|def'
+	@$(TARGET) -n tests/json.lspl | grep -qx 'json-ok'
+	@printf 'abcdef' | $(TARGET) -n tests/stdin.lspl | grep -qx 'abc|def'
 	@printf 'color=purple&message=Hello+CGI' | env \
-		KATALYN_CGI_TEST=present REQUEST_METHOD=POST \
-		QUERY_STRING='page=2&search=Katalyn+CGI' \
+		LSPL_CGI_TEST=present REQUEST_METHOD=POST \
+		QUERY_STRING='page=2&search=LSPL+CGI' \
 		CONTENT_TYPE='application/x-www-form-urlencoded; charset=UTF-8' \
 		CONTENT_LENGTH=30 HTTP_ACCEPT=application/json PATH_INFO=/demo \
-		$(TARGET) -n tests/cgi.kat | grep -qx 'cgi-ok'
-	@$(TARGET) -n tests/cgi_response.kat | tr -d '\r' | \
+		$(TARGET) -n tests/cgi.lspl | grep -qx 'cgi-ok'
+	@$(TARGET) -n tests/cgi_response.lspl | tr -d '\r' | \
 		diff -u tests/expected/cgi_response.txt -
 	@! $(TARGET) -n -a 'json_decode("[1,");' >/dev/null 2>&1
 	@! printf '"\377"' | $(TARGET) -n -a 'json_decode(read_stdin());' >/dev/null 2>&1
@@ -117,36 +117,36 @@ test: $(TARGET) $(RUNTIME_TEST)
 		$(TARGET) -n -a 'cgi_request(10);' >/dev/null 2>&1
 	@! printf '12345' | env REQUEST_METHOD=POST CONTENT_LENGTH=5 \
 		$(TARGET) -n -a 'cgi_request(4);' >/dev/null 2>&1
-	@$(TARGET) tests/print_arr.kat | diff -u tests/expected/print_arr.txt -
-	@$(TARGET) -n tests/io_import.kat alpha beta | grep -qx 'io-import-ok'
-	@$(TARGET) -n tests/magic_paths.kat "$(CURDIR)" "$(CURDIR)/tests/magic_paths.kat" \
+	@$(TARGET) tests/print_arr.lspl | diff -u tests/expected/print_arr.txt -
+	@$(TARGET) -n tests/io_import.lspl alpha beta | grep -qx 'io-import-ok'
+	@$(TARGET) -n tests/magic_paths.lspl "$(CURDIR)" "$(CURDIR)/tests/magic_paths.lspl" \
 		"$(CURDIR)/tests" | \
 		grep -qx 'magic-paths-ok'
 	@$(TARGET) -n -a 'print(!is($$_scriptpath) && !is($$_scriptdir) && len($$_wdir) > 0);' | grep -qx '1'
 	@printf 'print(!is($$_scriptpath) && !is($$_scriptdir) && len($$_wdir) > 0);' | \
 		$(TARGET) -n -s | grep -qx '1'
-	@$(RM) $(BUILD_DIR)/katalyn-test-output.txt
+	@$(RM) $(BUILD_DIR)/lspl-test-output.txt
 	@$(TARGET) -a 'print(ceil(2.2));' | grep -qx '3'
 	@echo "All tests passed."
 
 benchmark: $(TARGET)
 	@echo "Arithmetic and variable access"
-	@/usr/bin/time -p $(TARGET) -n benchmarks/arithmetic.kat >/dev/null
+	@/usr/bin/time -p $(TARGET) -n benchmarks/arithmetic.lspl >/dev/null
 	@echo "Function calls"
-	@/usr/bin/time -p $(TARGET) -n benchmarks/functions.kat >/dev/null
+	@/usr/bin/time -p $(TARGET) -n benchmarks/functions.lspl >/dev/null
 	@echo "Table reads and writes"
-	@/usr/bin/time -p $(TARGET) -n benchmarks/tables.kat >/dev/null
+	@/usr/bin/time -p $(TARGET) -n benchmarks/tables.lspl >/dev/null
 	@echo "Actor message round trips"
-	@/usr/bin/time -p $(TARGET) -n benchmarks/messages.kat >/dev/null
+	@/usr/bin/time -p $(TARGET) -n benchmarks/messages.lspl >/dev/null
 
 install: $(TARGET)
 	install -d "$(DESTDIR)$(PREFIX)/bin"
-	install -m 755 $(TARGET) "$(DESTDIR)$(PREFIX)/bin/kat"
-	@echo "Installed $(DESTDIR)$(PREFIX)/bin/kat"
+	install -m 755 $(TARGET) "$(DESTDIR)$(PREFIX)/bin/lspl"
+	@echo "Installed $(DESTDIR)$(PREFIX)/bin/lspl"
 
 run: $(TARGET)
 	@if [ -z "$(SCRIPT)" ]; then \
-		echo 'Usage: make run SCRIPT=path/to/script.kat'; \
+		echo 'Usage: make run SCRIPT=path/to/script.lspl'; \
 		exit 1; \
 	fi
 	@$(TARGET) "$(SCRIPT)"

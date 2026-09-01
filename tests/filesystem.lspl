@@ -1,4 +1,4 @@
-import "assert.kat";
+import "assert.lspl";
 
 $root: path_join($_wdir, "build", "filesystem-test");
 $nested: path_join($root, "one", "two");

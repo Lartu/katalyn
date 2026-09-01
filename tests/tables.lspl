@@ -1,10 +1,10 @@
-import "assert.kat";
+import "assert.lspl";
 
 $record: table;
-$record{name}: "Katalyn";
+$record{name}: "LSPL";
 $record["year"]: 2026;
 check(len($record) = 2, "table entry count");
-check($record{name} = "Katalyn", "brace key access");
+check($record{name} = "LSPL", "brace key access");
 check($record["year"] = 2026, "bracket key access");
 check("name" :: $record, "table contains key");
 check(!("missing" :: $record), "table lacks key");

@@ -1,10 +1,10 @@
-# Katalyn
+# LSPL
 
-Katalyn is a compact interpreted scripting language designed to combine Lua-like
+LSPL is a compact interpreted scripting language designed to combine Lua-like
 simplicity with Perl-like practicality. The current interpreter is implemented
 in C++17 and compiles source into instructions for its in-process Nambly VM.
 
-Katalyn is experimental software. It is suitable for learning, personal tools,
+LSPL is experimental software. It is suitable for learning, personal tools,
 automation, text processing, and experimental Apache CGI programs, but has not
 yet received a production security audit.
 
@@ -15,7 +15,7 @@ make
 make test
 ```
 
-The executable is created at `build/kat`.
+The executable is created at `build/lspl`.
 
 The normal build is a release build using `-O2`, link-time optimization, and
 disabled C++ assertions. This combination benchmarks better for the interpreter
@@ -23,8 +23,8 @@ than `-O3`, whose larger VM dispatch loop can be slower. If a compiler does not
 support link-time optimization, build with `make LTOFLAGS=`.
 
 ```sh
-./build/kat examples/disan_count.kat
-./build/kat -a 'print("Hello from Katalyn!");'
+./build/lspl examples/disan_count.lspl
+./build/lspl -a 'print("Hello from LSPL!");'
 ```
 
 Install it under `/usr/local/bin` with:
@@ -42,7 +42,7 @@ make benchmark
 ## Command line
 
 ```text
-kat [switches] <source file> [arguments...]
+lspl [switches] <source file> [arguments...]
 ```
 
 - `-a <source>` executes source supplied directly on the command line.
@@ -52,7 +52,7 @@ kat [switches] <source file> [arguments...]
 - `-h` prints command-line help; `-v` prints the version and build timestamp.
 
 Arguments following a source filename are available in the one-based `$_args`
-table. A script beginning with `#!/usr/local/bin/kat`
+table. A script beginning with `#!/usr/local/bin/lspl`
 can be made executable and run directly.
 
 At startup, `$_scriptpath` contains the script's absolute filename,
@@ -62,12 +62,12 @@ location variables are nil because no script file exists.
 
 ## Language facilities
 
-Katalyn includes Unicode text, associative tables, immutable byte sequences,
+LSPL includes Unicode text, associative tables, immutable byte sequences,
 structured `try`/`catch`/`finally` errors, actor-style workers and message
 passing, JSON and CGI helpers, binary I/O, and portable filesystem/path
 operations. For example:
 
-```katalyn
+```lspl
 try;
     $payload: read_bytes(path_join($_scriptdir, "message.txt"));
     print(utf8_decode($payload));
@@ -87,9 +87,9 @@ filesystem APIs.
 
 Workers have isolated globals and FIFO inboxes. Messages are copied when sent,
 so workers do not share mutable tables. The runtime schedules work
-automatically; Katalyn programs do not need a `yield` function.
+automatically; LSPL programs do not need a `yield` function.
 
-```katalyn
+```lspl
 def greet;
     $message: receive();
     send($message{from}, "Hello, " & $message{message} & "!");
@@ -97,7 +97,7 @@ def greet;
 ok;
 
 $worker: spawn(greet);
-send($worker, "Katalyn");
+send($worker, "LSPL");
 $reply: receive(1);
 print($reply{message});
 $result: wait($worker);
@@ -105,18 +105,18 @@ $result: wait($worker);
 
 The worker API consists of `spawn`, `self`, `send`, `receive`, `receive_now`,
 `worker_alive`, and `wait`. Uncaught worker errors stay inside that worker and
-are reported by `wait`. See `examples/concurrency.kat` and the concurrency
+are reported by `wait`. See `examples/concurrency.lspl` and the concurrency
 chapter in the complete manual for lifecycle, timeout, copying, and error
 semantics.
 
 ## Apache CGI
 
-Katalyn includes native CGI request handling, bounded raw standard input,
+LSPL includes native CGI request handling, bounded raw standard input,
 environment access, URL/form decoding, JSON encoding and decoding, and safe CGI
 response generation.
 
-```katalyn
-#!/usr/local/bin/kat
+```lspl
+#!/usr/local/bin/lspl
 
 $request: cgi_request();
 $name: "world";
@@ -128,14 +128,14 @@ $response["message"]: "Hello, " & $name & "!";
 cgi_response(200, "application/json; charset=utf-8", json_encode($response));
 ```
 
-See `examples/apache_cgi.kat` and `docs-complete/KATALYN-CGI.txt` for Apache
+See `examples/apache_cgi.lspl` and `docs-complete/LSPL-CGI.txt` for Apache
 configuration, the complete request-table layout, security notes, and the CGI
 API reference.
 
 ## Documentation
 
 - `docs-complete/index.html` — complete single-page HTML manual
-- `docs-complete/KATALYN-MANUAL.txt` — complete plain-text language manual
-- `docs-complete/KATALYN-CGI.txt` — Apache CGI and JSON guide
+- `docs-complete/LSPL-MANUAL.txt` — complete plain-text language manual
+- `docs-complete/LSPL-CGI.txt` — Apache CGI and JSON guide
 
-Katalyn is released under the Apache License 2.0. See `LICENSE`.
+LSPL is released under the Apache License 2.0. See `LICENSE`.

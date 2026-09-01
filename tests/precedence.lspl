@@ -1,4 +1,4 @@
-import "assert.kat";
+import "assert.lspl";
 
 # Power, prefix operators, and associativity.
 check(2 ^ 3 ^ 2 = 512, "power is right-associative");
@@ -21,7 +21,7 @@ check("total=" & 1 + 2 = "total=3", "right arithmetic before concatenation");
 
 # Relational/membership operators bind before equality and logic.
 check(1 + 1 < 3, "arithmetic before relational comparison");
-check(("at" :: "Katalyn") = 1, "membership before equality");
+check(("SP" :: "LSPL") = 1, "membership before equality");
 check(1 < 2 = 1, "relational comparison before equality");
 
 # Equality binds before AND; AND binds before OR.

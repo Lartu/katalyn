@@ -1,7 +1,7 @@
-#!/usr/local/bin/kat
+#!/usr/local/bin/lspl
 #
-# Install Katalyn as /usr/local/bin/kat, place this executable script in
-# Apache's cgi-bin directory, and run: chmod +x apache_cgi.kat
+# Install LSPL as /usr/local/bin/lspl, place this executable script in
+# Apache's cgi-bin directory, and run: chmod +x apache_cgi.lspl
 
 $request: cgi_request(1048576);
 $response: table;

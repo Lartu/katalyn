@@ -1,6 +1,6 @@
-$document: json_decode("{\"array\":[1,true,false,null,\"\\u2603\",\"\\uD83D\\uDE00\"],\"name\":\"Katalyn\",\"nested\":{\"value\":2.5e2}}");
+$document: json_decode("{\"array\":[1,true,false,null,\"\\u2603\",\"\\uD83D\\uDE00\"],\"name\":\"LSPL\",\"nested\":{\"value\":2.5e2}}");
 $ok: 1;
-$ok: $ok && $document{name} = "Katalyn";
+$ok: $ok && $document{name} = "LSPL";
 $ok: $ok && $document{array}[1] = 1;
 $ok: $ok && $document{array}[2] = 1;
 $ok: $ok && $document{array}[3] = 0;
@@ -8,7 +8,7 @@ $ok: $ok && !is($document{array}[4]);
 $ok: $ok && $document{array}[5] = "☃";
 $ok: $ok && $document{array}[6] = "😀";
 $ok: $ok && $document{nested}{value} = 250;
-$ok: $ok && json_encode($document) = "{\"array\":[1,1,0,null,\"☃\",\"😀\"],\"name\":\"Katalyn\",\"nested\":{\"value\":250}}";
+$ok: $ok && json_encode($document) = "{\"array\":[1,1,0,null,\"☃\",\"😀\"],\"name\":\"LSPL\",\"nested\":{\"value\":250}}";
 
 $escaped: table;
 $escaped["line"]: "one\ntwo\t\"three\"";

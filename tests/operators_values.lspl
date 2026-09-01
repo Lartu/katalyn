@@ -1,4 +1,4 @@
-import "assert.kat";
+import "assert.lspl";
 
 # Arithmetic.
 check(2 + 3 = 5, "addition");
@@ -40,7 +40,7 @@ check("abc"[3] = "c", "last text index");
 check("abc"[9] = "", "out-of-range text indexing");
 check("abc"[-1] = "c", "negative text indexing");
 check("abc"[-4] = "", "negative out-of-range text indexing");
-check(len("Katalyn") = 7, "text length");
+check(len("LSPL") = 4, "text length");
 check(len(12.5) = 4, "number display length");
 check(substr("abcdef", 2, 3) = "bcd", "substring with length");
 check(substr("abcdef", 4) = "def", "substring to end");

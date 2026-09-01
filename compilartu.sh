@@ -8,4 +8,4 @@ install_prefix=${PREFIX:-"$HOME"}
 make -C "$script_dir"
 make -C "$script_dir" install PREFIX="$install_prefix"
 
-"$install_prefix/bin/kat" -n -a 'print("Katalyn compilation successful!");'
+"$install_prefix/bin/lspl" -n -a 'print("LSPL compilation successful!");'

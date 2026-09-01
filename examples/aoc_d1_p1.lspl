@@ -20,7 +20,7 @@ while read_line($file);
     ok;
 
     (* Find last digit *)
-    in $i: len($line); (* This is why Katalyn indexes from 1 *)
+    in $i: len($line); (* This is why LSPL indexes from 1 *)
     while slice($line, $i, 1);
         in $char: $_r;
         if $char :: "0123456789";

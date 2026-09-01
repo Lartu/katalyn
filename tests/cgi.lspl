@@ -2,13 +2,13 @@ $environment: env();
 $request: cgi_request(1024);
 
 $ok: 1;
-$ok: $ok && env("KATALYN_CGI_TEST") = "present";
-$ok: $ok && env("KATALYN_NOT_SET", "fallback") = "fallback";
-$ok: $ok && !is(env("KATALYN_NOT_SET"));
-$ok: $ok && $environment["KATALYN_CGI_TEST"] = "present";
+$ok: $ok && env("LSPL_CGI_TEST") = "present";
+$ok: $ok && env("LSPL_NOT_SET", "fallback") = "fallback";
+$ok: $ok && !is(env("LSPL_NOT_SET"));
+$ok: $ok && $environment["LSPL_CGI_TEST"] = "present";
 $ok: $ok && $request{method} = "POST";
 $ok: $ok && $request{query}{page} = "2";
-$ok: $ok && $request{query}{search} = "Katalyn CGI";
+$ok: $ok && $request{query}{search} = "LSPL CGI";
 $ok: $ok && $request{form}{color} = "purple";
 $ok: $ok && $request{form}{message} = "Hello CGI";
 $ok: $ok && $request{headers}{accept} = "application/json";

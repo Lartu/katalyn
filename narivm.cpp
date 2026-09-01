@@ -1,4 +1,4 @@
-// -- NariVM for Katalyn in C++ by Lartu (25G24 00:17) --
+// -- NariVM for LSPL in C++ by Lartu (25G24 00:17) --
 
 #include <iostream>
 #include <map>
@@ -1690,7 +1690,7 @@ public:
     {
         auto found = error_value.get_table()->find("message");
         message = found == error_value.get_table()->end()
-                      ? "Katalyn runtime error"
+                      ? "LSPL runtime error"
                       : found->second.get_as_string();
     }
 
@@ -2826,7 +2826,7 @@ Value normalized_raised_value(Value value)
     if (value.get_type() != TABLE)
         raise_nvm_error("raise expects TEXT or an error TABLE.");
     auto &fields = *value.get_table();
-    if (!fields.count("message")) fields["message"] = text_value("Katalyn error");
+    if (!fields.count("message")) fields["message"] = text_value("LSPL error");
     if (!fields.count("kind")) fields["kind"] = text_value("Error");
     if (fields["message"].get_type() != TEXT)
         raise_nvm_error("Raised error TABLE field 'message' must be TEXT.");

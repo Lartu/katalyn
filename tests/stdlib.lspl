@@ -1,4 +1,4 @@
-import "assert.kat";
+import "assert.lspl";
 
 $a: arr(3, 1, 2, 1);
 check(len($a) = 4, "arr");
@@ -26,9 +26,9 @@ check("cat" :: $membership, "tuple");
 
 check(join("a", 2, "c") = "a2c", "join");
 check(join_with("-", "a", "b", "c") = "a-b-c", "join_with");
-check(index("katalyn", "tal") = 3, "index");
-check(starts_with("katalyn", "kat"), "starts_with");
-check(ends_with("katalyn", "lyn"), "ends_with");
+check(index("lspl", "spl") = 2, "index");
+check(starts_with("lspl", "ls"), "starts_with");
+check(ends_with("lspl", "pl"), "ends_with");
 check(is_whitespace(" \n\t"), "is_whitespace");
 check(ltrim("  x") = "x", "ltrim whitespace");
 check(rtrim("x  ") = "x", "rtrim whitespace");
@@ -43,8 +43,8 @@ check(trim("short", "longer") = "short", "trim needle longer than text");
 check(trim("unchanged", "") = "unchanged", "trim empty needle is a no-op");
 check(trim("😀😀hello😀😀", "😀") = "hello", "trim Unicode custom needle");
 
-check(ucase("Katalyn 2") = "KATALYN 2", "ucase");
-check(lcase("KATALYN 2") = "katalyn 2", "lcase");
+check(ucase("LSPL 2") = "LSPL 2", "ucase");
+check(lcase("LSPL 2") = "lspl 2", "lcase");
 check(ucasefirst("hELLO") = "Hello", "ucasefirst");
 check(title("hELLO wORLD") = "Hello World", "title");
 

@@ -1,14 +1,14 @@
-KATALYN CGI PROGRAMMING
+LSPL CGI PROGRAMMING
 APACHE AND NATIVE JSON REFERENCE
 August 2026
 ================================
 
-Katalyn can run as a CGI interpreter under Apache HTTP Server. Apache handles
-HTTP, TLS, process management, and routing. It starts a fresh Katalyn process
-for each request; Katalyn reads the CGI environment and request body, executes
+LSPL can run as a CGI interpreter under Apache HTTP Server. Apache handles
+HTTP, TLS, process management, and routing. It starts a fresh LSPL process
+for each request; LSPL reads the CGI environment and request body, executes
 the script, and writes a CGI response to standard output.
 
-Katalyn remains experimental software and has not received a production
+LSPL remains experimental software and has not received a production
 security audit. Use body limits, validate all input, avoid shell commands built
 from request data, and begin with personal or low-risk services.
 
@@ -32,7 +32,7 @@ CONTENTS
 01 Build and install
 --------------------
 
-Build, test, and install Katalyn:
+Build, test, and install LSPL:
 
     make
     make test
@@ -40,14 +40,14 @@ Build, test, and install Katalyn:
 
 The default installation path is:
 
-    /usr/local/bin/kat
+    /usr/local/bin/lspl
 
 The first line of each CGI script must name the actual absolute interpreter
 path:
 
-    #!/usr/local/bin/kat
+    #!/usr/local/bin/lspl
 
-Katalyn treats that shebang as a line comment when it reads the source.
+LSPL treats that shebang as a line comment when it reads the source.
 
 
 02 Configure Apache
@@ -65,17 +65,17 @@ threaded MPM. A typical configuration reserves one directory for CGI scripts:
 
 Copy the script there and make it executable:
 
-    cp examples/apache_cgi.kat /usr/local/apache2/cgi-bin/
-    chmod 755 /usr/local/apache2/cgi-bin/apache_cgi.kat
+    cp examples/apache_cgi.lspl /usr/local/apache2/cgi-bin/
+    chmod 755 /usr/local/apache2/cgi-bin/apache_cgi.lspl
 
 The exact Apache configuration and directories vary by operating system and
 package. The web-server user must be allowed to execute both the script and the
-Katalyn interpreter. Files accessed by the script need appropriate permissions.
+LSPL interpreter. Files accessed by the script need appropriate permissions.
 
 Test the script itself before involving Apache:
 
     REQUEST_METHOD=GET QUERY_STRING='name=Lartu' \
-        /usr/local/apache2/cgi-bin/apache_cgi.kat
+        /usr/local/apache2/cgi-bin/apache_cgi.lspl
 
 The output must begin with CGI headers, followed by an empty line and the body.
 
@@ -83,7 +83,7 @@ The output must begin with CGI headers, followed by an empty line and the body.
 03 First CGI script
 -------------------
 
-    #!/usr/local/bin/kat
+    #!/usr/local/bin/lspl
 
     $request: cgi_request();
     $name: "world";
@@ -100,11 +100,11 @@ The output must begin with CGI headers, followed by an empty line and the body.
 
 A request for:
 
-    /cgi-bin/hello.kat?name=Katalyn
+    /cgi-bin/hello.lspl?name=LSPL
 
 returns JSON equivalent to:
 
-    {"message":"Hello, Katalyn!"}
+    {"message":"Hello, LSPL!"}
 
 
 04 The request table
@@ -146,7 +146,7 @@ Header names are lowercase and use hyphens:
     $request{headers}{content-type}
 
 Apache exposes ordinary request headers as HTTP_* environment variables.
-Katalyn strips HTTP_, lowercases the name, and converts underscores to hyphens.
+LSPL strips HTTP_, lowercases the name, and converts underscores to hyphens.
 CONTENT_TYPE and CONTENT_LENGTH are included as headers too.
 
 The body is read only once. Calling read_stdin() or read_stdin_bytes() after
@@ -172,14 +172,14 @@ Example with additional headers:
 
     $headers: table;
     $headers["Cache-Control"]: "no-store";
-    $headers["X-Application"]: "Katalyn";
+    $headers["X-Application"]: "LSPL";
 
     cgi_response(201,
                  "application/json; charset=utf-8",
                  "{\"created\":true}",
                  $headers);
 
-Katalyn writes Status and Content-Type itself. Do not put those names in the
+LSPL writes Status and Content-Type itself. Do not put those names in the
 headers table. Header names may contain ASCII letters, digits, and hyphens.
 Header names, values, and content_type containing carriage returns or newlines
 are rejected to prevent response-header injection.
@@ -251,11 +251,11 @@ parse_query(text)
 
 For a URL ending in:
 
-    ?search=Katalyn+CGI&page=2&empty=
+    ?search=LSPL+CGI&page=2&empty=
 
 cgi_request() produces:
 
-    $request{query}{search}  # "Katalyn CGI"
+    $request{query}{search}  # "LSPL CGI"
     $request{query}{page}    # "2"
     $request{query}{empty}   # ""
 
@@ -278,31 +278,31 @@ implement a careful bounded parser.
 
 json_decode(text)
 
-    Parse one complete JSON value. Objects become Katalyn tables. Arrays become
+    Parse one complete JSON value. Objects become LSPL tables. Arrays become
     dense one-based tables. Strings decode all JSON escapes, including Unicode
     surrogate pairs. Numbers support JSON fractions and exponents. true and
-    false become Katalyn numbers 1 and 0. null becomes nil.
+    false become LSPL numbers 1 and 0. null becomes nil.
 
     Trailing non-whitespace text, malformed numbers, malformed escapes,
     unpaired surrogates, and incomplete structures produce a runtime error.
 
 json_encode(value)
 
-    Encode a Katalyn value as compact JSON. Text becomes a JSON string, numbers
+    Encode a LSPL value as compact JSON. Text becomes a JSON string, numbers
     become JSON numbers, nil becomes null, and tables become arrays or objects.
 
     A nonempty table is encoded as an array only when its keys are exactly the
     dense sequence 1 through len(table). Other tables, including empty tables,
-    are encoded as objects. Object keys are emitted in Katalyn's lexical table
+    are encoded as objects. Object keys are emitted in LSPL's lexical table
     order. Cyclic tables and non-finite numbers are rejected.
 
-    Because Katalyn has one table type, an empty decoded JSON array and an empty
+    Because LSPL has one table type, an empty decoded JSON array and an empty
     decoded JSON object are indistinguishable and both encode as {}. Likewise,
     an object whose only keys form the dense sequence "1", "2", and so on will
     encode as an array. Avoid decode-and-reencode as an identity operation when
     those distinctions matter.
 
-Katalyn does not have a separate boolean type. Consequently decoded true and
+LSPL does not have a separate boolean type. Consequently decoded true and
 false are 1 and 0, and encoding them again emits 1 and 0. null remains nil when
 stored in a table produced by json_decode().
 
@@ -321,9 +321,9 @@ Example:
 09 Complete API example
 -----------------------
 
-See examples/apache_cgi.kat. It demonstrates:
+See examples/apache_cgi.lspl. It demonstrates:
 
-  * a directly executable Katalyn shebang;
+  * a directly executable LSPL shebang;
   * a 1 MiB request-body limit;
   * GET query parameters;
   * POST JSON bodies;
@@ -354,7 +354,7 @@ See examples/apache_cgi.kat. It demonstrates:
   * Restrict filesystem permissions for the Apache account. Keep secrets and
     writable files outside publicly served directories.
 
-  * CGI starts and compiles a new Katalyn process for every request. This gives
+  * CGI starts and compiles a new LSPL process for every request. This gives
     strong request isolation but is slower than a persistent application server.
     It is appropriate first for personal and low-traffic applications.
 
@@ -377,10 +377,10 @@ See examples/apache_cgi.kat. It demonstrates:
     read_stdin_bytes([length])             immutable binary input
     url_decode(text[, plus_as_space])      decoded text
     parse_query(text)                      decoded parameter table
-    json_decode(text)                      decoded Katalyn value
+    json_decode(text)                      decoded LSPL value
     json_encode(value)                     compact JSON text
     cgi_request([maximum_body_bytes])      normalized request table
     cgi_response(status, type, body[, h])  write TEXT/BYTES response; return 1
 
 
-END OF KATALYN CGI REFERENCE
+END OF LSPL CGI REFERENCE

@@ -13,7 +13,7 @@
 #include <unordered_set>
 #include <utility>
 
-namespace katalyn
+namespace lspl
 {
     namespace
     {
@@ -56,7 +56,7 @@ namespace katalyn
         [[noreturn]] void fail(std::string_view phase, const Token &token, const std::string &message)
         {
             std::ostringstream out;
-            out << "\n=== Katalyn " << phase << " Error ===\n"
+            out << "\n=== LSPL " << phase << " Error ===\n"
                 << "- Where? In file '" << token.file << "', on line " << token.line << ".\n"
                 << "- Error Message: " << message << "\n";
             throw std::runtime_error(out.str());
@@ -1365,4 +1365,4 @@ namespace katalyn
 
     const char *version() { return "0.1.0"; }
 
-} // namespace katalyn
+} // namespace lspl

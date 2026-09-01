@@ -1,4 +1,4 @@
-import "assert.kat";
+import "assert.lspl";
 
 def add_all;
     $total: 0;

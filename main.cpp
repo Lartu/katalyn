@@ -11,7 +11,7 @@
 namespace {
 void help() {
     std::cout
-        << "Usage: kat [switches] <source file> [arguments...]\n"
+        << "Usage: lspl [switches] <source file> [arguments...]\n"
         << "  -a <source>             read source from argument\n"
         << "  -h, --help              print this information\n"
         << "  -i                      print internal representation instead of executing\n"
@@ -26,15 +26,15 @@ void version() {
         build_date.erase(4, 1);
 
     std::cout << R"(
- The__  __.       __         .__
- |    |/ _|____ _/  |______  |  | ___.__. ____
- |      < \__  \\   __\__  \ |  |<   |  |/    \
- |    |  \ / __ \|  |  / __ \|  |_\___  |   |  \
- |____|__ (____  /__| (____  /____/ ____|___|  /
-        \/    \/          \/ Programming Language
+  _      ____  ____  _
+ | |    / ___||  _ \| |
+ | |    \___ \| |_) | |
+ | |___  ___) |  __/| |___
+ |_____||____/|_|   |_____|
+             Programming Language
 
 )"
-              << "This is Katalyn version " << katalyn::version()
+              << "This is LSPL version " << lspl::version()
               << ", running on the NariVM.\n"
               << "Built on " << build_date << " at " << __TIME__ << ".\n"
               << "Copyright 2024, Lartu (www.lartu.net).\n\n";
@@ -96,8 +96,8 @@ int main(int argc, char** argv) {
             return 1;
         }
 
-        katalyn::Compiler compiler;
-        katalyn::CompileOptions options;
+        lspl::Compiler compiler;
+        lspl::CompileOptions options;
         options.include_standard_library = !no_stdlib;
         options.arguments = std::move(script_arguments);
         std::string nambly;

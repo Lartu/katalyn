@@ -1,4 +1,4 @@
-syntax "Katalyn" "\.kat$"
+syntax "LSPL" "\.lspl$"
 
 # Separator :
 color white ":"

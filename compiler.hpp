@@ -4,7 +4,7 @@
 #include <memory>
 #include <vector>
 
-namespace katalyn {
+namespace lspl {
 
 struct CompileOptions {
     bool include_standard_library = true;
@@ -32,4 +32,4 @@ private:
 
 const char* version();
 
-} // namespace katalyn
+} // namespace lspl

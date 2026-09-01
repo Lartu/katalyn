@@ -1,4 +1,4 @@
-KATALYN PROGRAMMING LANGUAGE
+LSPL PROGRAMMING LANGUAGE
 COMPLETE REFERENCE
 Plain-text edition - August 2026
 ========================================
@@ -6,11 +6,11 @@ Plain-text edition - August 2026
 This manual is designed for terminals, text editors, vintage systems, and
 offline use. On Unix-like systems, read it with:
 
-    less KATALYN-MANUAL.txt
+    less LSPL-MANUAL.txt
 
 or:
 
-    more KATALYN-MANUAL.txt
+    more LSPL-MANUAL.txt
 
 CONTENTS
 --------
@@ -38,14 +38,14 @@ CONTENTS
 
 01 Introduction
 
-   Katalyn is a small interpreted scripting language created by Lartu. It favors a compact
+   LSPL is a small interpreted scripting language created by Lartu. It favors a compact
    vocabulary, semicolon-terminated statements, dynamically typed values, one-based array
    conventions, associative tables, and block endings written as ok;. The current interpreter
    compiles source to Nambly VM instructions in memory and immediately executes them.
 
    This manual documents the behavior of the current C++ implementation in this repository. It
    combines the historical manual, both earlier HTML manuals, the compiler and VM source, the
-   command-line program, and the bundled stdlib.kat. Where an implementation detail differs
+   command-line program, and the bundled stdlib.lspl. Where an implementation detail differs
    from an intuitive or documented intention, the difference is called out explicitly.
 
   A first program
@@ -67,7 +67,7 @@ ok;
      * Tables serve as dictionaries, arrays, sets, records, and lightweight objects.
      * Functions are declared with def; all arguments arrive in the table $_.
      * Blocks end with ok;, not braces.
-     * The standard library is written in Katalyn and embedded into the executable at build
+     * The standard library is written in LSPL and embedded into the executable at build
        time.
      * There are no classes, modules, booleans as a distinct type, or a source-level nil
        literal. Runtime errors use try, catch, finally, and raise.
@@ -79,31 +79,31 @@ ok;
 
    A C++17 compiler and make are required. From the repository root:
 make
-./build/kat examples/disan_count.kat
+./build/lspl examples/disan_count.lspl
 
-   The executable is build/kat. Useful maintenance targets are:
+   The executable is build/lspl. Useful maintenance targets are:
 
    Command Effect
    make Compile the interpreter and embed the current standard library.
    make test Build and run the language, standard-library, CLI, import, and file-I/O
    regression suites.
-   make run SCRIPT=file.kat Build if necessary, then run one script.
+   make run SCRIPT=file.lspl Build if necessary, then run one script.
    make clean Remove the generated build directory.
-   make install Install kat in /usr/local/bin by default. Override with PREFIX or DESTDIR.
+   make install Install lspl in /usr/local/bin by default. Override with PREFIX or DESTDIR.
 
   Run source
 
-kat program.kat one two three
-kat -a 'print("Hello from an argument!");'
-printf 'print("Hello from standard input!");' | kat -s
-kat -n program.kat
+lspl program.lspl one two three
+lspl -a 'print("Hello from an argument!");'
+printf 'print("Hello from standard input!");' | lspl -s
+lspl -n program.lspl
 
    The normal form loads the bundled standard library before the program. -n omits it. -a runs
    the next argument as source text; -s reads source from standard input. Arguments after the
-   selected source are available to Katalyn as $_args.
+   selected source are available to LSPL as $_args.
 
-   Portable scripts. A Unix script may begin with #!/usr/bin/env kat. The line is harmless
-   to Katalyn because it begins with #.
+   Portable scripts. A Unix script may begin with #!/usr/bin/env lspl. The line is harmless
+   to LSPL because it begins with #.
 
 
 03 Source and lexical rules
@@ -175,7 +175,7 @@ print($message); print("second statement");
 
    Kind Examples and origin False when
    Number 12, -4, 3.5; internally a floating-point value. It is zero.
-   Text "Katalyn", input, file and process output. It is empty.
+   Text "LSPL", input, file and process output. It is empty.
    Table table, arrays, records, function argument lists. It has no entries.
    Bytes bytes(0, 255), binary files, encoded text, and raw input. It contains no bytes.
    PID self() and spawn(worker); an opaque worker identity. Never false.
@@ -228,7 +228,7 @@ ok;
   Nil truth table
 
    Nil represents absence rather than an ordinary comparable value. A missing table key is
-   used below to produce it because Katalyn has no nil literal.
+   used below to produce it because LSPL has no nil literal.
 
           Operation        Result
    Nil used as a condition False
@@ -330,7 +330,7 @@ ok;
 
   Precedence
 
-   Katalyn follows the conventional mathematical/programming hierarchy below, from tightest to
+   LSPL follows the conventional mathematical/programming hierarchy below, from tightest to
    loosest:
     1. ^
     2. Prefix ! and unary -
@@ -370,7 +370,7 @@ ok;
   Tables are the universal collection
 
 $person: table;
-$person{name}: "Katalyn";
+$person{name}: "LSPL";
 $person["year"]: 2026;
 
 $numbers: arr(10, 20, 30);
@@ -414,7 +414,7 @@ $c: prototype($a);    # new outer table
 
   Unicode semantics
 
-   Katalyn stores text as UTF-8 and lazily caches code-point boundaries. Consequently, len,
+   LSPL stores text as UTF-8 and lazily caches code-point boundaries. Consequently, len,
    indexing, substr, and for operate efficiently in Unicode code points rather than bytes. The
    cache is built once per text value and shared by copies.
 $text: "á猫🙂";
@@ -423,7 +423,7 @@ print($text[2]);             # 猫
 print(substr($text, 2, 2));  # 猫🙂
 
    A code point is not necessarily one user-perceived character. A decomposed e followed by a
-   combining accent has length 2, and the joined family emoji 👨‍👩‍👧‍👦 has length 7. Katalyn
+   combining accent has length 2, and the joined family emoji 👨‍👩‍👧‍👦 has length 7. LSPL
    does not normalize canonically equivalent spellings. Malformed UTF-8 is tolerated: each
    invalid byte is treated as one independently indexable unit so file and process data cannot
    crash text operations.
@@ -465,7 +465,7 @@ def greet;
     return len($name);
 ok;
 
-$length: greet("Katalyn");
+$length: greet("LSPL");
 
    A definition has no parameter list. All arguments are placed into the local one-based table
    $_, making every function naturally variadic. There are no formal arity declarations or
@@ -575,7 +575,7 @@ ok;
 
 09A Concurrency and workers
 
-   Katalyn uses actor-style concurrency. Every worker has an isolated VM runtime and a private
+   LSPL uses actor-style concurrency. Every worker has an isolated VM runtime and a private
    FIFO inbox. Workers do not share mutable variables; they communicate by sending copied
    values to PIDs. Scheduling is automatic. There is no yield() function and programs do not
    need to cooperate with the scheduler.
@@ -637,13 +637,13 @@ $result: wait($worker);
 
   Lifetime and implementation
 
-   When root source ends normally, kat waits for every worker. A worker left forever in
+   When root source ends normally, lspl waits for every worker. A worker left forever in
    receive() keeps the program alive, so long-running actors need an explicit stop message.
    exit(status) terminates the entire process.
 
-   The current backend uses one native C++ thread per Katalyn worker. Inbox waits use condition
+   The current backend uses one native C++ thread per LSPL worker. Inbox waits use condition
    variables and do not poll. Console streams and process environment are shared; concurrent
-   output may interleave. See examples/concurrency.kat for a complete counter actor.
+   output may interleave. See examples/concurrency.lspl for a complete counter actor.
 
 
 10 Console input and output
@@ -741,7 +741,7 @@ print("status: ", $status);
 print("out: ", $_stdout);
 print("err: ", $_stderr);
 
-   exec is synchronous: Katalyn waits for the child process. It captures exact standard output
+   exec is synchronous: LSPL waits for the child process. It captures exact standard output
    and standard error, updates $_stdout, $_stderr, and $_exitcode, and returns the numeric
    exit code. Multiple arguments are concatenated with no inserted separator, so these two
    forms differ:
@@ -749,7 +749,7 @@ exec("printf ", "'hello'");  # compiler joins to: printf 'hello'
 exec("printf", "'hello'");   # compiler joins to: printf'hello'
 
    The command is interpreted according to the process library and host platform. Treat
-   untrusted text as dangerous: Katalyn does not provide structured argument escaping.
+   untrusted text as dangerous: LSPL does not provide structured argument escaping.
 
   Sleeping
 
@@ -766,8 +766,8 @@ print("done");
 
 13 Imports
 
-import "helpers.kat";
-import "models/person.kat";
+import "helpers.lspl";
+import "models/person.lspl";
 
    An import path must be static quoted text. It is resolved relative to the file containing
    the import, not necessarily the process working directory. Imported source is compiled
@@ -907,13 +907,13 @@ import "models/person.kat";
    cgi_request returns method, query_string, query, content_type, content_length, body,
    body_bytes, form, path_info, script_name, remote_addr, request_uri, headers, and environment
    fields. body is the compatibility TEXT view; body_bytes preserves exact BYTES. See
-   docs-complete/KATALYN-CGI.txt and examples/apache_cgi.kat for the complete CGI reference.
+   docs-complete/LSPL-CGI.txt and examples/apache_cgi.lspl for the complete CGI reference.
 
 
 15 Standard library reference
 
-   The following Katalyn functions are prepended to ordinary programs. They are unavailable
-   under -n. Since the library is embedded during make, editing stdlib.kat requires rebuilding
+   The following LSPL functions are prepended to ordinary programs. They are unavailable
+   under -n. Since the library is embedded during make, editing stdlib.lspl requires rebuilding
    the executable.
 
   Constants and collections
@@ -948,7 +948,7 @@ import "models/person.kat";
    join_with(separator, values...) Join the remaining arguments with the first argument.
    index(haystack, needle) Return the one-based Unicode code-point position of the first
    occurrence or 0.
-   replace_slow(text, needle, replacement) Katalyn-level all-occurrences replacement retained
+   replace_slow(text, needle, replacement) LSPL-level all-occurrences replacement retained
    for compatibility; native replace is preferred.
    starts_with(text, prefix) Numeric truth value for a prefix match.
    ends_with(text, suffix) Numeric truth value for a suffix match.
@@ -1010,15 +1010,15 @@ import "models/person.kat";
    and does not use the shell.
 
    Native JSON implements objects, arrays, strict number grammar, strings and escapes,
-   surrogate pairs, booleans, and null. Katalyn has no distinct boolean type, so decoded JSON
+   surrogate pairs, booleans, and null. LSPL has no distinct boolean type, so decoded JSON
    booleans become numeric 1 and 0 and re-encode as those numbers.
 
 
 16 Command-line reference
 
-kat [options] <script.kat> [script arguments...]
-kat [options] -a <source> [script arguments...]
-kat [options] -s [script arguments...] < source.kat
+lspl [options] <script.lspl> [script arguments...]
+lspl [options] -a <source> [script arguments...]
+lspl [options] -s [script arguments...] < source.lspl
 
    Option Meaning
    -a SOURCE Compile and execute source supplied as the next command-line argument.
@@ -1036,12 +1036,12 @@ kat [options] -s [script arguments...] < source.kat
 
    For a file-backed program, $_scriptpath contains the normalized absolute filename of that
    main script and $_scriptdir contains its absolute parent directory. For -a and -s both are
-   nil. $_wdir contains the absolute directory from which Katalyn was invoked. Imported files
+   nil. $_wdir contains the absolute directory from which LSPL was invoked. Imported files
    do not replace either script-location value.
 
   Standard library loading
 
-   Normally, stdlib.kat behaves as though its source appeared before the user program. Thus
+   Normally, stdlib.lspl behaves as though its source appeared before the user program. Thus
    its globals and functions are visible and may be shadowed later. -n is useful for the
    smallest runtime surface, VM/compiler testing, or programs that provide their own library.
 
@@ -1133,7 +1133,7 @@ kat [options] -s [script arguments...] < source.kat
      * The native-thread backend is intended for moderate worker counts, not millions of
        Erlang-style processes.
 
-   Robust Katalyn style. Define before use, keep arrays dense and one-based, probe optional
+   Robust LSPL style. Define before use, keep arrays dense and one-based, probe optional
    data with is, use parentheses freely, use substr for end-relative text, verify files with
    is_open, treat shell input as trusted-only, and use the native JSON functions
    for strict parsing and correct escaping.
@@ -1183,7 +1183,7 @@ comment          := "#" text-to-newline
 
   Complete miniature program
 
-# stats.kat
+# stats.lspl
 def average;
     $total: 0;
     $count: 0;
@@ -1205,7 +1205,7 @@ for $_args;
 ok;
 
 unless len($values);
-    halt("usage: kat stats.kat NUMBER ...");
+    halt("usage: lspl stats.lspl NUMBER ...");
 ok;
 
 sort($values);
@@ -1272,5 +1272,5 @@ ok;
    Native function names are listed in chapter 14; standard-library names are ordinary user
    functions that may be shadowed.
 
-   Katalyn Complete Reference. Compiled from the project manual and the current C++ compiler,
+   LSPL Complete Reference. Compiled from the project manual and the current C++ compiler,
    VM, CLI, examples, and standard library. This plain-text edition is fully readable offline.

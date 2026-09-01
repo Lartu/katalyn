@@ -1,4 +1,4 @@
-# Katalyn benchmarks
+# LSPL benchmarks
 
 Run the small, dependency-free benchmark suite with:
 
